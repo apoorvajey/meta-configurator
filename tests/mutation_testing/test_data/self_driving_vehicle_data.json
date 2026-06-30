@@ -1,0 +1,94 @@
+{
+  "SimulationName": "Sim_UrbanCommute2024",
+  "SelfDrivingVehicle": {
+    "StartingLocation": { "x": 12.5, "y": 48.3 },
+    "Destination": { "x": 98.7, "y": 112.4 },
+    "PlanningAlgorithm": "A* search",
+    "VehicleType": "Level 4",
+    "PassengerCapacity": 6,
+    "MaxSpeed": 120,
+    "is4-Wheel-Drive": true,
+    "Sensors": [
+      { "name": "Sensor01", "type": "lidar", "range": 400, "position": { "x": 0.0, "y": 2.5 } },
+      { "name": "Sensor02", "type": "radar", "range": 250, "position": { "x": 1.2, "y": 0.0 } },
+      { "name": "Sensor03", "type": "ultrasonic", "range": 50, "position": { "x": -1.2, "y": 0.0 } },
+      { "name": "Sensor04", "type": "lidar", "range": 300, "position": { "x": 0.0, "y": -2.5 } }
+    ]
+  },
+  "Environment": {
+    "Weather": "cloudy",
+    "Temperature": 18.5,
+    "Humidity": 72
+  },
+  "Waypoints": {
+    "Alpha": {
+      "point": { "x": 12.5, "y": 48.3 },
+      "connectedWaypoints": ["Beta", "Gamma"],
+      "waypointType": "street"
+    },
+    "Beta": {
+      "point": { "x": 35.0, "y": 60.0 },
+      "connectedWaypoints": ["Alpha", "Delta"],
+      "waypointType": "trafficLight"
+    },
+    "Gamma": {
+      "point": { "x": 20.0, "y": 75.0 },
+      "connectedWaypoints": ["Alpha", "Delta"],
+      "waypointType": "pedestrianCrossing"
+    },
+    "Delta": {
+      "point": { "x": 55.0, "y": 80.0 },
+      "connectedWaypoints": ["Beta", "Gamma", "Epsilon"],
+      "waypointType": "stopSign"
+    },
+    "Epsilon": {
+      "point": { "x": 80.0, "y": 95.0 },
+      "connectedWaypoints": ["Delta", "Zeta"],
+      "waypointType": "street"
+    },
+    "Zeta": {
+      "point": { "x": 98.7, "y": 112.4 },
+      "connectedWaypoints": ["Epsilon"],
+      "waypointType": "street"
+    }
+  },
+  "Vehicles": {
+    "car1": {
+      "VehicleType": "car",
+      "PathToDrive": ["Alpha", "Beta", "Delta", "Epsilon"],
+      "DrivingSpeed": 50,
+      "IsElectric": true,
+      "DriverBehavior": { "AggressivenessFactor": 0.3, "ReactionTime": 250, "Distraction": 0.1, "Fatigue": 0.05 }
+    },
+    "car2": {
+      "VehicleType": "car",
+      "PathToDrive": ["Gamma", "Delta", "Zeta"],
+      "DrivingSpeed": 40,
+      "IsElectric": false,
+      "DriverBehavior": { "AggressivenessFactor": 0.7, "ReactionTime": 400, "Distraction": 0.4, "Fatigue": 0.2 }
+    },
+    "truck1": {
+      "VehicleType": "truck",
+      "PathToDrive": ["Beta", "Delta", "Epsilon", "Zeta"],
+      "DrivingSpeed": 30,
+      "IsElectric": false,
+      "DriverBehavior": { "AggressivenessFactor": 0.2, "ReactionTime": 500, "Distraction": 0.15, "Fatigue": 0.6 }
+    },
+    "bus1": {
+      "VehicleType": "bus",
+      "PathToDrive": ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"],
+      "DrivingSpeed": 40,
+      "IsElectric": true,
+      "DriverBehavior": { "AggressivenessFactor": 0.1, "ReactionTime": 300, "Distraction": 0.05, "Fatigue": 0.3 }
+    }
+  },
+  "PedestrianGroups": [
+    { "Count": 5, "Path": ["Alpha", "Gamma", "Delta"], "Speed": 4.5 },
+    { "Count": 12, "Path": ["Gamma", "Delta"], "Speed": 3.0 },
+    { "Count": 2, "Path": ["Beta", "Delta", "Epsilon"], "Speed": 6.0 }
+  ],
+  "SimulationSettings": {
+    "Duration": 30,
+    "TimeUnit": "minutes"
+  }
+}
