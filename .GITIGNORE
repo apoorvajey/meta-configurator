@@ -4,3 +4,16 @@ dist
 out
 auxil
 /meta_configurator/public/test-fixtures/
+
+# Mutation testing generated outputs
+invariant_miner_traces/
+daikon_traces/
+mutation_screenshots/
+history.json
+mutation_log.html
+mutation_terminal.log
+replay_log.html
+
+__pycache__/
+*.pyc
+
