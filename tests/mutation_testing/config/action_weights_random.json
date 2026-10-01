@@ -1,0 +1,92 @@
+{
+  "_comment": "Every weight at every level (Mode, View, Action type) is equal. No undo/redo boosting, and clear_text weighs the same as every other Text View action. Schema Diagram and Settings stay disabled because they are not discovered yet.",
+
+  "Schema Editor": {
+    "weight": 1,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 1,
+        "enabled": true,
+        "children": {
+          "add_item_required":      {"weight": 1, "enabled": true},
+          "add_item_or_property":   {"weight": 1, "enabled": true},
+          "input_select_input":     {"weight": 1, "enabled": true},
+          "input_select_other":     {"weight": 1, "enabled": true},
+          "fill":                   {"weight": 1, "enabled": true},
+          "rename":                 {"weight": 1, "enabled": true},
+          "remove_property":        {"weight": 1, "enabled": true},
+          "expand":                 {"weight": 1, "enabled": true},
+          "collapse":               {"weight": 1, "enabled": true},
+          "mode_switch":            {"weight": 1, "enabled": true},
+          "format_selector":        {"weight": 1, "enabled": true},
+          "undo_redo_base":         {"weight": 1, "enabled": true},
+          "undo_redo_boosted":      {"weight": 1, "enabled": true},
+          "default":                {"weight": 1, "enabled": true}
+        }
+      },
+      "Schema Diagram": {
+        "weight": 0,
+        "enabled": false,
+        "children": {}
+      },
+      "Text View": {
+        "weight": 1,
+        "enabled": true,
+        "children": {
+          "edit_text":              {"weight": 1, "enabled": true},
+          "add_child_text":         {"weight": 1, "enabled": true},
+          "change_type_text":       {"weight": 1, "enabled": true},
+          "remove_child_text":      {"weight": 1, "enabled": true},
+          "rename_child_text":      {"weight": 1, "enabled": true},
+          "add_array_item_text":    {"weight": 1, "enabled": true},
+          "remove_array_item_text": {"weight": 1, "enabled": true},
+          "clear_text":             {"weight": 1, "enabled": true}
+        }
+      }
+    }
+  },
+
+  "Data Editor": {
+    "weight": 1,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 1,
+        "enabled": true,
+        "children": {
+          "add_item_required":      {"weight": 1, "enabled": true},
+          "add_item_or_property":   {"weight": 1, "enabled": true},
+          "input_select_input":     {"weight": 1, "enabled": true},
+          "input_select_other":     {"weight": 1, "enabled": true},
+          "fill":                   {"weight": 1, "enabled": true},
+          "rename":                 {"weight": 1, "enabled": true},
+          "remove_property":        {"weight": 1, "enabled": true},
+          "expand":                 {"weight": 1, "enabled": true},
+          "collapse":               {"weight": 1, "enabled": true},
+          "mode_switch":            {"weight": 1, "enabled": true},
+          "format_selector":        {"weight": 1, "enabled": true},
+          "undo_redo_base":         {"weight": 1, "enabled": true},
+          "undo_redo_boosted":      {"weight": 1, "enabled": true},
+          "default":                {"weight": 1, "enabled": true}
+        }
+      },
+      "Text View": {
+        "weight": 1,
+        "enabled": true,
+        "children": {
+          "edit_text":              {"weight": 1, "enabled": true},
+          "add_child_text":         {"weight": 1, "enabled": true},
+          "change_type_text":       {"weight": 1, "enabled": true},
+          "remove_child_text":      {"weight": 1, "enabled": true},
+          "rename_child_text":      {"weight": 1, "enabled": true},
+          "add_array_item_text":    {"weight": 1, "enabled": true},
+          "remove_array_item_text": {"weight": 1, "enabled": true},
+          "clear_text":             {"weight": 1, "enabled": true}
+        }
+      }
+    }
+  },
+
+  "Settings": {"weight": 0, "enabled": false, "children": {}}
+}

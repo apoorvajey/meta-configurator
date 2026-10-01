@@ -7,7 +7,6 @@ Helpers for reading and writing the text/code editor panel (Ace editor).
 """
 
 from __future__ import annotations
-import json
 from typing import Any
 from playwright.sync_api import Page
 
@@ -50,12 +49,32 @@ def check_code_editor_for_text(page: Page, text: str, mode: SessionMode | str = 
         f"Code editor did not contain '{text}'.\nActual content: {content[:200]}"
 
 
+def read_text_editor_raw(page: Page, mode: SessionMode | str = "") -> str | None:
+    """
+    Read the Text View's raw string content with no parsing applied —
+    for building diagnostic messages when read_text_editor_content()
+    fails to parse it under the currently-selected format.
+    """
+    mode_val = mode.value if isinstance(mode, SessionMode) else mode
+    try:
+        return page.evaluate(f"""
+            () => {{
+                const editorEl = document.querySelector('[id^="code-editor-{mode_val}"]');
+                if (!editorEl) return null;
+                return window.ace?.edit(editorEl.id)?.getValue() ?? null;
+            }}
+        """)
+    except Exception:
+        return None
+
+
 def read_text_editor_content(page: Page, mode: SessionMode | str = "") -> Any | None:
     """
     Read the text editor content and parse it according to the
     currently selected format (JSON, YAML, or XML).
     Returns a Python object, or None if parsing fails.
     """
+    import json
     import yaml
 
     # Use JavaScript to read Ace editor value directly
@@ -93,7 +112,6 @@ def read_text_editor_content(page: Page, mode: SessionMode | str = "") -> Any | 
             return json.loads(content)
         except Exception:
             return None
-
 
 # ---------------------------------------------------------------------------
 # Writing

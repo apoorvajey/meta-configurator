@@ -1,0 +1,198 @@
+{
+  "_comment": "Settings for analyze_mutation_logs.py. Keys starting with _ are documentation and are ignored. The file sits next to the script, or pass --config.",
+  "episodes": {
+    "_comment": "An episode is a stretch of consecutive failing steps, reported as one finding.",
+    "max_pass_gap": 2,
+    "_max_pass_gap_note": "Passing steps allowed inside an episode before it ends. Failures that flicker stay one episode.",
+    "blip_max_steps": 3,
+    "_blip_max_steps_note": "An unnamed episode that recovered by itself and lasted at most this many steps is a blip (listed in a table, not as a card).",
+    "repro_window": 8,
+    "_repro_window_note": "Number of actions up to and including the first failing step shown as the reproduction recipe."
+  },
+  "log_markers": {
+    "_comment": "Wording the mutation loop writes into step descriptions. Update these if the log messages change.",
+    "auto_undo": "auto-undo of",
+    "walkback_attempt": "attempting auto-repair",
+    "repair_cleared": "auto-repair cleared",
+    "repair_gave_up": "auto-repair did not clear"
+  },
+  "undo_redo_action_ids": [
+    "undo",
+    "redo",
+    "schema_undo",
+    "schema_redo"
+  ],
+  "panels": {
+    "dataEditor": "Data panel",
+    "schemaEditor": "Schema panel"
+  },
+  "invariants": {
+    "_comment": "Plain-language statement of what must always hold. Rules not listed here use the name from the log.",
+    "INV-S0": "The schema held by the editor is always a valid JSON object",
+    "INV-S3": "The title shown in the Schema panel matches the schema MetaConfigurator holds internally",
+    "INV-D1": "The Data Text View parses to exactly the same object as the editor's internal data",
+    "INV-D3": "The GUI's required-field stars match the schema's required list",
+    "INV-D4": "Every GUI row has a matching data key, and no stale values are left in the GUI",
+    "INV-D5": "String values shown in the GUI match the data",
+    "INV-D6": "The GUI's validation icons match the schema violations in the data",
+    "INV-S1": "The Schema Text View parses to exactly the same object as the editor's internal schema",
+    "INV-S2": "Every top-level schema key has a visible row in the Schema GUI",
+    "INV-GUI-ERR-01": "A validation error shown in the Text View is also shown by the GUI View's error indicator"
+  },
+  "retired_invariants": {
+    "_comment": "Episodes that fail only these invariants are filtered out.",
+    "INV-D2": "Retired: replaced by temporal invariant TEMP-ADD-03"
+  },
+  "known_bugs": [
+    {
+      "id": "BUG-02",
+      "summary": "Undo leaves an orphaned row across Text View and GUI View",
+      "invariants": [
+        "INV-D4"
+      ],
+      "when_action_kinds": ["undo", "redo"]
+    },
+    {
+      "id": "INV-GUI-ERR-01 finding",
+      "summary": "The 'any'-typed fallback widget does not show the validation-error icon",
+      "invariants": [
+        "INV-GUI-ERR-01"
+      ]
+    }
+  ],
+  "caveats": {
+    "undo_redo_across_panels": "This sequence uses Undo/Redo and touches both panels. Undo stacks are per panel (Data and Schema), so first check that the Undo was pressed in the same panel as the edit; otherwise the failure may not be an app bug."
+  },
+  "screenshots": {
+    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder, one level below it, and <root>/<run_id>.",
+    "enabled": true,
+    "root": "mutation_screenshots",
+    "filename_regex": "^step_(?P<n>\\d+)_(?P<name>.*)$",
+    "max_per_step": 1,
+    "embed_max_mb": 3,
+    "max_width_px": 1100,
+    "_max_width_px_note": "With Pillow installed, images are shrunk to this width and saved as JPEG. 0 embeds the originals.",
+    "jpeg_quality": 75
+  },
+  "state_snapshots": {
+    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run and by replay_runner for a replay. A card shows the diff when files for its run_id are found here. Otherwise it suggests: python -m tests.mutation_testing.replay_runner --history <history.json>",
+    "root": "replay_snapshots",
+    "_root_note": "Files are <root>/<run_id>/step_<N>_before.json and step_<N>_after.json, where N is the 0-based position in the history's 'steps' list."
+  },
+  "report": {
+    "default_html_path": "reports/triage_report.html",
+    "table_max_rows": 15,
+    "open_in_browser": true
+  },
+  "project": {
+    "_comment": "Used in the drafted GitHub issue text and the 'Start here' box.",
+    "app_url": "https://www.metaconfigurator.org/",
+    "new_issue_url": "https://github.com/MetaConfigurator/meta-configurator/issues/new"
+  },
+  "invariant_details": {
+    "_comment": "Optional 'look_for': what is visible on screen when the rule is broken. Rules without an entry get a generic sentence.",
+    "INV-D1": {
+      "look_for": "The Data Text View shows different content than the GUI View shows for the same data."
+    },
+    "INV-S1": {
+      "look_for": "The Schema Text View shows different content than the Schema GUI shows for the same schema."
+    },
+    "INV-D3": {
+      "look_for": "A field's required star is missing in the GUI, or shown on a field that is not required."
+    },
+    "INV-D5": {
+      "look_for": "A text field in the GUI shows a different value than the data contains."
+    },
+    "INV-D6": {
+      "look_for": "A field shows a validation-error icon it should not have, or lacks one it should have."
+    },
+    "INV-S2": {
+      "look_for": "A top-level schema key (such as properties or required) has no row in the Schema GUI."
+    },
+    "INV-S3": {
+      "look_for": "The title field in the Schema panel and the \"title\" in the schema's Text View show different values."
+    },
+    "INV-D4": {
+      "look_for": "The GUI shows a row with content that has no matching key in the data (an orphaned row), or a data key has no row."
+    },
+    "INV-GUI-ERR-01": {
+      "look_for": "The Text View marks a validation error, but the GUI View shows no error icon for that field."
+    }
+  },
+  "time_filter": {
+    "_comment": "How run start times are read for --since and --until: meta.resolved_settings.run_id, then the history file's folder name, then the file's modified time.",
+    "run_id_format": "%Y%m%d_%H%M%S",
+    "input_formats": [
+      "%Y-%m-%d %H:%M",
+      "%Y-%m-%d",
+      "%Y%m%d_%H%M%S",
+      "%Y%m%d"
+    ]
+  },
+  "defaults": {
+    "_comment": "Used when no folder is given.",
+    "paths": [
+      "mutation_history"
+    ]
+  },
+  "log_excerpt": {
+    "_comment": "Rows shown around the first failing action.",
+    "context": 3,
+    "value_max_chars": 60
+  },
+  "episode_sequence": {
+    "_comment": "Maximum rows in 'What happened during this failure'.",
+    "max_rows": 14
+  },
+  "causal": {
+    "_comment": "Settings for causal_analysis.py (the 'Where it likely started' section).",
+    "max_window_rows": 12,
+    "max_lookback_when_no_clean_step": 10,
+    "min_windows_for_stats": 2,
+    "top_kinds": 3,
+    "max_paths_shown": 6,
+    "transition_rule_prefixes": ["INF-", "TEMP-"],
+    "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead. Add NEW- here if NEW-xx rules behave the same way.",
+    "rule_reads": {
+      "_comment": "Which state facets each rule reads, so the report only suspects actions that changed one of them. Facets: de_data, de_schema, se_schema, se_data, de_text, se_text. Rules not listed keep the old behaviour (any state change is a suspect). Please check and adjust.",
+      "INV-D1": ["de_data", "de_text"],
+      "INV-D3": ["de_data", "de_schema"],
+      "INV-D4": ["de_data", "de_schema"],
+      "INV-D5": ["de_data", "de_schema"],
+      "INV-D6": ["de_data", "de_schema"],
+      "INV-GUI-ERR-01": ["de_data", "de_schema", "de_text"],
+      "INV-S0": ["se_schema"],
+      "INV-S1": ["se_schema", "se_text"],
+      "INV-S2": ["se_schema"],
+      "INV-S3": ["se_schema"]
+    }
+  },
+  "issue_report": {
+    "_comment": "Settings for issue_report.py (the short list of distinct problems).",
+    "max_repro_steps": 6,
+    "max_listed": 25,
+    "max_examples": 5,
+    "screenshot_max_width": 1800,
+    "screenshot_quality": 92,
+    "inferred_rule_prefixes": ["INF-"],
+    "_inferred_rule_prefixes_note": "Rules mined automatically from earlier runs. A problem found only by such rules is tagged 'inferred rule' and sorted last, because the rule itself may be wrong.",
+    "short_names": {
+      "INV-D1": "Data Text View differs from the internal data",
+      "INV-D3": "Required-field stars in the GUI are wrong",
+      "INV-D4": "GUI rows do not match the data (orphaned or missing row)",
+      "INV-D5": "String values in the GUI differ from the data",
+      "INV-D6": "Validation icons in the GUI are wrong",
+      "INV-S0": "The schema is no longer a valid object",
+      "INV-S1": "Schema Text View differs from the internal schema",
+      "INV-S2": "A top-level schema key has no GUI row",
+      "INV-S3": "Schema title field differs from the internal schema",
+      "INV-GUI-ERR-01": "Text View shows a validation error the GUI does not",
+      "TEMP-ADD-03": "Adding a required item does not reach the data"
+    }
+  },
+  "run_logs": {
+    "_comment": "The mutation loop's own log files: <root>/<folder or file whose name contains the run id>, also looked up next to mutation_history. The root must be 'mutation_logs' (plural), matching mutation_logs/<run_id>/mutation_log.html.",
+    "root": "mutation_logs",
+    "max_files": 5
+  }
+}

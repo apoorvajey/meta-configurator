@@ -1,0 +1,92 @@
+{
+  "_comment": "Data Editor focus. Data Editor gets a 20:3 Mode-level weight over Schema Editor. Everything else matches the default profile.",
+
+  "Schema Editor": {
+    "weight": 3,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 5,
+        "enabled": true,
+        "children": {
+          "add_item_required":      {"weight": 8, "enabled": true},
+          "add_item_or_property":   {"weight": 8, "enabled": true},
+          "input_select_input":     {"weight": 8, "enabled": true},
+          "input_select_other":     {"weight": 5, "enabled": true},
+          "fill":                   {"weight": 5, "enabled": true},
+          "rename":                 {"weight": 4, "enabled": true},
+          "remove_property":        {"weight": 3, "enabled": true},
+          "expand":                 {"weight": 2, "enabled": true},
+          "collapse":               {"weight": 3, "enabled": true},
+          "mode_switch":            {"weight": 2, "enabled": true},
+          "format_selector":        {"weight": 2, "enabled": true},
+          "undo_redo_base":         {"weight": 2, "enabled": true},
+          "undo_redo_boosted":      {"weight": 5, "enabled": true},
+          "default":                {"weight": 1, "enabled": true}
+        }
+      },
+      "Schema Diagram": {
+        "weight": 0,
+        "enabled": false,
+        "children": {}
+      },
+      "Text View": {
+        "weight": 5,
+        "enabled": true,
+        "children": {
+          "edit_text":              {"weight": 3, "enabled": true},
+          "add_child_text":         {"weight": 3, "enabled": true},
+          "change_type_text":       {"weight": 3, "enabled": true},
+          "remove_child_text":      {"weight": 1, "enabled": true},
+          "rename_child_text":      {"weight": 1, "enabled": true},
+          "add_array_item_text":    {"weight": 3, "enabled": true},
+          "remove_array_item_text": {"weight": 3, "enabled": true},
+          "clear_text":             {"weight": 1, "enabled": true}
+        }
+      }
+    }
+  },
+
+  "Data Editor": {
+    "weight": 20,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 5,
+        "enabled": true,
+        "children": {
+          "add_item_required":      {"weight": 8, "enabled": true},
+          "add_item_or_property":   {"weight": 8, "enabled": true},
+          "input_select_input":     {"weight": 8, "enabled": true},
+          "input_select_other":     {"weight": 5, "enabled": true},
+          "fill":                   {"weight": 5, "enabled": true},
+          "rename":                 {"weight": 4, "enabled": true},
+          "remove_property":        {"weight": 3, "enabled": true},
+          "expand":                 {"weight": 2, "enabled": true},
+          "collapse":               {"weight": 3, "enabled": true},
+          "mode_switch":            {"weight": 2, "enabled": true},
+          "format_selector":        {"weight": 2, "enabled": true},
+          "undo_redo_base":         {"weight": 2, "enabled": true},
+          "undo_redo_boosted":      {"weight": 5, "enabled": true},
+          "default":                {"weight": 1, "enabled": true}
+        }
+      },
+      "Text View": {
+        "weight": 5,
+        "enabled": true,
+        "children": {
+          "edit_text":              {"weight": 3, "enabled": true},
+          "add_child_text":         {"weight": 3, "enabled": true},
+          "change_type_text":       {"weight": 3, "enabled": true},
+          "remove_child_text":      {"weight": 1, "enabled": true},
+          "rename_child_text":      {"weight": 1, "enabled": true},
+          "add_array_item_text":    {"weight": 3, "enabled": true},
+          "remove_array_item_text": {"weight": 3, "enabled": true},
+          "clear_text":             {"weight": 1, "enabled": true}
+        }
+      }
+    }
+  },
+
+  "Settings": {"weight": 0, "enabled": false, "children": {}}
+}

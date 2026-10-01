@@ -1,11 +1,8 @@
-"""
-log_exporter.py
-===============
-Located at: tests/mutation_testing/log_exporter.py
-"""
+"""Renders a run's step history as a self-contained HTML log (mutation_log.html, replay_log.html)."""
 
 from __future__ import annotations
 
+from html import escape as _esc
 import json
 import os
 from datetime import datetime
@@ -14,10 +11,101 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from tests.mutation_testing.mutation_loop import StepResult
 
+# Optional. Without it, _format_state_diff prints the full before/after JSON instead of a diff.
+try:
+    from deepdiff import DeepDiff
+except ImportError:
+    DeepDiff = None
+
+# Cap per action category; the selected (★) item is always shown as well.
+_MAX_ACTIONS_PER_CATEGORY = 20
+
+
+_TEXT_VIEW_PREFIXES = (
+    "edit-text-", "add-child-text-", "change-type-text-",
+    "remove-child-text-", "rename-child-text-",
+    "add-array-item-text-", "remove-array-item-text-", "clear-text-",
+)
+
+# Kept in sync with analyze_mutation_logs. de_gui/se_gui are left out: raw DOM facts, noisy to diff.
+_SNAPSHOT_FACETS = ("de_data", "de_schema", "se_schema", "se_data", "de_text", "se_text")
+
+
+def _format_text_path(segments: list[str], mode: str) -> tuple[str, str]:
+    """Returns (leaf, parents_breadcrumb) for a Text View path. In the Schema Editor, 'properties' is
+    dropped from the breadcrumb and 'additionalProperties' becomes '(any key)'.
+    """
+    if not segments:
+        return "document root", ""
+    leaf, parents = segments[-1], segments[:-1]
+    if mode == "schemaEditor":
+        parents = [("(any key)" if p == "additionalProperties" else p)
+                   for p in parents if p != "properties"]
+    return leaf, " › ".join(parents)
+
+
+def _describe_text_view_action(testid: str, value: str, action_id: str) -> str | None:
+    """Plain-English description for Text View testids of the form '{prefix}{mode}:{path}'
+    (add-child-text has a third ':{prop_name}' part). Returns None for any other testid.
+    """
+    prefix = next((p for p in _TEXT_VIEW_PREFIXES if testid.startswith(p)), None)
+    if prefix is None:
+        return None
+
+    mode, _, rest = testid[len(prefix):].partition(":")
+    path_str, _, extra = rest.partition(":")
+    mode_label = {"schemaEditor": "Schema Editor",
+                  "dataEditor": "Data Editor"}.get(mode, mode or "?")
+    segments = [s for s in path_str.split(".") if s]
+    leaf, parents = _format_text_path(segments, mode)
+    where = f' <i>(in {parents})</i>' if parents else ''
+    val = f' <code>{value}</code>' if value else ''
+
+    if prefix == "edit-text-":
+        text = f'Edited <b>{leaf}</b>{where}' + (f' to{val}' if value else '')
+    elif prefix == "add-child-text-":
+        text = f'Added <b>{extra or "a new property"}</b> to <b>{leaf}</b>{where}'
+    elif prefix == "change-type-text-":
+        text = f'Changed the type of <b>{leaf}</b>{where}' + (f' to{val}' if value else '')
+    elif prefix == "remove-child-text-":
+        text = f'Removed <b>{leaf}</b>{where}'
+    elif prefix == "rename-child-text-":
+        text = f'Renamed <b>{leaf}</b>{where}' + (f' to{val}' if value else '')
+    elif prefix == "add-array-item-text-":
+        text = f'Added an item to array <b>{leaf}</b>{where}'
+    elif prefix == "remove-array-item-text-":
+        text = f'Removed array item <b>{leaf}</b>{where}'
+    else:  # clear-text-
+        return (f'Cleared the entire {mode_label} text '
+                f'<br><small><code>{action_id}</code></small>')
+
+    return (f'{text} in the {mode_label} text view'
+            f'<br><small><code>{action_id}</code></small>')
+
 
 def _describe_action(step: "StepResult") -> str:
     testid = step.kwargs.get("testid", "")
-    value  = step.kwargs.get("value", "")
+    value  = _esc(step.kwargs.get("value", ""))
+
+    # Repair steps have no testid, only undo/redo clicks. Show the persisting failures and outcome from kwargs.
+    if step.action_id.startswith("repair:"):
+        failures = step.kwargs.get("persisting_failures", [])
+        role = step.kwargs.get("role", "attempt")
+        actions = step.action_id[len("repair:"):]
+        failures_str = ", ".join(f"<code>{f}</code>" for f in failures) or "?"
+        if role == "clear_text_auto_undo":
+            outcome = ("" if step.kwargs.get("succeeded")
+                       else "; some invariants are still failing afterwards")
+            return f'Auto-undo (<code>{actions}</code>) of the previous clear-text action{outcome}'
+        if role == "succeeded":
+            return (f'Auto-repair (<code>{actions}</code>): cleared persisting '
+                    f'failure(s) {failures_str}')
+        if role == "attempt":
+            return (f'Auto-repair attempt (<code>{actions}</code>) for {failures_str} '
+                    f'- checking whether this cleared it')
+        return (f'Repair attempt did not clear {failures_str} - reverted '
+                f'(<code>{actions}</code>), giving up on further auto-repair for '
+                f'this failure unless it resolves and recurs later')
 
     if testid.startswith("input-string-"):
         prop = testid[len("input-string-"):]
@@ -48,7 +136,10 @@ def _describe_action(step: "StepResult") -> str:
         mode = step.report.mode if step.report else "unknown"
         return f'Switched to <b>{mode}</b> mode'
     if testid == "format-selector":
-        return f'Changed data format'
+        return 'Changed data format'
+    text_desc = _describe_text_view_action(testid, value, step.action_id)
+    if text_desc:
+        return text_desc
     return f'<code>{step.action_id}</code>'
 
 
@@ -60,6 +151,31 @@ def _format_mismatch(mismatch: dict) -> str:
     expected_str = "error expected" if should else "no error expected"
     actual_str   = "error icon shown" if shows else "no error icon shown"
     value_json   = json.dumps(value, indent=2, default=str)
+
+    reason_html = ""
+    violations = mismatch.get("reason") or []
+    if isinstance(violations, list) and violations:
+        lines = ""
+        for v in violations:
+            v_path = _esc(str(v.get("path", "?")))
+            v_msg  = _esc(str(v.get("message", "")))
+            lines += f'<div>at <code>{v_path}</code>: {v_msg}</div>'
+        reason_html = f'''
+            <div class="mismatch-row">
+                <span class="label">Reason:</span>
+                <div>{lines}</div>
+            </div>'''
+
+    gui_html = ""
+    gui_msgs = mismatch.get("gui_messages") or []
+    if isinstance(gui_msgs, list) and gui_msgs:
+        lines = "".join(f"<div>{_esc(str(m))}</div>" for m in gui_msgs)
+        gui_html = f'''
+            <div class="mismatch-row">
+                <span class="label">GUI said:</span>
+                <div>{lines}</div>
+            </div>'''
+
     return f"""
         <div class="mismatch">
             <div class="mismatch-prop">Property: <code>{prop}</code></div>
@@ -70,7 +186,7 @@ def _format_mismatch(mismatch: dict) -> str:
             <div class="mismatch-row">
                 <span class="label">Actual:</span>
                 <span class="{'badge-fail' if shows else 'badge-pass'}">{actual_str}</span>
-            </div>
+            </div>{reason_html}{gui_html}
             <details>
                 <summary>Current value</summary>
                 <pre>{value_json}</pre>
@@ -86,7 +202,6 @@ def _format_failure(failure) -> str:
     elif failure.details:
         mismatches_html = f"<pre>{json.dumps(failure.details, indent=2, default=str)}</pre>"
 
-    # Evidence section
     evidence_html = ""
     if hasattr(failure, 'evidence') and failure.evidence:
         items = "".join(
@@ -107,42 +222,126 @@ def _format_failure(failure) -> str:
             {evidence_html}
         </div>"""
 
+
+def _format_state_diff(before: dict | None, after: dict | None) -> str:
+    """Before/after diff of the tracked facets for a failing step, in the same shape as the triage
+    report (see analyze_mutation_logs._state_diff_html).
+
+    Returns "" if `after` is None or no tracked facet changed.
+    """
+    if after is None:
+        return ""
+
+    changed_facets = [f for f in _SNAPSHOT_FACETS if (before or {}).get(f) != after.get(f)]
+    if not changed_facets:
+        return ""
+
+    facet_html = ""
+    for facet in changed_facets:
+        b, a = (before or {}).get(facet), after.get(facet)
+        if DeepDiff is not None:
+            delta = DeepDiff(b, a, ignore_order=True, verbose_level=1)
+            body = _esc(delta.pretty()) if delta else "(values differ, but DeepDiff found no field-level detail)"
+        else:
+            body = _esc(
+                "DeepDiff is not installed (pip install deepdiff) -- showing full before/after instead:\n\n"
+                f"Before:\n{json.dumps(b, indent=2, default=str)}\n\n"
+                f"After:\n{json.dumps(a, indent=2, default=str)}"
+            )
+        facet_html += f"""
+        <details class="evidence-wrap" open>
+            <summary><code>{_esc(facet)}</code> changed</summary>
+            <pre>{body}</pre>
+        </details>"""
+
+    before_note = "" if before is not None else (
+        '<div class="action-error">No "before" state available for this step '
+        '(it is the first replayed step, or the previous action failed).</div>')
+
+    return f"""
+        <div class="state-diff">
+            <div class="state-diff-title">Exact state diff ({len(changed_facets)} facet(s) changed)</div>
+            {before_note}
+            {facet_html}
+        </div>"""
+
+
+def _entered_value_html(step: "StepResult") -> str:
+    """Exact value passed to the action, plus the created property name for add-property steps."""
+    parts = []
+    rep = step.kwargs.get("value_repr")
+    if rep is None:  # history written before value_repr existed
+        raw = step.kwargs.get("value", "")
+        rep = repr(raw) if raw != "" else None
+    if rep is not None:
+        parts.append(f'Value entered: <code>{_esc(rep)}</code>')
+    created = step.kwargs.get("created_name")
+    if created:
+        parts.append(f'Property name created: <code>{_esc(repr(created))}</code>')
+    if not parts:
+        return ""
+    return '<div class="entered-value">' + "<br>".join(parts) + "</div>"
+
 def export_html_log(
     history: list["StepResult"],
     path: str = "mutation_log.html",
     screenshots_dir: str = "mutation_screenshots",
+    source_history_path: str | None = None,
+    source_mutation_log_path: str | None = None,
+    schema_option_name: str | None = None,
+    data_file: str | None = None,
+    render_state_diffs: bool = False,
 ):
+    """render_state_diffs is off by default so a live run's log does not change. replay_runner passes True."""
     total  = len(history)
     errors = sum(1 for s in history if not s.action_succeeded)
     fails  = sum(1 for s in history if s.action_succeeded and s.report and not s.report.passed)
     passes = total - errors - fails
 
+    schema_line = ""
+    schema_parts = []
+    if schema_option_name:
+        schema_parts.append(f'Schema: <b>{_esc(schema_option_name)}</b>')
+    if data_file:
+        schema_parts.append(f'Data file: <code>{_esc(data_file)}</code>')
+    if schema_parts:
+        schema_line = '<br>' + ' &nbsp;·&nbsp; '.join(schema_parts)
+
+    source_history_line = ""
+    if source_history_path:
+        source_history_line = f'<br>Replayed from: <code>{source_history_path}</code>'
+
+    source_mutation_log_line = ""
+    if source_mutation_log_path:
+        uri = os.path.abspath(source_mutation_log_path).replace("\\", "/")
+        source_mutation_log_line = (
+            f'<br>Source mutation log: <a href="file:///{uri}">{source_mutation_log_path}</a>')
+
     steps_html = ""
     for i, s in enumerate(history):
-        # Status
         if not s.action_succeeded:
-            badge = '<span class="badge badge-error">⚠ Error</span>'
+            badge = '<span class="badge badge-error">Error</span>'
             step_class = "step-error"
         elif s.report is None:
-            badge = '<span class="badge badge-skip">⏭ Skipped</span>'
+            badge = '<span class="badge badge-skip">Skipped</span>'
             step_class = "step-skip"
         elif s.report.passed:
-            badge = '<span class="badge badge-pass">✅ Pass</span>'
+            badge = '<span class="badge badge-pass">Pass</span>'
             step_class = "step-pass"
         else:
-            badge = '<span class="badge badge-fail">❌ Fail</span>'
+            badge = '<span class="badge badge-fail">Fail</span>'
             step_class = "step-fail"
 
         mode_tag = f'<span class="mode-tag">{s.report.mode}</span>' if s.report else ""
         description = _describe_action(s)
+        value_html = _entered_value_html(s)
         inv_line = f'<div class="inv-line">{s.report.summary()}</div>' if s.report else ""
 
-        # Evidence for all invariants (passing + failing)
         all_evidence_html = ""
         if s.report:
             for r in s.report.results:
                 if hasattr(r, 'evidence') and r.evidence:
-                    icon = "✅" if r.passed else "❌"
+                    icon = "✓" if r.passed else "✗"
                     items = "".join(f'<div class="ev-item">{e}</div>' for e in r.evidence)
                     all_evidence_html += f"""
                     <div class="inv-evidence">
@@ -155,7 +354,6 @@ def export_html_log(
                     <summary>Invariant evidence</summary>
                     {all_evidence_html}
                 </details>"""
-        # Failures
         failures_html = ""
         if s.report and s.report.failures:
             failures_html = '<div class="failures">'
@@ -163,12 +361,15 @@ def export_html_log(
                 failures_html += _format_failure(f)
             failures_html += "</div>"
 
-        # Error
+        state_diff_html = ""
+        if render_state_diffs and step_class == "step-fail" and s.snapshot is not None:
+            prev_snapshot = history[i - 1].snapshot if i > 0 else None
+            state_diff_html = _format_state_diff(prev_snapshot, s.snapshot)
+
         error_html = ""
         if s.action_error:
             error_html = f'<div class="action-error"><b>Error:</b> {s.action_error}</div>'
 
-        # Screenshot
         screenshot_html = ""
         if s.screenshot_path:
             abs_path = os.path.abspath(s.screenshot_path)
@@ -180,29 +381,12 @@ def export_html_log(
                     <img src="file:///{uri}" class="screenshot"/>
                 </details>'''
 
-        # Available actions (collapsible)
         actions_html = ""
         if hasattr(s, 'available_actions') and s.available_actions:
             selected_testid = s.kwargs.get("testid", "")
 
-            # Group by category
-            from itertools import groupby
-            category_labels = {
-                "1_expand": "Expand / Collapse",
-                "2_edit_field": "Edit Fields",
-                "3_dropdown": "Dropdowns",
-                "4_add": "Add",
-                "5_rename": "Rename",
-                "6_remove": "Remove",
-                "7_mode": "Mode",
-                "8_format": "Format",
-                "9_other": "Other",
-            }
-
-            # Build category groups
             grouped = {}
             for testid, label, interaction in s.available_actions:
-                # Derive category from testid
                 if testid.startswith("expand-") or testid.startswith("collapse-"):
                     cat = "Expand / Collapse"
                 elif testid.startswith("input-string-") or testid.startswith("input-number-") or testid.startswith(
@@ -226,33 +410,45 @@ def export_html_log(
 
             groups_html = ""
             for cat, items in grouped.items():
+                # A Schema-tab step can discover thousands of add-child-text actions. Rendering them all made the log 70MB+.
+                shown = items[:_MAX_ACTIONS_PER_CATEGORY]
+                if selected_testid and not any(t == selected_testid for t, _, _ in shown):
+                    selected_entry = next((it for it in items if it[0] == selected_testid), None)
+                    if selected_entry:
+                        shown = shown + [selected_entry]
                 items_html = ""
-                for testid, label, interaction in items:
+                for testid, label, interaction in shown:
                     selected = testid == selected_testid
                     highlight = ' class="action-selected"' if selected else ""
                     star = " ★" if selected else ""
                     items_html += f'<div{highlight}>{label}{star}</div>'
-                groups_html += f'<div class="action-group"><div class="action-group-title">{cat}</div>{items_html}</div>'
+                remaining = len(items) - len(shown)
+                if remaining > 0:
+                    items_html += f'<div class="action-more">+{remaining} more (not shown)</div>'
+                groups_html += (f'<div class="action-group"><div class="action-group-title">'
+                                 f'{cat} ({len(items)})</div>{items_html}</div>')
 
             actions_html = f"""
             <details class="actions-wrap">
-                <summary>Available actions ({len(s.available_actions)}) — ★ selected</summary>
+                <summary>Available actions ({len(s.available_actions)}) - ★ selected</summary>
                 <div class="actions-grid">{groups_html}</div>
             </details>"""
 
 
         steps_html += f"""
-        <div class="step {step_class}">
+        <div class="step {step_class}" id="step-{i+1}">
             <div class="step-header">
                 <span class="step-num">Step {i+1}</span>
                 {badge}
                 {mode_tag}
             </div>
             <div class="step-desc">{description}</div>
+            {value_html}
             {inv_line}
             {all_evidence_html}
             {error_html}
             {failures_html}
+            {state_diff_html}
             {actions_html}
             {screenshot_html}
         </div>"""
@@ -307,6 +503,8 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 
 .step-desc {{ font-size: 0.93em; margin-bottom: 4px; line-height: 1.5; }}
 .inv-line  {{ font-size: 0.82em; color: #666; margin-bottom: 6px; }}
+.entered-value {{ font-size: 0.85em; margin-bottom: 6px; }}
+.entered-value code {{ white-space: pre-wrap; word-break: break-all; }}
 
 .evidence-wrap {{ margin-top: 6px; }}
 .evidence-list {{ margin-top: 4px; }}
@@ -328,6 +526,11 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 .mismatch-prop {{ font-weight: 600; font-size: 0.85em; margin-bottom: 4px; }}
 .mismatch-row  {{ font-size: 0.82em; margin-bottom: 2px; display: flex; gap: 6px; }}
 .label {{ color: #888; font-weight: 500; min-width: 70px; }}
+
+/* State diff (replay-captured before/after) */
+.state-diff {{ background: #f3f8ff; border: 1px solid #bcd6f7;
+               border-radius: 6px; padding: 10px 14px; margin-top: 8px; }}
+.state-diff-title {{ font-weight: 600; color: #1565c0; font-size: 0.88em; margin-bottom: 4px; }}
 
 /* Error */
 .action-error {{ background: #fff3e0; border: 1px solid #ffe0b2;
@@ -361,6 +564,7 @@ pre {{ background: #f5f5f5; border-radius: 4px; padding: 8px 12px;
                       text-transform: uppercase; margin-bottom: 4px; }}
 .action-group div {{ font-size: 0.8em; color: #444; padding: 1px 0; }}
 .action-selected {{ color: #1565c0 !important; font-weight: 600; }}
+.action-more {{ color: #999 !important; font-style: italic; }}
 
 code {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
         font-size: 0.88em; font-family: monospace; }}
@@ -388,13 +592,16 @@ code {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
 <div class="meta">
     Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     &nbsp;·&nbsp; {total} steps
+    {schema_line}
+    {source_history_line}
+    {source_mutation_log_line}
 </div>
 
 <div class="summary">
-    <div class="sbox sbox-total">📊 Total: {total}</div>
-    <div class="sbox sbox-pass">✅ Pass: {passes}</div>
-    <div class="sbox sbox-fail" onclick="scrollToFail()" style="cursor:pointer" title="Click to jump to first failure">❌ Fail: {fails}</div>
-    <div class="sbox sbox-error" onclick="scrollToError()" style="cursor:pointer" title="Click to jump to first error">⚠ Errors: {errors}</div>
+    <div class="sbox sbox-total">Total: {total}</div>
+    <div class="sbox sbox-pass">Pass: {passes}</div>
+    <div class="sbox sbox-fail" onclick="scrollToFail()" style="cursor:pointer" title="Click to jump to first failure">Fail: {fails}</div>
+    <div class="sbox sbox-error" onclick="scrollToError()" style="cursor:pointer" title="Click to jump to first error">Errors: {errors}</div>
 </div>
 
 {steps_html}
@@ -431,13 +638,13 @@ function navigate(type, dir) {{
     const s = state[type];
     if (!s.els.length) return;
     s.idx = (s.idx + dir + s.els.length) % s.els.length;
-    
+
     // Remove previous highlight
     document.querySelectorAll('.step-highlight').forEach(e => {{
         e.style.outline = '';
         e.classList.remove('step-highlight');
     }});
-    
+
     // Highlight and scroll
     const el = s.els[s.idx];
     el.style.outline = type === 'fail' ? '3px solid #f44336' : '3px solid #ff9800';
@@ -463,11 +670,10 @@ function updateLabel(type) {{
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
     abs_path = os.path.abspath(path)
-    print(f"\n📄 Log → {abs_path}")
-    # print(f"   Open: file:///{abs_path.replace(chr(92), '/')}")
+    print(f"\nLog → {abs_path}")
     import subprocess
     try:
         subprocess.run(['clip'], input=abs_path.encode(), check=True)
-        print(f"   (path copied to clipboard — Ctrl+V in browser address bar)")
+        print("   (path copied to clipboard - Ctrl+V in browser address bar)")
     except Exception:
         pass

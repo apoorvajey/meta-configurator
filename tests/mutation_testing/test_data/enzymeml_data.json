@@ -1,0 +1,197 @@
+{
+  "id": "doc-001",
+  "name": "Alcohol Dehydrogenase Kinetics",
+  "pubmedid": "28123456",
+  "url": "https://example.org/enzymeml/doc-001",
+  "doi": "10.1000/enzymeml.001",
+  "created": "2026-01-15T09:00:00Z",
+  "modified": "2026-02-20T14:30:00Z",
+  "creators": [
+    {
+      "id": "creator-001",
+      "given_name": "John",
+      "family_name": "Smith",
+      "mail": "john.smith@example.org"
+    }
+  ],
+  "vessels": [
+    {
+      "id": "vessel-001",
+      "name": "Reaction Flask",
+      "volume": 50,
+      "unit": "ml",
+      "constant": true,
+      "uri": "https://example.org/vessel-001",
+      "creator_id": "creator-001"
+    }
+  ],
+  "proteins": [
+    {
+      "id": "protein-001",
+      "name": "Alcohol dehydrogenase",
+      "vessel_id": "vessel-001",
+      "init_conc": 0.05,
+      "constant": true,
+      "unit": "mM",
+      "uri": "https://example.org/protein-001",
+      "creator_id": "creator-001",
+      "sequence": "MSTAGKVIKCKAAVLWEEKKPFSIEEVEVAPPKAHEVRIKI",
+      "ecnumber": "1.1.1.1",
+      "organism": "Saccharomyces cerevisiae",
+      "organism_tax_id": "4932",
+      "uniprotid": "P00330",
+      "ontology": "SBO:0000013"
+    }
+  ],
+  "complexes": [
+    {
+      "id": "complex-001",
+      "name": "Enzyme-Substrate Complex",
+      "vessel_id": "vessel-001",
+      "init_conc": 0,
+      "constant": false,
+      "unit": "mM",
+      "uri": "https://example.org/complex-001",
+      "creator_id": "creator-001",
+      "participants": ["s0", "p0"],
+      "ontology": "SBO:0000296"
+    }
+  ],
+  "reactants": [
+    {
+      "id": "reactant-001",
+      "name": "Ethanol",
+      "vessel_id": "vessel-001",
+      "init_conc": 10,
+      "constant": false,
+      "unit": "mM",
+      "uri": "https://example.org/reactant-001",
+      "creator_id": "creator-001",
+      "smiles": "CCO",
+      "inchi": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3",
+      "chebi_id": "CHEBI:16236",
+      "ontology": "SBO:0000247"
+    }
+  ],
+  "reactions": [
+    {
+      "id": "reaction-001",
+      "name": "Ethanol Oxidation",
+      "reversible": false,
+      "temperature": 298.15,
+      "temperature_unit": "K",
+      "ph": 7.4,
+      "ontology": "SBO:0000176",
+      "uri": "https://example.org/reaction-001",
+      "creator_id": "creator-001",
+      "model": {
+        "id": "model-001",
+        "name": "Michaelis-Menten",
+        "equation": "v = (Vmax * S) / (Km + S)",
+        "parameters": [
+          {
+            "id": "param-001",
+            "name": "Km",
+            "value": 2.3,
+            "unit": "mM",
+            "initial_value": 2,
+            "upper": 10,
+            "lower": 0,
+            "is_global": false,
+            "stdev": 0.1,
+            "constant": false,
+            "ontology": "SBO:0000013"
+          }
+        ],
+        "ontology": "SBO:0000013"
+      },
+      "educts": [
+        {
+          "id": "element-001",
+          "species_id": "reactant-001",
+          "stoichiometry": 1,
+          "constant": false,
+          "ontology": "SBO:0000015"
+        }
+      ],
+      "products": [
+        {
+          "id": "element-002",
+          "species_id": "reactant-002",
+          "stoichiometry": 1,
+          "constant": false,
+          "ontology": "SBO:0000011"
+        }
+      ],
+      "modifiers": [
+        {
+          "id": "element-003",
+          "species_id": "protein-001",
+          "stoichiometry": 1,
+          "constant": true,
+          "ontology": "SBO:0000013"
+        }
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "id": "measurement-001",
+      "name": "Time Course 1",
+      "temperature": 298.15,
+      "temperature_unit": "K",
+      "ph": 7.4,
+      "species": [
+        {
+          "id": "measurementdata-001",
+          "init_conc": 10,
+          "unit": "mM",
+          "measurement_id": "measurement-001",
+          "species_id": "reactant-001",
+          "replicates": [
+            {
+              "id": "replicate-001",
+              "species_id": "reactant-001",
+              "measurement_id": "measurement-001",
+              "data_type": "conc",
+              "data_unit": "mM",
+              "time_unit": "s",
+              "time": [0, 30, 60, 90, 120],
+              "data": [10, 8.2, 6.7, 5.5, 4.5],
+              "is_calculated": false,
+              "uri": "https://example.org/replicate-001",
+              "creator_id": "creator-001"
+            }
+          ]
+        }
+      ],
+      "global_time": [0, 30, 60, 90, 120],
+      "global_time_unit": "s",
+      "uri": "https://example.org/measurement-001",
+      "creator_id": "creator-001"
+    }
+  ],
+  "files": [
+    {
+      "id": "file-001",
+      "name": "raw_data.csv",
+      "content": "dGltZSxhYnMKMCwxLjAKMzAsMC44",
+      "filetype": ".csv"
+    }
+  ],
+  "global_parameters": [
+    {
+      "id": "global-param-001",
+      "name": "Vmax",
+      "value": 145.7,
+      "unit": "mM/s",
+      "initial_value": 140,
+      "upper": 200,
+      "lower": 100,
+      "is_global": true,
+      "stdev": 5.2,
+      "constant": false,
+      "ontology": "SBO:0000013"
+    }
+  ]
+}

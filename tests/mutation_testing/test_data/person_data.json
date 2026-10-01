@@ -1,0 +1,37 @@
+{
+  "name": "Fischer",
+  "firstName": "John",
+  "isMarried": true,
+  "spouse": {
+    "name": "Fischer",
+    "firstName": "Anna"
+  },
+  "nickNames": ["Johnny", "JJ"],
+  "preferredNickName": "Johnny",
+  "circular": {
+    "name": "This is a long last name here"
+  },
+  "telephoneNumber": 155,
+  "heightInMeter": 1.75,
+  "partner": "Alex",
+  "address": {
+    "street": "Main Street",
+    "number": 42,
+    "extraInfo": "Corner building, blue door",
+    "city": "Stuttgart",
+    "zipCode": "70173",
+    "country": "Germany",
+    "moreInfo": {
+      "info": "Rented since 2020",
+      "neighborhood": "Mitte",
+      "timeZone": "UTC",
+      "booleanArray": [true, false, true],
+      "numbers": [1, 2.5, 3],
+      "objects": [
+        { "name": "Storage unit", "age": 5 }
+      ],
+      "anyThing": { "note": "accepts any type per schema" }
+    }
+  },
+  "NumberOfChildren": 2
+}

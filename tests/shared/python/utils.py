@@ -17,6 +17,46 @@ from playwright.sync_api import Page
 
 
 # ---------------------------------------------------------------------------
+# Fixture resolution — local dev server vs. remote/live deployments
+# ---------------------------------------------------------------------------
+#
+# On localhost:5173 (vite dev server), fixture files under test-fixtures/
+# are served directly by the dev server config, so a relative path works.
+#
+# On any non-local base_url (e.g. https://www.metaconfigurator.org), the
+# deployed build does NOT ship the e2e/test-fixtures/ directory — only
+# public/ is bundled into dist/. A relative "test-fixtures/..." path 404s
+# there, which silently breaks FetchView's settings/data/schema loading
+# (it swallows the fetch failure and falls through to the default view
+# with no error surfaced). The fix: use an absolute URL to the fixture
+# file's raw location in the public GitHub repo instead, since
+# fetchExternalContent() does a plain fetch() against whatever URL it's
+# given (and even special-cases github.com/blob URLs).
+#
+# NOTE: REMOTE_FIXTURES_REF pins to a branch by default, which means
+# remote/live-mode runs track whatever is currently on that branch, not
+# necessarily what's actually deployed at the live URL — those can drift
+# out of sync. Pin this to a specific commit hash instead of a branch
+# name for reproducible runs.
+REMOTE_FIXTURES_REF = "develop"
+REMOTE_FIXTURES_BASE_URL = (
+    f"https://raw.githubusercontent.com/MetaConfigurator/meta-configurator/"
+    f"{REMOTE_FIXTURES_REF}/meta_configurator/e2e/test-fixtures"
+)
+
+
+def _is_local_base_url(base_url: str) -> bool:
+    return "localhost" in base_url or "127.0.0.1" in base_url
+
+
+def _fixtures_base_url(base_url: str) -> str:
+    """Relative path for local dev server; absolute GitHub raw URL otherwise."""
+    if _is_local_base_url(base_url):
+        return "test-fixtures"
+    return REMOTE_FIXTURES_BASE_URL
+
+
+# ---------------------------------------------------------------------------
 # SessionMode enum
 # ---------------------------------------------------------------------------
 
@@ -37,15 +77,18 @@ MODE_MENU_TITLES = {
 # App setup
 # ---------------------------------------------------------------------------
 
+LIVE_BASE_URL = "https://www.metaconfigurator.org"
+
+
 def open_app(
     page: Page,
     initial_settings: str | None = None,
     initial_data: str | None = None,
     initial_schema: str | None = None,
-    base_url: str = "http://localhost:5173",
+    base_url: str = LIVE_BASE_URL,
 ):
     from urllib.parse import urlencode
-    test_files_path = "test-fixtures"
+    test_files_path = _fixtures_base_url(base_url)
     params: dict[str, str] = {}
     if initial_settings:
         params["settings"] = f"{test_files_path}/{initial_settings}"
@@ -66,12 +109,12 @@ def open_app_with_test_panel(
     initial_settings: str | None = "settings_testpanel.json",
     initial_data: str | None = None,
     initial_schema: str | None = None,
-    base_url: str = "http://localhost:5173",
+    base_url: str = LIVE_BASE_URL,
 ):
     open_app(page, initial_settings, initial_data, initial_schema, base_url)
 
 
-def setup_test_panel_via_localstorage(page: Page, base_url: str = "http://localhost:5173"):
+def setup_test_panel_via_localstorage(page: Page, base_url: str = LIVE_BASE_URL):
     page.goto(base_url)
     page.wait_for_load_state("networkidle")
     page.evaluate("""
@@ -126,7 +169,7 @@ def force_editor_mode(page: Page, new_mode: SessionMode):
 # Data format switching
 # ---------------------------------------------------------------------------
 
-DATA_FORMATS = ["json", "yaml", "xml"]
+DATA_FORMATS = ["json", "yaml"]
 
 
 def get_current_data_format(page: Page) -> str:
@@ -156,19 +199,6 @@ def select_initial_schema_from_examples(page: Page, schema_name: str):
     page.get_by_role("button", name="Example Schema").click()
     page.get_by_role("option", name=schema_name).click()
     page.wait_for_timeout(800)
-
-
-def check_schema_title_for_text(page: Page, text: str):
-    el = page.get_by_test_id("current-schema")
-    assert text in el.inner_text(), \
-        f"Schema title did not contain '{text}'. Got: '{el.inner_text()}'"
-
-
-def check_toolbar_title_for_text(page: Page, text: str):
-    el = page.get_by_test_id("toolbar-title")
-    assert text in el.inner_text(), \
-        f"Toolbar title did not contain '{text}'. Got: '{el.inner_text()}'"
-
 
 # ---------------------------------------------------------------------------
 # Dialog helpers

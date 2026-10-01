@@ -2,7 +2,7 @@ import {modeToMenuTitle, modeToRoute, SessionMode} from "../../meta_configurator
 import {expect, type Page} from "./playwright";
 import * as os from "node:os";
 
-const dataFormats = [ 'json', 'yaml' ];
+const dataFormats = [ 'json', 'yaml', 'xml' ];
 
 // base URL of the app under test, can be overridden when the default port is occupied locally
 export const E2E_BASE_URL = process.env.MC_E2E_BASE_URL ?? 'http://localhost:5173';
@@ -110,19 +110,4 @@ export async function selectAll(page: Page) {
     const isMac = os.platform() === 'darwin';
     const modifier = isMac ? 'Meta' : 'Control';
     await page.keyboard.press(`${modifier}+A`);
-}
-
-export async function undo(page: Page) {
-    const isMac = os.platform() === 'darwin';
-    const modifier = isMac ? 'Meta' : 'Control';
-    await page.keyboard.press(`${modifier}+Z`);
-}
-
-export async function redo(page: Page) {
-    const isMac = os.platform() === 'darwin';
-    if (isMac) {
-        await page.keyboard.press('Meta+Shift+Z');
-    } else {
-        await page.keyboard.press('Control+Y');
-    }
 }

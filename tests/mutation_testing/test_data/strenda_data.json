@@ -1,0 +1,72 @@
+{
+  "id": "dataset-001",
+  "manuscript": {
+    "id": "manuscript-001",
+    "author_names": ["Smith, John", "Doe, Jane"],
+    "DOI": "10.1000/xyz123",
+    "PMID": 28123456
+  },
+  "experiments": [
+    {
+      "id": "experiment-001",
+      "methodology": "Steady-state kinetics measured via UV-Vis spectroscopy at 25°C.",
+      "proteins": [
+        {
+          "id": "protein-001",
+          "protein_id": "P12345",
+          "name": "Alcohol dehydrogenase",
+          "sequence": "MSTAGKVIKCKAAVLWEEKKPFSIEEVEVAPPKAHEVRIKI",
+          "ec_number": "1.1.1.1",
+          "reaction": "ethanol + NAD+ = acetaldehyde + NADH + H+",
+          "assayed_reaction": "ethanol oxidation"
+        },
+        {
+          "id": "protein-002",
+          "protein_id": 987654,
+          "name": "Catalase",
+          "sequence": "MADSRDPASDQMQHWKEQRAAQKADVLTTGAGNPVGDKLNVITVGPRGP",
+          "ec_number": "1.11.1.6",
+          "reaction": "2 H2O2 = O2 + 2 H2O",
+          "assayed_reaction": "hydrogen peroxide decomposition"
+        }
+      ],
+      "assay_conditions": {
+        "id": "assay-001",
+        "assay_components": ["buffer", "substrate", "enzyme"],
+        "compound_name": "Ethanol",
+        "inchi": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3",
+        "iupac_name": "ethanol",
+        "database_id": "CHEBI:16236",
+        "concentration": 10.5,
+        "protein_concentration": 0.05,
+        "ph": 7.4,
+        "role": "substrate"
+      }
+    }
+  ],
+  "results": [
+    {
+      "id": "result-001",
+      "kinetic_parameters": {
+        "id": "kinetic-001",
+        "Km": 2.3,
+        "kcat": 145.7,
+        "V": 0.089,
+        "kcat_over_km": 63.3,
+        "V_over_km": 0.0387
+      },
+      "inhibition_parameters": {
+        "id": "inhibition-001",
+        "reversible": true,
+        "inhibition_type": "competitive",
+        "Kic": 1.2
+      },
+      "activation_parameters": {
+        "id": "activation-001",
+        "activation_affinity_constant": 0.45,
+        "velocity_at_no_activator": 0.02,
+        "velocity_at_max_activator": 0.15
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
 {
-  "extends": "../../backend/relay/tsconfig.json",
+  "extends": "../../relay/tsconfig.json",
   "include": ["*.ts"]
 }

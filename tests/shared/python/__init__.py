@@ -7,7 +7,7 @@ Import pattern:
     from tests.shared.python.test_panel import TestPanel, tp_get_data
     from tests.shared.python.utils import SessionMode, open_app
     from tests.shared.python.utils_gui_editor import edit_string_property
-    from tests.shared.python.utils_code_editor import read_text_editor_as_json
+    from tests.shared.python.utils_code_editor import read_text_editor_content
 """
 
 from tests.shared.python.utils import (

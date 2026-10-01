@@ -1,0 +1,85 @@
+{
+  "_comment": "Text View focus. GUI View is disabled under both modes, so only Text View actions are picked, plus a light baseline of undo/redo, expand/collapse and mode_switch.",
+  "Schema Editor": {
+    "weight": 10,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 1,
+        "enabled": false,
+        "children": {
+          "add_item_required": {"weight": 8, "enabled": false},
+          "add_item_or_property": {"weight": 8, "enabled": false},
+          "input_select_input": {"weight": 8, "enabled": false},
+          "input_select_other": {"weight": 5, "enabled": false},
+          "fill": {"weight": 5, "enabled": false},
+          "rename": {"weight": 4, "enabled": false},
+          "remove_property": {"weight": 3, "enabled": false},
+          "expand": {"weight": 2, "enabled": true},
+          "collapse": {"weight": 3, "enabled": true},
+          "mode_switch": {"weight": 2, "enabled": true},
+          "format_selector": {"weight": 2, "enabled": false},
+          "undo_redo_base": {"weight": 2, "enabled": true},
+          "undo_redo_boosted": {"weight": 5, "enabled": true},
+          "default": {"weight": 1, "enabled": true}
+        }
+      },
+      "Schema Diagram": {"weight": 0, "enabled": false, "children": {}},
+      "Text View": {
+        "weight": 10,
+        "enabled": true,
+        "children": {
+          "edit_text": {"weight": 10, "enabled": true},
+          "add_child_text": {"weight": 10, "enabled": true},
+          "change_type_text": {"weight": 10, "enabled": true},
+          "remove_child_text": {"weight": 10, "enabled": true},
+          "rename_child_text": {"weight": 10, "enabled": true},
+          "add_array_item_text": {"weight": 10, "enabled": true},
+          "remove_array_item_text": {"weight": 10, "enabled": true},
+          "clear_text": {"weight": 5, "enabled": true}
+        }
+      }
+    }
+  },
+  "Data Editor": {
+    "weight": 10,
+    "enabled": true,
+    "children": {
+      "GUI View": {
+        "weight": 1,
+        "enabled": false,
+        "children": {
+          "add_item_required": {"weight": 8, "enabled": false},
+          "add_item_or_property": {"weight": 8, "enabled": false},
+          "input_select_input": {"weight": 8, "enabled": false},
+          "input_select_other": {"weight": 5, "enabled": false},
+          "fill": {"weight": 5, "enabled": false},
+          "rename": {"weight": 4, "enabled": false},
+          "remove_property": {"weight": 3, "enabled": false},
+          "expand": {"weight": 2, "enabled": true},
+          "collapse": {"weight": 3, "enabled": true},
+          "mode_switch": {"weight": 2, "enabled": true},
+          "format_selector": {"weight": 2, "enabled": false},
+          "undo_redo_base": {"weight": 2, "enabled": true},
+          "undo_redo_boosted": {"weight": 5, "enabled": true},
+          "default": {"weight": 1, "enabled": true}
+        }
+      },
+      "Text View": {
+        "weight": 10,
+        "enabled": true,
+        "children": {
+          "edit_text": {"weight": 10, "enabled": true},
+          "add_child_text": {"weight": 10, "enabled": true},
+          "change_type_text": {"weight": 10, "enabled": true},
+          "remove_child_text": {"weight": 10, "enabled": true},
+          "rename_child_text": {"weight": 10, "enabled": true},
+          "add_array_item_text": {"weight": 10, "enabled": true},
+          "remove_array_item_text": {"weight": 10, "enabled": true},
+          "clear_text": {"weight": 5, "enabled": true}
+        }
+      }
+    }
+  },
+  "Settings": {"weight": 0, "enabled": false, "children": {}}
+}

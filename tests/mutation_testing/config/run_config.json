@@ -1,0 +1,13 @@
+{
+  "_comment": "Settings for one mutation-loop run, read by profile_config.py. Keys starting with _ are documentation and are ignored.",
+  "action_weights_profile": "default",
+  "_action_weights_profile_options": "default | textview_focus | schema_focus | data_focus | random",
+  "schema": "random",
+  "_schema_options": "random | Autonomous Vehicle Schema | Feature Testing Schema | Strenda Schema | EnzymeML Schema",
+  "num_steps": 100,
+  "_num_steps_note": "positive integer, number of mutation steps per run",
+  "screenshots": true,
+  "_screenshots_note": "true | false, capture a screenshot every step",
+  "run_mode": "background",
+  "_run_mode_options": "background | watch_failures | interactive | null (null asks at the terminal)"
+}

@@ -46,6 +46,26 @@ def read_property_exists(page: Page, property_path: list) -> bool:
     except Exception:
         return False
 
+
+def read_top_level_property_keys(page: Page) -> list[str]:
+    """
+    Every top-level property-data-<key> row currently rendered, with no
+    further nesting (i.e. the key itself contains no '.' or '['). Needed
+    to check the REVERSE direction of GUI-vs-data: not just "does every
+    data key have a row" but "does every row correspond to an actual
+    data key" — a row can otherwise persist for a key schema.required
+    still lists even after the key itself was removed from data (e.g.
+    via an undo that touched data but not schema).
+    """
+    try:
+        testids = page.evaluate("""
+            () => [...document.querySelectorAll('[data-testid^="property-data-"]')]
+                .map(el => el.getAttribute('data-testid').slice('property-data-'.length))
+        """)
+        return [t for t in testids if "." not in t and "[" not in t]
+    except Exception:
+        return []
+
 # ---------------------------------------------------------------------------
 # String properties
 # ---------------------------------------------------------------------------
