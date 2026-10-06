@@ -1,11 +1,9 @@
-"""Renders the inference engine's results as one self-contained HTML file (no external scripts, fonts or
-requests).
+"""Render the inference engine's results as one self-contained HTML file (no external scripts, fonts or requests).
 
-The engine decides the results (InvariantInferenceEngine.dashboard_payload); this module only
-renders them. Rules that state the same thing after different actions are grouped into one row per
-statement (the engine's `family` key) and expand to the per-action rules. A checkbox switches to one
-row per rule. Threshold, minimum observations and the amber band width come from the payload, i.e.
-from inference_config.json.
+The engine decides what the results are (InvariantInferenceEngine.dashboard_payload); this module only renders
+them and recomputes no verdict. The candidate table has one row per rule family (the same statement checked
+after different actions) with the per-action rules in the expanded row; a checkbox shows one row per rule.
+All parameters (threshold, minimum observations, amber band width) come from the payload.
 """
 
 from __future__ import annotations
@@ -14,7 +12,7 @@ import json
 
 
 def render_dashboard(payload: dict) -> str:
-    # escape "</" so the data cannot end the script block early
+    # Escape "</" so "</script>" in a statement cannot end the embedded data block
     data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     return _TEMPLATE.replace("__DATA__", data)
 
@@ -114,7 +112,7 @@ pre{margin:0;padding:12px;background:var(--panel);border:1px solid var(--line);b
 
   <h2>Candidates</h2>
   <div class="filters">
-    <input id="q" type="search" placeholder="Search statements, actions, templates or a rule ID (INF-...)">
+    <input id="q" type="search" placeholder="Search statements, actions, templates or a rule ID (INF-…)">
     <select id="cat"></select>
     <select id="tpl"></select>
     <label><input id="grp" type="checkbox" checked> Group by statement</label>
@@ -179,8 +177,8 @@ function renderHeader() {
   document.getElementById("chips").innerHTML = D.datasets
     .map(d => `<span class="chip"><b>${esc(d.name)}</b> ${d.snapshots.toLocaleString()} snapshots</span>`).join("");
   document.getElementById("legend").innerHTML =
-    `<span><i class="s-ok"></i>≥ ${pct(T)} - holds</span>` +
-    `<span><i class="s-warn"></i>${pct(NEAR)}-${pct(T)} - close</span>` +
+    `<span><i class="s-ok"></i>≥ ${pct(T)} — holds</span>` +
+    `<span><i class="s-warn"></i>${pct(NEAR)}–${pct(T)} — close</span>` +
     `<span><i class="s-bad"></i>< ${pct(NEAR)}</span>` +
     `<span><i class="s-thin"></i>fewer than ${D.min_obs} observations</span>` +
     `<span><i class="s-none"></i>not observed</span>` +
@@ -215,7 +213,7 @@ function renderCats() {
 function cellHtml(c, d) {
   const v = c.datasets[d];
   const st = status(v);
-  if (!v) return `<td class="cell s-none" title="${esc(d)}: not observed">-<small>no data</small></td>`;
+  if (!v) return `<td class="cell s-none" title="${esc(d)}: not observed">—<small>no data</small></td>`;
   return `<td class="cell s-${st}" title="${esc(d)}: held ${v.held} of ${v.m}">${pct(v.pct)}<small>${v.held}/${v.m}</small></td>`;
 }
 
@@ -223,7 +221,7 @@ function cellHtml(c, d) {
 // Rules with too few observations are ignored unless every rule is thin.
 function famCell(f, d) {
   const vs = f.members.map(c => c.datasets[d]).filter(Boolean);
-  if (!vs.length) return `<td class="cell s-none" title="${esc(d)}: not observed">-<small>no data</small></td>`;
+  if (!vs.length) return `<td class="cell s-none" title="${esc(d)}: not observed">—<small>no data</small></td>`;
   const solid = vs.filter(v => v.m >= D.min_obs);
   const pool = solid.length ? solid : vs;
   const v = pool.reduce((a, b) => b.pct < a.pct ? b : a);
@@ -257,8 +255,8 @@ function scopeHtml(f) {
 function detailHtml(c) {
   const r = c.rule, card = r.card;
   const status = c.exported
-    ? `exported to <code>${esc(D.rules_file)}</code> - checked by the mutation loop after every matching step`
-    : "not exported - not promoted";
+    ? `exported to <code>${esc(D.rules_file)}</code> — checked by the mutation loop after every matching step`
+    : "not exported — not promoted";
   const cardRows = [["Trigger", card.trigger], ["Applies when", card.applies_when],
                     ["Asserts", card.asserts], ["Definitions", card.definitions]]
     .map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join("");

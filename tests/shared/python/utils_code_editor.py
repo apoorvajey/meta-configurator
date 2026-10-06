@@ -1,10 +1,4 @@
-"""
-utils_code_editor.py
-====================
-Mirrors: tests/shared/utilsCodeEditor.ts
-
-Helpers for reading and writing the text/code editor panel (Ace editor).
-"""
+"""Python mirror of utilsCodeEditor.ts: reading and writing the Ace text editor panel."""
 
 from __future__ import annotations
 from typing import Any
@@ -13,14 +7,10 @@ from playwright.sync_api import Page
 from tests.shared.python.utils import SessionMode, select_all
 
 
-# ---------------------------------------------------------------------------
 # Reading
-# ---------------------------------------------------------------------------
-
 def get_code_editor(page: Page, mode: SessionMode | str = ""):
     """
     Locate the code editor element for a given mode.
-    Mirrors: getCodeEditor() in utilsCodeEditor.ts
 
     The id prefix pattern is: code-editor-{mode}
     e.g. code-editor-dataEditor, code-editor-schemaEditor
@@ -30,18 +20,12 @@ def get_code_editor(page: Page, mode: SessionMode | str = ""):
 
 
 def read_code_editor_text(page: Page, mode: SessionMode | str = "") -> str:
-    """
-    Read the raw text content of the code editor.
-    Mirrors: readCodeEditorText() in utilsCodeEditor.ts
-    """
+    """Read the raw text content of the code editor."""
     return get_code_editor(page, mode).inner_text()
 
 
 def check_code_editor_for_text(page: Page, text: str, mode: SessionMode | str = ""):
-    """
-    Assert that the code editor contains the given text.
-    Mirrors: checkCodeEditorForText() in utilsCodeEditor.ts
-    """
+    """Assert that the code editor contains the given text."""
     editor = get_code_editor(page, mode)
     content = editor.inner_text()
     # Normalise whitespace for comparison (matching TS toContainText behaviour)
@@ -113,14 +97,10 @@ def read_text_editor_content(page: Page, mode: SessionMode | str = "") -> Any | 
         except Exception:
             return None
 
-# ---------------------------------------------------------------------------
 # Writing
-# ---------------------------------------------------------------------------
-
 def force_code_editor_text(page: Page, text: str, mode: SessionMode | str = ""):
     """
     Overwrite the entire content of the code editor.
-    Mirrors: forceCodeEditorText() in utilsCodeEditor.ts
 
     Uses the same approach as the TS original:
     1. Click to focus

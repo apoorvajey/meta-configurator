@@ -1,12 +1,4 @@
-"""
-utils_gui_editor.py
-===================
-Mirrors: tests/shared/utilsGuiEditor.ts
-
-Helpers for reading and manipulating the GUI (form) editor panel.
-All interactions target elements by their data-testid attributes,
-following the same pattern as the TypeScript originals.
-"""
+"""Python mirror of utilsGuiEditor.ts: reading and manipulating the GUI (form) editor panel by data-testid."""
 
 from __future__ import annotations
 from playwright.sync_api import Page
@@ -14,15 +6,9 @@ from playwright.sync_api import Page
 from tests.shared.python.utils import path_to_string
 
 
-# ---------------------------------------------------------------------------
 # Property existence / visibility
-# ---------------------------------------------------------------------------
-
 def check_property_existence(page: Page, property_path: list, should_be_visible: bool):
-    """
-    Assert that a GUI editor property row is (or is not) visible.
-    Mirrors: checkPropertyExistence() in utilsGuiEditor.ts
-    """
+    """Assert that a GUI editor property row is (or is not) visible."""
     path_str = path_to_string(property_path)
     prop = page.get_by_test_id(f"property-data-{path_str}")
     if should_be_visible:
@@ -66,15 +52,9 @@ def read_top_level_property_keys(page: Page) -> list[str]:
     except Exception:
         return []
 
-# ---------------------------------------------------------------------------
 # String properties
-# ---------------------------------------------------------------------------
-
 def edit_string_property(page: Page, property_path: list, value: str):
-    """
-    Type a value into a string property text field.
-    Mirrors: editStringProperty() in utilsGuiEditor.ts
-    """
+    """Type a value into a string property text field."""
     path_str = path_to_string(property_path)
     field = page.get_by_test_id(f"property-data-{path_str}").get_by_role("textbox")
     field.click()
@@ -84,10 +64,7 @@ def edit_string_property(page: Page, property_path: list, value: str):
 
 
 def check_string_property(page: Page, property_path: list, expected_value: str):
-    """
-    Assert the current value of a string property text field.
-    Mirrors: checkStringProperty() in utilsGuiEditor.ts
-    """
+    """Assert the current value of a string property text field."""
     path_str = path_to_string(property_path)
     field = page.get_by_test_id(f"property-data-{path_str}").get_by_role("textbox")
     actual = field.input_value()
@@ -110,15 +87,9 @@ def read_string_property(page: Page, property_path: list) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
 # Boolean properties
-# ---------------------------------------------------------------------------
-
 def edit_boolean_property(page: Page, property_path: list, value: bool):
-    """
-    Click the true/false button for a boolean property.
-    Mirrors: editBooleanProperty() in utilsGuiEditor.ts
-    """
+    """Click the true/false button for a boolean property."""
     path_str = path_to_string(property_path)
     btn = page.get_by_test_id(f"property-data-{path_str}").get_by_role(
         "button", name=str(value).lower()
@@ -127,14 +98,10 @@ def edit_boolean_property(page: Page, property_path: list, value: bool):
     page.wait_for_timeout(300)
 
 
-# ---------------------------------------------------------------------------
 # Number / integer properties
-# ---------------------------------------------------------------------------
-
 def edit_number_property(page: Page, property_path: list, value: float):
     """
     Set a numeric spinbutton property.
-    Mirrors: editNumberOrIntProperty() in utilsGuiEditor.ts
 
     Uses the same native value setter trick as the TypeScript original
     to bypass React's controlled input behaviour.
@@ -158,10 +125,7 @@ def edit_number_property(page: Page, property_path: list, value: float):
 
 
 def check_number_property(page: Page, property_path: list, expected_value: float):
-    """
-    Assert the current value of a numeric spinbutton.
-    Mirrors: checkNumberOrIntProperty() in utilsGuiEditor.ts
-    """
+    """Assert the current value of a numeric spinbutton."""
     path_str = path_to_string(property_path)
     spin = page.get_by_test_id(f"property-data-{path_str}").get_by_role("spinbutton")
     actual = spin.get_attribute("aria-valuenow")
@@ -169,35 +133,23 @@ def check_number_property(page: Page, property_path: list, expected_value: float
         f"Property '{path_str}': expected '{expected_value}', got aria-valuenow='{actual}'"
 
 
-# ---------------------------------------------------------------------------
 # Array / object structure
-# ---------------------------------------------------------------------------
-
 def add_array_item(page: Page, property_path: list):
-    """
-    Click the add-item button for an array property.
-    Mirrors: addArrayItem() in utilsGuiEditor.ts
-    """
+    """Click the add-item button for an array property."""
     path_str = path_to_string(property_path)
     page.get_by_test_id(f"add-item-{path_str}").click()
     page.wait_for_timeout(300)
 
 
 def add_object_property(page: Page, property_path: list):
-    """
-    Click the add-property button for an object node.
-    Mirrors: addObjectProperty() in utilsGuiEditor.ts
-    """
+    """Click the add-property button for an object node."""
     path_str = path_to_string(property_path)
     page.get_by_test_id(f"add-property-{path_str}").click()
     page.wait_for_timeout(300)
 
 
 def remove_optional_property_value(page: Page, property_path: list):
-    """
-    Click the Remove button for an optional property.
-    Mirrors: removeOptionalPropertyValue() in utilsGuiEditor.ts
-    """
+    """Click the Remove button for an optional property."""
     path_str = path_to_string(property_path)
     page.get_by_test_id(f"property-data-{path_str}").get_by_role(
         "button", name="Remove"
@@ -208,7 +160,6 @@ def remove_optional_property_value(page: Page, property_path: list):
 def expand_or_collapse_property(page: Page, property_name: str):
     """
     Click the expand/collapse button for an object or array row.
-    Mirrors: expandOrCollapseProperty() in utilsGuiEditor.ts
 
     Note: uses a regex on the cell name because the full label includes
     child count, e.g. 'address : object 2 properties'.
@@ -219,15 +170,9 @@ def expand_or_collapse_property(page: Page, property_name: str):
     page.wait_for_timeout(300)
 
 
-# ---------------------------------------------------------------------------
 # Validation / metadata
-# ---------------------------------------------------------------------------
-
 def check_property_schema_violation(page: Page, property_path: list, should_be_visible: bool):
-    """
-    Assert that a schema violation icon is (or is not) shown for a property.
-    Mirrors: checkPropertySchemaViolation() in utilsGuiEditor.ts
-    """
+    """Assert that a schema violation icon is (or is not) shown for a property."""
     path_str = path_to_string(property_path)
     metadata = page.get_by_test_id(f"property-metadata-{path_str}")
     icon = metadata.get_by_test_id("validation-error-icon")
@@ -240,10 +185,7 @@ def check_property_schema_violation(page: Page, property_path: list, should_be_v
 
 
 def check_property_required(page: Page, property_path: list, should_be_visible: bool):
-    """
-    Assert that the required-star icon is (or is not) shown for a property.
-    Mirrors: checkPropertyRequired() in utilsGuiEditor.ts
-    """
+    """Assert that the required-star icon is (or is not) shown for a property."""
     path_str = path_to_string(property_path)
     star = page.get_by_test_id(f"property-metadata-{path_str}").get_by_test_id("required-star")
     if should_be_visible:

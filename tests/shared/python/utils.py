@@ -1,13 +1,6 @@
-"""
-utils.py
-========
-Mirrors: tests/shared/utils.ts
+"""Python mirror of utils.ts: opening the app, switching modes and formats, schema selection and path conversion.
 
-App-level helpers: opening the app, switching modes, data formats,
-schema selection, and path conversion utilities.
-
-IMPORTANT: This file must only import from stdlib and Playwright.
-Never import from anywhere inside the tests/ folder.
+Imports only the standard library and Playwright, never anything inside tests/.
 """
 
 from __future__ import annotations
@@ -16,28 +9,10 @@ import platform
 from playwright.sync_api import Page
 
 
-# ---------------------------------------------------------------------------
-# Fixture resolution — local dev server vs. remote/live deployments
-# ---------------------------------------------------------------------------
-#
-# On localhost:5173 (vite dev server), fixture files under test-fixtures/
-# are served directly by the dev server config, so a relative path works.
-#
-# On any non-local base_url (e.g. https://www.metaconfigurator.org), the
-# deployed build does NOT ship the e2e/test-fixtures/ directory — only
-# public/ is bundled into dist/. A relative "test-fixtures/..." path 404s
-# there, which silently breaks FetchView's settings/data/schema loading
-# (it swallows the fetch failure and falls through to the default view
-# with no error surfaced). The fix: use an absolute URL to the fixture
-# file's raw location in the public GitHub repo instead, since
-# fetchExternalContent() does a plain fetch() against whatever URL it's
-# given (and even special-cases github.com/blob URLs).
-#
-# NOTE: REMOTE_FIXTURES_REF pins to a branch by default, which means
-# remote/live-mode runs track whatever is currently on that branch, not
-# necessarily what's actually deployed at the live URL — those can drift
-# out of sync. Pin this to a specific commit hash instead of a branch
-# name for reproducible runs.
+# Fixture files. The vite dev server (localhost:5173) serves test-fixtures/ itself, so a relative path works.
+# Deployed builds do not ship e2e/test-fixtures/, and a relative path would 404 without any error, so the
+# files are fetched from the public GitHub repository instead. REMOTE_FIXTURES_REF is a branch by default
+# and can drift from the deployed build; pin it to a commit hash for reproducible runs.
 REMOTE_FIXTURES_REF = "develop"
 REMOTE_FIXTURES_BASE_URL = (
     f"https://raw.githubusercontent.com/MetaConfigurator/meta-configurator/"
@@ -56,10 +31,7 @@ def _fixtures_base_url(base_url: str) -> str:
     return REMOTE_FIXTURES_BASE_URL
 
 
-# ---------------------------------------------------------------------------
 # SessionMode enum
-# ---------------------------------------------------------------------------
-
 class SessionMode(str, Enum):
     DataEditor   = "dataEditor"
     SchemaEditor = "schemaEditor"
@@ -73,10 +45,7 @@ MODE_MENU_TITLES = {
 }
 
 
-# ---------------------------------------------------------------------------
 # App setup
-# ---------------------------------------------------------------------------
-
 LIVE_BASE_URL = "https://www.metaconfigurator.org"
 
 
@@ -140,10 +109,7 @@ def setup_test_panel_via_localstorage(page: Page, base_url: str = LIVE_BASE_URL)
     print("✓ Test panel enabled via localStorage")
 
 
-# ---------------------------------------------------------------------------
 # Mode switching
-# ---------------------------------------------------------------------------
-
 def get_current_editor_mode(page: Page) -> SessionMode:
     active_button = page.get_by_test_id("mode-active-true")
     text = active_button.inner_text()
@@ -165,10 +131,7 @@ def force_editor_mode(page: Page, new_mode: SessionMode):
     page.wait_for_timeout(500)
 
 
-# ---------------------------------------------------------------------------
 # Data format switching
-# ---------------------------------------------------------------------------
-
 DATA_FORMATS = ["json", "yaml"]
 
 
@@ -190,20 +153,14 @@ def force_data_format(page: Page, new_format: str):
     page.wait_for_timeout(300)
 
 
-# ---------------------------------------------------------------------------
 # Schema selection
-# ---------------------------------------------------------------------------
-
 def select_initial_schema_from_examples(page: Page, schema_name: str):
     page.get_by_text("Select a Schema").wait_for(state="visible")
     page.get_by_role("button", name="Example Schema").click()
     page.get_by_role("option", name=schema_name).click()
     page.wait_for_timeout(800)
 
-# ---------------------------------------------------------------------------
 # Dialog helpers
-# ---------------------------------------------------------------------------
-
 def dismiss_dialog_if_present(page: Page):
     try:
         btn = page.get_by_role("button", name="Close")
@@ -215,10 +172,7 @@ def dismiss_dialog_if_present(page: Page):
         pass
 
 
-# ---------------------------------------------------------------------------
 # Path / JSON Pointer utilities
-# ---------------------------------------------------------------------------
-
 def path_to_string(path: list) -> str:
     return ".".join(str(p) for p in path)
 
@@ -235,10 +189,7 @@ def json_pointer_to_path(pointer: str) -> list:
     return pointer.lstrip("/").split("/")
 
 
-# ---------------------------------------------------------------------------
 # Keyboard helpers
-# ---------------------------------------------------------------------------
-
 def select_all(page: Page):
     modifier = "Meta" if platform.system() == "Darwin" else "Control"
     page.keyboard.press(f"{modifier}+A")

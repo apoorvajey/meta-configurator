@@ -1,14 +1,7 @@
-"""
-test_panel.py
-=============
-Mirrors: tests/shared/utilsTestPanel.ts
+"""Python mirror of utilsTestPanel.ts: MetaConfigurator's internal state inspector.
 
-The test panel is MetaConfigurator's internal state inspector.
-It exposes raw data, schema, currentPath, and currentSelectedElement
-for both DataEditor and SchemaEditor modes.
-
-This is the ground truth for all invariant checks.
-Every invariant reads from here before looking at any view.
+The test panel exposes the raw data, schema, currentPath and currentSelectedElement of both editors. It is the
+ground truth every invariant reads before looking at any view.
 """
 
 from __future__ import annotations
@@ -19,10 +12,7 @@ from playwright.sync_api import Page
 from tests.shared.python.utils import SessionMode, path_to_json_pointer, json_pointer_to_path
 
 
-# ---------------------------------------------------------------------------
 # TestPanel class
-# ---------------------------------------------------------------------------
-
 class TestPanel:
     """
     Python mirror of utilsTestPanel.ts.
@@ -56,15 +46,9 @@ class TestPanel:
         tc.wait_for(state="visible", timeout=5000)
         return tc
 
-    # ------------------------------------------------------------------
     # Read operations (ground truth)
-    # ------------------------------------------------------------------
-
     def get_data(self) -> Any:
-        """
-        Read the raw internal data object.
-        Mirrors: tpGetData() in utilsTestPanel.ts
-        """
+        """Read the raw internal data object."""
         el = self._component().get_by_test_id("data")
         el.wait_for(state="visible", timeout=5000)
         content = el.text_content()
@@ -73,10 +57,7 @@ class TestPanel:
         return json.loads(content)
 
     def get_schema(self) -> Any:
-        """
-        Read the raw internal schema object.
-        Mirrors: tpGetSchema() in utilsTestPanel.ts
-        """
+        """Read the raw internal schema object."""
         el = self._component().get_by_test_id("schema")
         el.wait_for(state="visible", timeout=5000)
         content = el.text_content()
@@ -88,7 +69,6 @@ class TestPanel:
         """
         Read the current navigation path.
         Returns [] when at root (element is hidden at root, matching TS behaviour).
-        Mirrors: tpGetCurrentPath() in utilsTestPanel.ts
         """
         el = self._component().get_by_test_id("current-path")
         if expect_non_root:
@@ -103,10 +83,7 @@ class TestPanel:
             return []
 
     def get_current_selected_element(self, expect_non_root: bool = True) -> list:
-        """
-        Read the currently selected element path.
-        Mirrors: tpGetCurrentSelectedElement() in utilsTestPanel.ts
-        """
+        """Read the currently selected element path."""
         el = self._component().get_by_test_id("current-selected-element")
         if expect_non_root:
             el.wait_for(state="visible", timeout=3000)
@@ -118,15 +95,9 @@ class TestPanel:
                 return json_pointer_to_path(raw)
             return []
 
-    # ------------------------------------------------------------------
     # Write operations (test setup / mutation seeding)
-    # ------------------------------------------------------------------
-
     def force_data(self, data: Any):
-        """
-        Overwrite the internal data object.
-        Mirrors: tpForceData() in utilsTestPanel.ts
-        """
+        """Overwrite the internal data object."""
         tc = self._component()
         inp = tc.get_by_test_id("data-input")
         inp.wait_for(state="visible", timeout=3000)
@@ -136,10 +107,7 @@ class TestPanel:
         self.page.wait_for_timeout(300)
 
     def force_schema(self, schema: Any):
-        """
-        Overwrite the internal schema object.
-        Mirrors: tpForceSchema() in utilsTestPanel.ts
-        """
+        """Overwrite the internal schema object."""
         tc = self._component()
         inp = tc.get_by_test_id("schema-input")
         inp.wait_for(state="visible", timeout=3000)
@@ -149,10 +117,7 @@ class TestPanel:
         self.page.wait_for_timeout(300)
 
     def force_current_path(self, path: list):
-        """
-        Set the current navigation path.
-        Mirrors: tpForceCurrentPath() in utilsTestPanel.ts
-        """
+        """Set the current navigation path."""
         tc = self._component()
         inp = tc.get_by_test_id("current-path-input")
         inp.wait_for(state="visible", timeout=3000)
@@ -162,10 +127,7 @@ class TestPanel:
         self.page.wait_for_timeout(300)
 
     def force_current_selected_element(self, path: list):
-        """
-        Set the currently selected element.
-        Mirrors: tpForceCurrentSelectedElement() in utilsTestPanel.ts
-        """
+        """Set the currently selected element."""
         tc = self._component()
         inp = tc.get_by_test_id("current-selected-element-input")
         inp.wait_for(state="visible", timeout=3000)
@@ -175,11 +137,8 @@ class TestPanel:
         self.page.wait_for_timeout(300)
 
 
-# ---------------------------------------------------------------------------
 # Module-level convenience functions
 # (mirrors the standalone exported functions in utilsTestPanel.ts)
-# ---------------------------------------------------------------------------
-
 def tp_get_data(page: Page, mode: SessionMode = SessionMode.DataEditor) -> Any:
     return TestPanel(page, mode).get_data()
 

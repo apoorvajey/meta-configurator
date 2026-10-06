@@ -1,20 +1,16 @@
-"""Issue report: one short list of distinct problems found across mutation runs.
+"""Problem report: one short list of distinct problems instead of one card per failure.
 
     python -m tests.mutation_testing.issue_report
     python -m tests.mutation_testing.issue_report --since "2026-09-29 22:52"
 
-The list has one row per problem: what breaks, after which action, in how many runs and how early it shows
-up. Opening a row shows what is wrong, what you would see, the last actions needed to reproduce it, buttons
-that copy the replay command and a GitHub issue text, and a screenshot. Technical details (check message,
-where the failure likely started, other runs) are inside that.
+Layer 1: one line per problem (what breaks, after which action, in how many runs, how early).
+Layer 2 (click a line): what is wrong, what you would see, the last actions to reproduce it, copy buttons
+(replay command, GitHub issue text) and a screenshot.
+Layer 3 (inside layer 2): technical details (check message, where it likely started, other runs).
 
-Failures are grouped by the rules that broke first and the kind of action that triggered them, so the same
-problem in 40 runs is one row. Known bugs and test-tool problems (crashed checks, failed actions) are kept
-out of the main list, in collapsed sections below it.
-
-Loading, episodes and labels come from analyze_mutation_logs and the likely-cause analysis from
-causal_analysis, so the report agrees with them on what a failure is. Settings are in the "issue_report"
-block of triage_config.json.
+Failures are grouped by (rules that broke first, kind of action that triggered it), so a problem seen in 40 runs is
+one line. Known bugs and test-tool problems (crashed checks, failed actions) are kept out of the main list, in
+collapsed sections. Settings are in triage_config.json (block "issue_report").
 """
 from __future__ import annotations
 
@@ -29,12 +25,12 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-try:
-    from tests.mutation_testing import analyze_mutation_logs as A
-    from tests.mutation_testing import causal_analysis as C
-except ImportError:
-    import analyze_mutation_logs as A
-    import causal_analysis as C
+from tests.mutation_testing.triage.run_loading import DEFAULT_CONFIG_PATH, _rel, find_log_files, find_run_logs, load_config, load_run, parse_time_arg
+from tests.mutation_testing.triage.episodes import _panel, assign_tier, build_episodes, look_for_text, repro_steps, rule_text, split_invariant, step_label, trigger_index
+from tests.mutation_testing.triage.candidates import _snapshot_dir, draft_issue
+from tests.mutation_testing.triage.action_text import parse_action
+from tests.mutation_testing.triage.screenshots import shots_for_step
+from tests.mutation_testing import causal_analysis as C
 
 
 def _e(x) -> str:
@@ -45,14 +41,15 @@ def _attr(text: str) -> str:
     return _e(text).replace("\n", "&#10;")
 
 
+# classification
 def onset_rules(ep, cfg: dict) -> dict[str, str]:
-    """Rules that broke at the first failing step of the episode (later ones are usually fallout)."""
+    """Rules that broke at the FIRST failing step of the episode (later ones are usually fallout)."""
     i = ep.fail_steps[0] if ep.fail_steps else ep.start
     out: dict[str, str] = {}
     for entry in ep.run.steps[i].get("failed_invariants") or []:
         if not isinstance(entry, str):
             continue
-        parsed = A.split_invariant(entry)
+        parsed = split_invariant(entry)
         if parsed:
             out[parsed[0]] = parsed[1]
         else:
@@ -77,18 +74,18 @@ def classify(ep, cfg: dict) -> tuple[str, dict[str, str]]:
 
 
 def _kind(run, i: int) -> dict:
-    return A.parse_action(run.steps[i].get("action_id", ""))
+    return parse_action(run.steps[i].get("action_id", ""))
 
 
 def fingerprint(ep, rules: dict) -> tuple:
-    p = _kind(ep.run, A.trigger_index(ep))
+    p = _kind(ep.run, trigger_index(ep))
     return (tuple(sorted(rules)), p["kind"], p.get("editor") or p.get("standalone") or "")
 
 
 def match_known(ep, rules: dict, cfg: dict) -> dict | None:
     """A known bug matches on its rule(s) AND, when it names them, the kind of action involved."""
     fail_kind = _kind(ep.run, ep.start)["kind"]
-    trig_kind = _kind(ep.run, A.trigger_index(ep))["kind"]
+    trig_kind = _kind(ep.run, trigger_index(ep))["kind"]
     for bug in cfg["known_bugs"]:
         if not set(rules) & set(bug["invariants"]):
             continue
@@ -107,9 +104,9 @@ def repro_len(ep) -> int:
 class Issue:
     def __init__(self, key: tuple, members: list):
         self.key = key
-        self.members = members  # [(Episode, rules)]
+        self.members = members                          # [(Episode, rules)]
         self.eps = [m[0] for m in members]
-        self.best = min(self.eps, key=lambda e: (repro_len(e), e.run.run_id))
+        self.best = min(self.eps, key=lambda e: (repro_len(e), e.run.run_id))   # shortest sequence
         self.repro = repro_len(self.best)
         self.rules = dict(members[0][1])
         self.runs = {e.run.run_id for e in self.eps}
@@ -139,7 +136,7 @@ def build_issues(eps: list, runs: list, cfg: dict) -> tuple[list[Issue], Counter
         iss.inferred = all(r.startswith(prefixes) for r in iss.rules)
         primary = primary_rule(iss, prefixes)
         extra = len(iss.rules) - 1
-        trig = A.step_label(iss.best.run, A.trigger_index(iss.best), cfg, include_path=False)
+        trig = step_label(iss.best.run, trigger_index(iss.best), cfg, include_path=False)
         iss.title = rule_name(primary, iss.rules.get(primary, ""), cfg) + (f" (+{extra} more)" if extra else "")
         iss.trigger = trig
         issues.append(iss)
@@ -172,7 +169,7 @@ DEFAULT_SHORT_NAMES = {
 
 
 def rule_name(rid: str, logged: str, cfg: dict) -> str:
-    """Short name if known, else the full rule text."""
+    """A complete sentence fragment, never cut off: short name if known, else the full rule text."""
     short = {**DEFAULT_SHORT_NAMES, **cfg.get("issue_report", {}).get("short_names", {})}
     if rid in short:
         return short[rid]
@@ -180,12 +177,13 @@ def rule_name(rid: str, logged: str, cfg: dict) -> str:
     return t[:1].upper() + t[1:]
 
 
+# rendering pieces
 def _lead(iss: Issue, cfg: dict, primary: str) -> str:
     ep = iss.best
     if not C.has_causal_fields(ep.run):
         return ""
     try:
-        a = C.analyse(ep, primary, cfg, A.parse_action, lambda s: A._panel(s, cfg))
+        a = C.analyse(ep, primary, cfg, parse_action, lambda s: _panel(s, cfg))
     except Exception:
         return ""
     if a["lead"]:
@@ -193,7 +191,7 @@ def _lead(iss: Issue, cfg: dict, primary: str) -> str:
         cands = a.get("candidates") or []
         many = (f" (one of {len(cands)} candidates: steps {', '.join(str(c['i'] + 1) for c in cands)})"
                 if len(cands) > 1 else "")
-        return f"Likely started at step {r['i'] + 1}: {A.step_label(ep.run, r['i'], cfg)}{many}."
+        return f"Likely started at step {r['i'] + 1}: {step_label(ep.run, r['i'], cfg)}{many}."
     return "Started at the failing step itself."
 
 
@@ -226,12 +224,12 @@ def _screens_html(ep, cfg: dict) -> str:
     wanted = ([(ep.start - 1, "Before")] if ep.start > 0 else []) + [(ep.start, "When it fails")]
     for i, label in wanted:
         try:
-            for p in A.shots_for_step(ep.run, i, cfg):
+            for p in shots_for_step(ep.run, i, cfg):
                 mime, b64 = _embed(p, cfg)
                 figs.append(
                     f'<figure><a href="{_e(p.resolve().as_uri())}" target="_blank" title="Open the original file">'
                     f'<img src="data:{mime};base64,{b64}" alt=""></a>'
-                    f'<figcaption><b>{label}</b> &middot; step {i + 1}: {_e(A.step_label(ep.run, i, cfg))}</figcaption></figure>')
+                    f'<figcaption><b>{label}</b> &middot; step {i + 1}: {_e(step_label(ep.run, i, cfg))}</figcaption></figure>')
         except Exception:
             continue
     if not figs:
@@ -242,7 +240,7 @@ def _screens_html(ep, cfg: dict) -> str:
 
 def _log_uri(ep, cfg: dict) -> str | None:
     try:
-        for f in A.find_run_logs(ep.run, cfg):
+        for f in find_run_logs(ep.run, cfg):
             if f.suffix.lower() == ".html":
                 return f.resolve().as_uri() + f"#step-{ep.start + 1}"
     except Exception:
@@ -259,7 +257,7 @@ def _step_li(s: dict) -> str:
 
 def _example_html(ep, cfg: dict, limit: int, first: bool) -> str:
     run = ep.run
-    full = A.repro_steps(ep, cfg, full=True)
+    full = repro_steps(ep, cfg, full=True)
     complete = len(full) <= limit
     shown = full if complete else full[-limit:]
     heading = (f"Complete sequence from a fresh load &mdash; {len(full)} steps" if complete
@@ -267,9 +265,9 @@ def _example_html(ep, cfg: dict, limit: int, first: bool) -> str:
     log = _log_uri(ep, cfg)
     link = (f'<a class="log" href="{_e(log)}" target="_blank" onclick="event.stopPropagation()">'
             f'Open run log at step {ep.start + 1} &#8599;</a>' if log else '<span class="muted">run log not found</span>')
-    replay = f"python -m tests.mutation_testing.replay_runner --history {A._rel(run.path)}"
-    steps_for_issue = full if len(full) <= 12 else A.repro_steps(ep, cfg)
-    issue_text = A.draft_issue(ep, cfg, steps_for_issue)
+    replay = f"python -m tests.mutation_testing.replay_runner --history {_rel(run.path)}"
+    steps_for_issue = full if len(full) <= 12 else repro_steps(ep, cfg)
+    issue_text = draft_issue(ep, cfg, steps_for_issue)
     if len(full) <= 12:
         issue_text = issue_text.replace(
             "(the last part of a longer session; if it does not reproduce, earlier actions may matter)",
@@ -296,7 +294,7 @@ def _issue_html(n: int, iss: Issue, cfg: dict, prefixes: tuple) -> str:
     primary = primary_rule(iss, prefixes)
     msg, paths = _evidence(iss, cfg, primary)
     look = cfg.get("invariant_details", {}).get(primary, {}).get("look_for")
-    what = look or (f"The check reports: {msg}" if msg else A.look_for_text(primary, cfg))
+    what = look or (f"The check reports: {msg}" if msg else look_for_text(primary, cfg))
 
     per_run: dict[str, tuple[int, object]] = {}
     for e in iss.eps:
@@ -309,15 +307,15 @@ def _issue_html(n: int, iss: Issue, cfg: dict, prefixes: tuple) -> str:
     rest_html = (f'<p class="muted">Also in {len(rest)} more run{"s" if len(rest) != 1 else ""}: '
                  f'{_e(", ".join(e.run.run_id for e in rest[:12]))}{" …" if len(rest) > 12 else ""}</p>' if rest else "")
 
-    rules_li = "".join(f"<li><code>{_e(r)}</code> {_e(A.rule_text(r, iss.rules[r], cfg))}</li>" for r in sorted(iss.rules))
+    rules_li = "".join(f"<li><code>{_e(r)}</code> {_e(rule_text(r, iss.rules[r], cfg))}</li>" for r in sorted(iss.rules))
     lead = _lead(iss, cfg, primary)
-    snap = A._snapshot_dir(iss.best.run, cfg) / f"step_{iss.best.start}_after.json"
+    snap = _snapshot_dir(iss.best.run, cfg) / f"step_{iss.best.start}_after.json"
     tech = ('<details class="sub"><summary>Technical details</summary><div class="tech">'
             f'<p><b>Rules that broke first</b></p><ul>{rules_li}</ul>'
             + (f'<p><b>Check said:</b> {_e(msg)}</p>' if msg else "")
             + (f'<p><b>Paths named:</b> {", ".join(f"<code>{_e(p)}</code>" for p in paths[:6])}</p>' if paths else "")
             + (f"<p>{_e(lead)}</p>" if lead else "")
-            + (f"<p>State before/after: <code>{_e(A._rel(snap.parent))}</code></p>" if snap.is_file() else
+            + (f"<p>State before/after: <code>{_e(_rel(snap.parent))}</code></p>" if snap.is_file() else
                "<p class=\"muted\">No state snapshot for this run yet.</p>")
             + f'<p class="muted">Problem id {iss.uid}</p></div></details>')
 
@@ -478,24 +476,25 @@ def to_json(issues: list[Issue]) -> list[dict]:
     } for i in issues]
 
 
+# CLI
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Short list of distinct problems from mutation-testing runs.")
     ap.add_argument("paths", type=Path, nargs="*", help="Folders / history.json files. Default: mutation_history.")
     ap.add_argument("--last-hours", type=float, default=None)
     ap.add_argument("--since", default=None, help='e.g. "2026-09-29 22:52"')
     ap.add_argument("--until", default=None)
-    ap.add_argument("--config", type=Path, default=A.DEFAULT_CONFIG_PATH)
+    ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     ap.add_argument("--html", type=Path, default=Path("reports/issues.html"))
     ap.add_argument("--no-open", action="store_true")
     args = ap.parse_args(argv)
 
-    cfg = A.load_config(args.config)
+    cfg = load_config(args.config)
     if args.last_hours is not None and (args.since or args.until):
         print("[!] Use either --last-hours or --since/--until.", file=sys.stderr)
         return 2
     try:
-        since = A.parse_time_arg(args.since, cfg) if args.since else None
-        until = A.parse_time_arg(args.until, cfg) if args.until else None
+        since = parse_time_arg(args.since, cfg) if args.since else None
+        until = parse_time_arg(args.until, cfg) if args.until else None
     except ValueError as e:
         print(f"[!] {e}", file=sys.stderr)
         return 2
@@ -505,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
     files: list[Path] = []
     for p in (args.paths or [Path(x) for x in cfg["defaults"]["paths"]]):
         try:
-            files.extend(A.find_log_files(p))
+            files.extend(find_log_files(p))
         except FileNotFoundError as e:
             print(f"[!] {e}", file=sys.stderr)
     files = sorted(dict.fromkeys(f.resolve() for f in files))
@@ -516,7 +515,7 @@ def main(argv: list[str] | None = None) -> int:
     runs, eps, outside = [], [], 0
     for p in files:
         try:
-            r = A.load_run(p, cfg)
+            r = load_run(p, cfg)
         except (json.JSONDecodeError, ValueError) as e:
             print(f"[!] Skipping {p}: {e}", file=sys.stderr)
             continue
@@ -524,8 +523,8 @@ def main(argv: list[str] | None = None) -> int:
             outside += 1
             continue
         runs.append(r)
-        for e in A.build_episodes(r, cfg):
-            A.assign_tier(e, cfg)
+        for e in build_episodes(r, cfg):
+            assign_tier(e, cfg)
             eps.append(e)
     if not runs:
         print(f"No runs inside the time window ({outside} outside).", file=sys.stderr)

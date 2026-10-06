@@ -1,5 +1,5 @@
 {
-  "_comment": "Settings for analyze_mutation_logs.py. Keys starting with _ are documentation and are ignored. The file sits next to the script, or pass --config.",
+  "_comment": "Settings for issue_report.py and the triage package. Keys starting with _ are documentation and are ignored. Pass --config to use another file.",
   "episodes": {
     "_comment": "An episode is a stretch of consecutive failing steps, reported as one finding.",
     "max_pass_gap": 2,
@@ -146,15 +146,11 @@
   },
   "causal": {
     "_comment": "Settings for causal_analysis.py (the 'Where it likely started' section).",
-    "max_window_rows": 12,
     "max_lookback_when_no_clean_step": 10,
-    "min_windows_for_stats": 2,
-    "top_kinds": 3,
-    "max_paths_shown": 6,
     "transition_rule_prefixes": ["INF-", "TEMP-"],
     "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead. Add NEW- here if NEW-xx rules behave the same way.",
     "rule_reads": {
-      "_comment": "Which state facets each rule reads, so the report only suspects actions that changed one of them. Facets: de_data, de_schema, se_schema, se_data, de_text, se_text. Rules not listed keep the old behaviour (any state change is a suspect). Please check and adjust.",
+      "_comment": "Which state facets each rule reads, so the report only suspects actions that changed one of them. Facets: de_data, de_schema, se_schema, se_data, de_text, se_text. For rules not listed, any state change makes an action a suspect.",
       "INV-D1": ["de_data", "de_text"],
       "INV-D3": ["de_data", "de_schema"],
       "INV-D4": ["de_data", "de_schema"],
@@ -175,7 +171,7 @@
     "screenshot_max_width": 1800,
     "screenshot_quality": 92,
     "inferred_rule_prefixes": ["INF-"],
-    "_inferred_rule_prefixes_note": "Rules mined automatically from earlier runs. A problem found only by such rules is tagged 'inferred rule' and sorted last, because the rule itself may be wrong.",
+    "_inferred_rule_prefixes_note": "Rules mined automatically from recorded runs. A problem found only by such rules is tagged 'inferred rule' and sorted last, because the rule itself may be wrong.",
     "short_names": {
       "INV-D1": "Data Text View differs from the internal data",
       "INV-D3": "Required-field stars in the GUI are wrong",
@@ -195,4 +191,4 @@
     "root": "mutation_logs",
     "max_files": 5
   }
-}
+}

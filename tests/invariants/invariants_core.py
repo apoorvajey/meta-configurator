@@ -18,6 +18,11 @@
         INV-S1  Text View reflects internal schema
         INV-S2  GUI rows exist for all top-level schema keys
         INV-S3  Schema title field matches internal schema
+        INV-S4  Schema GUI validation icons match meta-schema violations of the schema
+
+Where the code lives: this file holds the shared helpers, result/report classes, the two checker classes
+(with their GUI helper methods) and the dispatcher. Each invariant itself is one file in
+tests/invariants/state/<data_editor|schema_editor>/ and is loaded by load_invariant_plugins() at the bottom.
 
 There is no INV-D2. "Required fields present in data" only holds as a transition postcondition
 (TEMP-ADD-03), because undo can legitimately break it as a standing rule.
@@ -27,24 +32,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from playwright.sync_api import Page
-from jsonschema import validate, Draft202012Validator, RefResolver
+from jsonschema import validate, Draft202012Validator, RefResolver, FormatChecker
 from tests.shared.python.utils import SessionMode
 from tests.shared.python.test_panel import TestPanel
-from tests.shared.python.utils_code_editor import read_text_editor_content, read_text_editor_raw
-from tests.shared.python.utils_gui_editor import (
-    read_property_exists,
-    read_top_level_property_keys,
-    read_string_property,
-    edit_string_property,  # used by the INV-GUI-ERR-01 positive control
-    read_required_star_visible,
-)
+from tests.shared.python.utils_code_editor import read_text_editor_raw
+
 
 _ADDITIONAL_PROPS_MSG = "must NOT have additional properties"
 _JSON_POINTER_RE = re.compile(r"(/[^\s\"']+)")
 
 
 def _path_to_testid_string(path: list) -> str:
-    """Mirrors dom_discoverer.path_to_testid_string(). Duplicated so this module does not depend on the
+    """Mirrors discovery.paths.path_to_testid_string(). Duplicated so this module does not depend on the
     mutation_testing package. Keep in sync with pathToString() in MetaConfigurator's pathUtils.ts.
     """
     result = ""
@@ -103,7 +102,7 @@ def _value_violates_schema(value, prop_schema, root_schema=None) -> bool:
     try:
         if root_schema:
             resolver = RefResolver.from_schema(root_schema)
-            validator = Draft202012Validator(prop_schema, resolver=resolver)
+            validator = Draft202012Validator(prop_schema, resolver=resolver, format_checker=FormatChecker())
             return not validator.is_valid(value)
         validate(instance=value, schema=prop_schema)
         return False
@@ -137,8 +136,7 @@ def _text_view_error_for_key(page: Page, mode: SessionMode, raw_text: str | None
     (a) a JSON pointer in the annotation text whose last segment is `key`, or
     (b) the annotation's row, looked up in the raw text for `"key"`. AJV keeps instancePath apart from
         the message, so this is the more likely case.
-    Either counts as a match. Used by the invariant and by the positive control.
-    """
+    Either counts as a match.     """
     annotations = _get_ace_annotations(page, mode)
     lines = raw_text.split("\n") if raw_text else []
     matches = []
@@ -265,9 +263,12 @@ class InvariantResult:
     message: str
     details: dict = field(default_factory=dict)
     evidence: list[str] = field(default_factory=list)
+    # The check did not apply (precondition not met). passed stays True, but a skipped result is not
+    # evidence that the invariant held: repair and statistics treat it as not evaluated.
+    skipped: bool = False
 
     def __str__(self):
-        icon = "✓" if self.passed else "✗"
+        icon = "skip" if self.skipped else ("✓" if self.passed else "✗")
         return f"  [{icon}] {self.name}: {self.message}"
 
 
@@ -321,12 +322,18 @@ class InvariantReport:
     def failures(self) -> list[InvariantResult]:
         return [r for r in self.results if not r.passed]
 
+    @property
+    def skipped(self) -> list[InvariantResult]:
+        return [r for r in self.results if r.skipped]
+
     def summary(self) -> str:
         n = len(self.results)
         f = len(self.failures)
         prefix = f"[{self.mode}] " if self.mode else ""
+        k = len(self.skipped)
+        skipped_note = f" ({k} skipped)" if k else ""
         return (
-            f"{prefix}All {n} invariants passed ✓"
+            f"{prefix}All {n} invariants passed ✓{skipped_note}"
             if f == 0
             else f"{prefix}{f}/{n} FAILED ✗"
         )
@@ -466,424 +473,6 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
         except Exception:
             return []
 
-    def _inv_d1_text_view_reflects_data(self) -> InvariantResult:
-        """The Text View content must parse to exactly the internal data. An unparseable Text View is always
-        a failure. Only json and yaml are selectable formats.
-
-        Selector: [id^="code-editor-dataEditor"]. See panelTextEditor.spec.ts and test_basic.py.
-        """
-        name = "INV-D1 Text View reflects internal data"
-
-        ground_truth = self.tp.get_data()
-        text_data = read_text_editor_content(self.page, self.mode)
-
-        if text_data is None:
-            diagnosis, details = _diagnose_unparseable_text(self.page, self.mode, ground_truth=ground_truth)
-            return InvariantResult(name, False,
-                                   f"Text View could not be parsed - {diagnosis}",
-                                   details)
-
-        passed = ground_truth == text_data
-        evidence = [
-            f"Compared internal data ({len(ground_truth) if isinstance(ground_truth, dict) else '?'} keys) "
-            f"against Text View content → {'match ✓' if passed else 'mismatch ✗'}"
-        ]
-        return InvariantResult(
-            name, passed,
-            "Text View matches internal data ✓" if passed
-            else "Text View diverges from internal data",
-            {} if passed else {
-                "internal_state": ground_truth,
-                "text_view": text_data,
-            },
-            evidence=evidence,
-        )
-
-    def _inv_d3_gui_required_stars_match_schema(self) -> InvariantResult:
-        """For each top-level property in schema.properties, the GUI shows a required star iff the property
-        is in schema.required.
-
-        See checkPropertyRequired() in panelGuiEditor.spec.ts. Selector: property-metadata-{path} >
-        required-star.
-        """
-        name = "INV-D3 GUI required-star icons match schema"
-        schema = self.tp.get_schema()
-        required = set(schema.get("required", []))
-        properties = schema.get("properties", {})
-
-        if not properties:
-            return InvariantResult(name, True,
-                                   "No properties in schema - skip")
-
-        mismatches = []
-        for prop_name in properties:
-            should_have_star = prop_name in required
-            has_star = read_required_star_visible(self.page, [prop_name])
-            if should_have_star != has_star:
-                mismatches.append({
-                    "property": prop_name,
-                    "schema_says_required": should_have_star,
-                    "gui_shows_star": has_star,
-                })
-
-        passed = not mismatches
-        evidence = [
-            f"{prop}: {'required ✓' if prop in required else 'optional'} - "
-            f"{'star shown' if read_required_star_visible(self.page, [prop]) else 'no star'}"
-            for prop in properties
-        ]
-        return InvariantResult(
-            name, passed,
-            "All required-star icons consistent ✓" if passed
-            else f"{len(mismatches)} required-star mismatch(es)",
-            {} if passed else {"mismatches": mismatches},
-            evidence=evidence,
-        )
-
-    def _inv_d4_gui_rows_exist_for_data_keys(self) -> InvariantResult:
-        """GUI rows must be complete and free of stale values relative to data. Row existence need not match
-        data keys exactly, because GUI View is a schema-driven form.
-
-        1. Every data key must have a visible GUI row.
-        2. Every GUI row that shows a value (populated input, checked checkbox, populated array items) must
-           correspond to a data key. A row with no value is fine: MetaConfigurator pre-renders placeholders
-           for object-typed and required properties.
-
-        Check 2 only looks at rows with a value because flagging every unbacked row reported empty
-        placeholders as orphans (Autonomous Vehicle schema with `{}` data: all 7 object properties). It
-        catches a stale row that keeps its content after data moved on, e.g. undo removes a key from data.
-
-        See checkPropertyExistence() in panelGuiEditor.spec.ts. Selector: property-data-{key}.
-        """
-
-        name = "INV-D4 GUI rows complete, no stale values"
-        data = self.tp.get_data()
-
-        if not isinstance(data, dict):
-            return InvariantResult(name, True,
-                                   "Data is not an object - skip")
-
-        data_keys = set(data.keys())
-        gui_keys = set(read_top_level_property_keys(self.page))
-
-        missing_rows = sorted(data_keys - gui_keys)
-        orphan_candidates = gui_keys - data_keys
-        orphan_rows = sorted(k for k in orphan_candidates if self._gui_row_has_value(k))
-        passed = not missing_rows and not orphan_rows
-
-        evidence = [f"{key}: row visible ✓" for key in sorted(data_keys - set(missing_rows))]
-        evidence += [f"{key}: MISSING from GUI ✗" for key in missing_rows]
-        evidence += [f"{key}: stale row - shows a value but no matching data key ✗" for key in orphan_rows]
-
-        details = {}
-        if missing_rows:
-            details["missing_in_gui"] = missing_rows
-        if orphan_rows:
-            details["stale_gui_rows"] = orphan_rows
-
-        message = "GUI rows complete, no stale values ✓"
-        if not passed:
-            parts = []
-            if missing_rows:
-                parts.append(f"missing rows for {missing_rows}")
-            if orphan_rows:
-                parts.append(f"stale rows for {orphan_rows}")
-            message = "; ".join(parts)
-
-        return InvariantResult(name, passed, message, details, evidence=evidence)
-
-    def _inv_d5_gui_string_values_match_data(self) -> InvariantResult:
-        """For each top-level string property, the GUI text field shows the same value as the internal state.
-
-        See checkStringProperty() in panelGuiEditor.spec.ts. Selector: property-data-{key} > textbox.
-        """
-        name = "INV-D5 GUI string values match data"
-        data = self.tp.get_data()
-
-        if not isinstance(data, dict):
-            return InvariantResult(name, True,
-                                   "Data is not an object - skip")
-
-        schema = self.tp.get_schema()
-        props = schema.get("properties", {})
-
-        string_props = {
-            k: v for k, v in data.items()
-            if isinstance(v, str)
-               and props.get(k, {}).get("type") == "string"
-        }
-
-        if not string_props:
-            return InvariantResult(name, True,
-                                   "No top-level string properties - skip")
-
-        mismatches = []
-        for key, expected in string_props.items():
-            actual = read_string_property(self.page, [key])
-            if actual is None:
-                continue  # not visible, caught by INV-D4
-            if actual != expected:
-                mismatches.append({
-                    "property": key,
-                    "internal_state": expected,
-                    "gui_shows": actual,
-                })
-
-        passed = not mismatches
-        evidence = []
-        for key, expected in string_props.items():
-            actual = read_string_property(self.page, [key])
-            if actual is None:
-                evidence.append(f"{key}: not visible - skipped")
-            elif actual == expected:
-                evidence.append(f"{key}: GUI='{actual}' matches data ✓")
-            else:
-                evidence.append(f"{key}: GUI='{actual}' ≠ data='{expected}' ✗")
-        return InvariantResult(
-            name, passed,
-            "All GUI string values match data ✓" if passed
-            else f"{len(mismatches)} string value mismatch(es)",
-            {} if passed else {"mismatches": mismatches},
-            evidence=evidence,
-        )
-
-    def _inv_d6_gui_validation_icons_match_violations(self) -> InvariantResult:
-        """For each top-level property, the GUI shows a validation-error-icon iff the value violates the
-        schema.
-
-        See checkPropertySchemaViolation() in panelGuiEditor.spec.ts. Selector: property-metadata-{path} >
-        validation-error-icon.
-        """
-
-        name = "INV-D6 GUI validation icons match violations"
-        data = self.tp.get_data()
-
-        if not isinstance(data, dict):
-            return InvariantResult(name, True,
-                                   "Data is not an object - skip")
-
-        schema = self.tp.get_schema()
-        props = schema.get("properties", {})
-
-        mismatches = []
-        evidence = []
-
-        for key, value in data.items():
-            prop_schema = props.get(key)
-            if prop_schema is None:
-                continue
-
-            should_have_error = _value_violates_schema(value, prop_schema, root_schema=schema)
-            icon_state = self._property_has_error_icon(key)
-            gui_shows_error = icon_state["icon_shown"]
-            row_found = icon_state["row_found"]
-
-            status = "AGREE ✓" if (should_have_error == gui_shows_error) else "DISAGREE ✗"
-            expected = "violation expected" if should_have_error else "no violation expected"
-            actual = "icon shown" if gui_shows_error else "no icon shown"
-
-            # Every simultaneous violation with its path, not just the first one validate() raises. A single error hides the others and lets the reported reason drift.
-            violation_details = []
-            if should_have_error:
-                try:
-                    prop_schema_combined = {**prop_schema, "$defs": schema.get("$defs", {})}
-                    resolver = RefResolver.from_schema(schema)
-                    validator = Draft202012Validator(prop_schema_combined, resolver=resolver)
-                    all_errors = sorted(
-                        validator.iter_errors(value),
-                        key=lambda e: [str(p) for p in e.absolute_path],
-                    )
-                    for ve in all_errors:
-                        path_str = _path_to_testid_string(list(ve.absolute_path)) or "(root)"
-                        violation_details.append({"path": path_str, "message": ve.message})
-                except Exception as e:
-                    violation_details.append({"path": "(unresolved)", "message": f"could not extract: {e}"})
-            reason = "; ".join(f"at {d['path']}: {d['message']}" for d in violation_details)
-
-            gui_messages = self._get_validation_error_messages(key) if gui_shows_error else []
-            gui_msg_str = " | ".join(gui_messages) if gui_messages else ""
-
-            suffix_parts = []
-            if reason:
-                suffix_parts.append(f"jsonschema:[{reason}]")
-            if gui_msg_str:
-                suffix_parts.append(f"gui:{gui_msg_str}")
-            suffix = f" [{'; '.join(suffix_parts)}]" if suffix_parts else ""
-
-            evidence.append(f"{key}: {expected}, {actual} → {status}{suffix}")
-
-            if should_have_error != gui_shows_error:
-                mismatches.append({
-                    "property": key,
-                    "value": value,
-                    "should_show_error": should_have_error,
-                    "gui_shows_error": gui_shows_error,
-                    "row_found": row_found,
-                    "reason": violation_details,
-                    "gui_messages": gui_messages,
-                })
-
-        if mismatches:
-            return InvariantResult(
-                name=name,
-                passed=False,
-                message=f"{len(mismatches)} validation icon mismatch(es)",
-                details={"mismatches": mismatches},
-                evidence=evidence,
-            )
-        return InvariantResult(
-            name=name,
-            passed=True,
-            message="All validation icons correct ✓",
-            evidence=evidence,
-        )
-
-    def _inv_gui_err_01_additional_properties_desync(self) -> InvariantResult:
-        """An AJV additionalProperties violation shown in Text View must also appear as a
-        validation-error-icon, with a matching tooltip, on the row in GUI View.
-
-        Suspected desync: the generic fallback widget for keys with no schema node (which is what an
-        additionalProperties: false violation is) may not use the same isInvalid() logic as schema-bound
-        fields such as StringProperty.vue, which INV-D6 covers.
-
-        The violating key is taken from comparing get_data() with get_schema() in Python
-        (_find_additional_properties_violations), because the Text View display is what is under test.
-        """
-        name = "INV-GUI-ERR-01 GUI validation icon matches Text View additionalProperties error"
-
-        data = self.tp.get_data()
-        schema = self.tp.get_schema()
-        violations = _find_additional_properties_violations(data, schema)
-
-        if not violations:
-            return InvariantResult(name, True,
-                                   "No additionalProperties violations present in current data - skip",
-                                   details={"violations_present": False})
-
-        raw_text = read_text_editor_raw(self.page, self.mode)
-        if raw_text is None:
-            return InvariantResult(
-                name, False,
-                f"Text View could not be read at all - cannot verify "
-                f"{len(violations)} known additionalProperties violation(s)",
-                {"expected_violations": [{"path": p, "key": k} for p, k in violations]})
-
-        mismatches = []
-        evidence = []
-        for parent_path, key in violations:
-            full_path = parent_path + [key]
-            label = _path_to_testid_string(full_path) or key
-
-            text_matches = _text_view_error_for_key(self.page, self.mode, raw_text, key)
-            if not text_matches:
-                evidence.append(
-                    f"{label}: violation present in data, but no matching AJV error found in "
-                    f"Text View annotations - cannot compare (check the annotation-source "
-                    f"assumption in _get_ace_annotations() against the live app)")
-                continue
-
-            text_message = text_matches[0]["message"]
-            gui = _gui_error_icon_and_tooltip_for_path(self.page, full_path)
-
-            if not gui["row_found"]:
-                evidence.append(f"{label}: Text View='{text_message}' but no GUI row found at all")
-                mismatches.append({"path": full_path, "key": key, "text_view_message": text_message,
-                                   "gui_row_found": False, "gui_icon_shown": False, "gui_tooltip": None})
-                continue
-
-            if not gui["icon_shown"]:
-                evidence.append(f"{label}: Text View='{text_message}' - GUI row exists but shows "
-                                f"NO error indicator ✗ (suspected any-type fallback desync)")
-                mismatches.append({"path": full_path, "key": key, "text_view_message": text_message,
-                                   "gui_row_found": True, "gui_icon_shown": False, "gui_tooltip": None})
-                continue
-
-            tooltip = gui["tooltip_text"] or ""
-            if _ADDITIONAL_PROPS_MSG in tooltip:
-                evidence.append(f"{label}: Text View='{text_message}', GUI icon+tooltip match ✓")
-            else:
-                evidence.append(f"{label}: Text View='{text_message}', GUI icon shown but "
-                                f"tooltip='{tooltip}' doesn't match ✗")
-                mismatches.append({"path": full_path, "key": key, "text_view_message": text_message,
-                                   "gui_row_found": True, "gui_icon_shown": True, "gui_tooltip": tooltip})
-
-        passed = not mismatches
-        message = ("All additionalProperties errors consistently shown in GUI View ✓" if passed
-                   else f"{len(mismatches)}/{len(violations)} additionalProperties error(s) "
-                        f"missing/mismatched in GUI View")
-        details = {"violations_present": True}
-        if mismatches:
-            details["mismatches"] = mismatches
-        return InvariantResult(name, passed, message, details, evidence=evidence)
-
-def run_positive_control_schema_bound_violation(
-        page: Page,
-        property_path: list[str] | None = None,
-        invalid_value: str = "NotMatchingPattern",
-) -> InvariantResult:
-    """Sanity check for INV-GUI-ERR-01: confirms the check recognises a case where GUI View does show
-    the error icon, so a pass is not just the check never firing.
-
-    It uses a schema-bound field (default: top-level SimulationName, pattern ^Sim_) instead of an
-    additionalProperties violation, since INV-D6 already confirms the GUI handles that class. The value
-    is written through edit_string_property(), the same path the mutation actions use, and the original
-    state is restored with TestPanel.force_data() in a finally block.
-
-    Not run by run_all() (name does not start with _inv_). Call it explicitly, e.g. at the start of a
-    debugging session.
-    """
-    name = "POSITIVE CONTROL: schema-bound pattern violation shown in GUI"
-    property_path = property_path or ["SimulationName"]
-    key = property_path[-1]
-    mode = SessionMode.DataEditor
-    tp = TestPanel(page, mode)
-
-    original_data = tp.get_data()
-
-    try:
-        edit_string_property(page, property_path, invalid_value)
-        page.wait_for_timeout(500)  # let AJV and Vue reactivity settle
-
-        raw_text = read_text_editor_raw(page, mode)
-        if raw_text is None:
-            return InvariantResult(name, False,
-                                   "Text View could not be read - cannot verify setup")
-
-        text_matches = _text_view_error_for_key(
-            page, mode, raw_text, key, message_substr="must match pattern"
-        )
-        if not text_matches:
-            return InvariantResult(
-                name, False,
-                f"Setup failed - Text View shows no pattern-violation error for "
-                f"'{invalid_value}' at {property_path}. Either edit_string_property() "
-                f"didn't register the change, or AJV's actual wording differs from "
-                f"'must match pattern' - check a real annotation before trusting this "
-                f"control.")
-
-        gui = _gui_error_icon_and_tooltip_for_path(page, property_path)
-        if not gui["row_found"]:
-            return InvariantResult(name, False,
-                                   f"GUI row not found at path {property_path} - "
-                                   f"fix path/selector, control is invalid")
-
-        passed = gui["icon_shown"]
-        message = ("GUI correctly shows error indicator for schema-bound violation ✓"
-                   if passed else
-                   "GUI shows NO indicator for a schema-bound pattern violation - the "
-                   "check itself may be broken (false-negative risk), separate from the "
-                   "any-type fallback bug INV-GUI-ERR-01 targets")
-        return InvariantResult(
-            name, passed, message,
-            details={} if passed else {"path": property_path, "gui_result": gui},
-            evidence=[f"Text View: {text_matches[0]['message']}",
-                      f"GUI icon_shown={gui['icon_shown']}, tooltip={gui['tooltip_text']!r}"],
-        )
-    finally:
-        tp.force_data(original_data)
-        page.wait_for_timeout(300)
-
-
 class InvariantCheckerSchemaEditor(_BaseInvariantChecker):
     """Invariants for Schema Editor mode. Ground truth: TestPanel(page, SessionMode.SchemaEditor).get_schema()
 
@@ -895,160 +484,6 @@ class InvariantCheckerSchemaEditor(_BaseInvariantChecker):
         super().__init__(page, SessionMode.SchemaEditor)
         # the user's schema is exposed through the DataEditor test panel
         self.tp_data = TestPanel(page, SessionMode.DataEditor)
-
-    def _inv_s0_schema_state_is_an_object(self) -> InvariantResult:
-        """The schema must always be an object (or a boolean, which is valid whole-schema shorthand).
-        Checked on its own because INV-S1, S2 and S3 assume a dict.
-
-        INV-S2 used to skip a non-dict schema and pass, hiding exactly the corruption this catches. It was
-        reachable: a root-level change-type-text-schemaEditor action collapsed the schema to a bare int.
-        NEW-07 in temporal_invariants.py is the transition-based counterpart.
-        """
-        name = "INV-S0 schema state is an object"
-        schema = self.tp_data.get_schema()
-        passed = isinstance(schema, dict) or isinstance(schema, bool)
-
-        return InvariantResult(
-            name, passed,
-            "schema is an object ✓" if passed
-            else f"schema is not an object (or boolean) - got "
-                 f"{type(schema).__name__}: {str(schema)[:100]}",
-            {} if passed else {
-                "actual_type": type(schema).__name__,
-                "actual_value": str(schema)[:200],
-            },
-        )
-
-    def _inv_s1_text_view_reflects_schema(self) -> InvariantResult:
-        """The schema Text View content must parse to exactly the internal schema. Same as INV-D1 but reads
-        get_schema() and code-editor-schemaEditor. Only json and yaml are selectable.
-
-        Selector: [id^="code-editor-schemaEditor"]
-        """
-        name = "INV-S1 Text View reflects internal schema"
-
-        ground_truth = self.tp_data.get_schema()
-        text_data = read_text_editor_content(self.page, self.mode)
-
-        if text_data is None:
-            diagnosis, details = _diagnose_unparseable_text(self.page, self.mode, ground_truth=ground_truth)
-            return InvariantResult(name, False,
-                                   f"Schema Text View could not be parsed - {diagnosis}",
-                                   details)
-
-        passed = ground_truth == text_data
-        evidence = [
-            f"Compared internal schema ({len(ground_truth) if isinstance(ground_truth, dict) else '?'} keys) "
-            f"against Schema Text View → {'match ✓' if passed else 'mismatch ✗'}"
-        ]
-        return InvariantResult(
-            name, passed,
-            "Schema Text View matches internal schema ✓" if passed
-            else "Schema Text View diverges from internal schema",
-            {} if passed else {
-                "internal_schema": ground_truth,
-                "text_view": text_data,
-            },
-            evidence=evidence,
-        )
-
-    def _inv_s2_gui_rows_exist_for_schema_keys(self) -> InvariantResult:
-        """Every top-level key in the schema must have a visible row in the Schema Editor GUI View. The GUI
-        renders the schema as a form against the meta-schema, so 'title', 'type', 'properties', 'required',
-        '$defs' etc. each get a property-data-{key} row. Keys starting with '$' use the key name directly,
-        e.g. property-data-$schema.
-
-        A non-dict schema is not treated like an empty {}. It fails here, because skipping the per-key walk
-        is not the same as all keys being present. INV-S0 reports the corruption itself.
-        """
-        name = "INV-S2 GUI rows exist for top-level schema keys"
-        schema = self.tp.get_schema()
-
-        if not isinstance(schema, dict):
-            return InvariantResult(
-                name, False,
-                f"Cannot check GUI rows - schema is not an object "
-                f"(got {type(schema).__name__}); see INV-S0",
-                {"actual_type": type(schema).__name__, "actual_value": str(schema)[:200]},
-            )
-
-        if not schema:
-            return InvariantResult(name, True,
-                                   "Schema is empty - skip")
-
-        skip_keys = {"$schema"}  # rendered as a link/badge, not a property row
-
-        missing_rows = [
-            key for key in schema
-            if key not in skip_keys
-               and not read_property_exists(self.page, [key])
-        ]
-
-        passed = not missing_rows
-        evidence = [
-            f"{key}: {'row visible ✓' if key not in missing_rows and key not in skip_keys else ('skipped' if key in skip_keys else 'row missing ✗')}"
-            for key in schema
-        ]
-        return InvariantResult(
-            name, passed,
-            "All schema keys have visible GUI rows ✓" if passed
-            else f"Schema GUI missing rows for: {missing_rows}",
-            {} if passed else {
-                "schema_keys": list(schema.keys()),
-                "missing_in_gui": missing_rows,
-            },
-            evidence=evidence,
-        )
-
-    def _inv_s3_schema_title_matches_internal(self) -> InvariantResult:
-        """The 'title' shown in the Schema Editor GUI View must match the title in the internal schema. This
-        also covers the toolbar, which reads the same state.
-
-        Selector: property-data-title > textbox
-        """
-        name = "INV-S3 Schema title field matches internal schema"
-        schema = self.tp_data.get_schema()
-
-        if not isinstance(schema, dict):
-            return InvariantResult(
-                name, False,
-                f"Cannot check title - schema is not an object "
-                f"(got {type(schema).__name__}); see INV-S0",
-                {"actual_type": type(schema).__name__},
-            )
-
-        expected_title = schema.get("title")
-
-        if expected_title is None:
-            return InvariantResult(name, True,
-                                   "Schema has no title - skip")
-
-        if not isinstance(expected_title, str):
-            return InvariantResult(name, True,
-                                   f"Schema title is not a string (got {type(expected_title).__name__}) - skip")
-
-        actual_title = read_string_property(self.page, ["title"])
-
-        if actual_title is None:
-            return InvariantResult(name, False,
-                                   "Title field not visible in Schema GUI View",
-                                   {"expected": expected_title})
-
-        passed = actual_title == expected_title
-        evidence = [
-            f"internal schema title='{expected_title}', "
-            f"GUI shows='{actual_title}' → {'match ✓' if passed else 'mismatch ✗'}"
-        ]
-        return InvariantResult(
-            name, passed,
-            f"Schema title '{expected_title}' matches GUI ✓" if passed
-            else "Schema title mismatch",
-            {} if passed else {
-                "internal_schema": expected_title,
-                "gui_shows": actual_title,
-            },
-            evidence=evidence,
-        )
 
 
 class InvariantDispatcher:
@@ -1089,7 +524,6 @@ class InvariantDispatcher:
             return InvariantCheckerSchemaEditor(self.page).run_all()
 
         if mode == SessionMode.Settings:
-            # Settings mode is out of scope
             report = InvariantReport(mode="settings")
             report.results.append(InvariantResult(
                 name="Settings mode",
@@ -1098,7 +532,6 @@ class InvariantDispatcher:
             ))
             return report
 
-        # mode could not be detected
         report = InvariantReport(mode="unknown")
         report.results.append(InvariantResult(
             name="Mode detection",
@@ -1109,10 +542,74 @@ class InvariantDispatcher:
 
 
 class InvariantChecker(InvariantDispatcher):
-    """Alias for InvariantDispatcher. The mode parameter is ignored, since the mode is read from the UI at
-    check time.
-    """
+    """InvariantDispatcher with a `mode` argument kept for callers; it is ignored, the mode is read from the UI."""
 
     def __init__(self, page: Page, mode: SessionMode = SessionMode.DataEditor):
         super().__init__(page)
-        # mode is ignored, see the docstring
+
+
+# Invariant plugins: one file per invariant in tests/invariants/state/<data_editor|schema_editor>/
+@dataclass(frozen=True)
+class InvariantPlugin:
+    id: str         # e.g. "INV-D4", as shown in reports
+    name: str       # method name, e.g. "_inv_d4_gui_rows_exist_for_data_keys"; stays stable for logs/reports
+    mode: str       # "data" or "schema"
+    check: object   # callable(ctx) -> InvariantResult, ctx is the checker instance
+    module: str     # path below tests/invariants/state, e.g. "data_editor/gui_rows_match_data_keys"
+
+
+INVARIANT_REGISTRY: dict[str, InvariantPlugin] = {}
+
+# The folder below tests/invariants/state decides which editor mode an invariant runs in.
+MODE_FOLDERS = {"data_editor": "data", "schema_editor": "schema"}
+
+
+def _bound_method(check):
+    """Wrap a plugin's check(ctx) as a method, so _BaseInvariantChecker.run_all() finds it via dir()."""
+    def method(self):
+        return check(self)
+    method.__doc__ = check.__doc__
+    return method
+
+
+def load_invariant_plugins() -> dict[str, InvariantPlugin]:
+    """Import every module below tests/invariants/state and attach its check() to the checker class of its
+    folder. Safe to call more than once. A broken plugin raises: a silently missing invariant would make a run
+    look healthier than it is.
+
+    A plugin defines ID (e.g. "INV-D4"), NAME (method name, starting with "_inv_"; appears in history.json
+    and reports, so keep it stable) and check(ctx). To add an invariant, copy a file and change those.
+    """
+    import importlib
+    import pkgutil
+    from tests.invariants import state as package
+
+    classes = {"data": InvariantCheckerDataEditor, "schema": InvariantCheckerSchemaEditor}
+    depth = len(package.__name__.split("."))
+    for info in sorted(pkgutil.walk_packages(package.__path__, f"{package.__name__}."), key=lambda i: i.name):
+        parts = info.name.split(".")[depth:]          # e.g. ["data_editor", "gui_rows_match_data_keys"]
+        if info.ispkg or any(p.startswith("_") for p in parts):
+            continue
+        label = "/".join(parts)
+        mode = MODE_FOLDERS.get(parts[0]) if len(parts) == 2 else None
+        if mode is None:
+            raise ImportError(f"{label}: must be in a folder named {' or '.join(sorted(MODE_FOLDERS))}")
+        module = importlib.import_module(info.name)
+        inv_id, name, check = (getattr(module, a, None) for a in ("ID", "NAME", "check"))
+        if not (isinstance(inv_id, str) and isinstance(name, str) and name.startswith("_inv_") and callable(check)):
+            raise ImportError(f"{label}: needs ID (str), NAME starting with '_inv_' and a callable check(ctx)")
+        for other in INVARIANT_REGISTRY.values():
+            if other.module != label and (inv_id == other.id or name == other.name):
+                raise ImportError(f"{label}: ID {inv_id} or NAME {name} is already defined in {other.module}")
+        INVARIANT_REGISTRY[name] = InvariantPlugin(inv_id, name, mode, check, label)
+        setattr(classes[mode], name, _bound_method(check))
+    return INVARIANT_REGISTRY
+
+
+def list_invariants() -> list[InvariantPlugin]:
+    """All loaded invariants, data mode first. Used by the CLI command `invariants`."""
+    return sorted(load_invariant_plugins().values(), key=lambda p: (p.mode, p.id))
+
+
+load_invariant_plugins()   # must stay the last statement: the plugins import names defined above
+

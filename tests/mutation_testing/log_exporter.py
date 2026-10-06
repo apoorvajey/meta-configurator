@@ -1,4 +1,4 @@
-"""Renders a run's step history as a self-contained HTML log (mutation_log.html, replay_log.html)."""
+"""HTML step log of a mutation-loop run or a replay."""
 
 from __future__ import annotations
 
@@ -9,17 +9,16 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tests.mutation_testing.mutation_loop import StepResult
+    from tests.mutation_testing.loop.step_result import StepResult
 
-# Optional. Without it, _format_state_diff prints the full before/after JSON instead of a diff.
+# Optional: field-level diff for _format_state_diff(); without it the full before/after JSON is shown
 try:
     from deepdiff import DeepDiff
 except ImportError:
     DeepDiff = None
 
-# Cap per action category; the selected (★) item is always shown as well.
+# Max actions listed per category in a step's "Available actions" (the selected one is always shown)
 _MAX_ACTIONS_PER_CATEGORY = 20
-
 
 _TEXT_VIEW_PREFIXES = (
     "edit-text-", "add-child-text-", "change-type-text-",
@@ -27,14 +26,15 @@ _TEXT_VIEW_PREFIXES = (
     "add-array-item-text-", "remove-array-item-text-", "clear-text-",
 )
 
-# Kept in sync with analyze_mutation_logs. de_gui/se_gui are left out: raw DOM facts, noisy to diff.
+# Snapshot facets diffed on a failing step; de_gui/se_gui (raw DOM facts) are left out as noisy
 _SNAPSHOT_FACETS = ("de_data", "de_schema", "se_schema", "se_data", "de_text", "se_text")
 
 
 def _format_text_path(segments: list[str], mode: str) -> tuple[str, str]:
-    """Returns (leaf, parents_breadcrumb) for a Text View path. In the Schema Editor, 'properties' is
-    dropped from the breadcrumb and 'additionalProperties' becomes '(any key)'.
-    """
+    """Returns (leaf, parents_breadcrumb) for a Text View path.
+    In the Schema Editor, structural keywords are hidden from the breadcrumb:
+    'properties' is dropped and 'additionalProperties' becomes '(any key)'.
+    The leaf is always kept as-is."""
     if not segments:
         return "document root", ""
     leaf, parents = segments[-1], segments[:-1]
@@ -45,9 +45,9 @@ def _format_text_path(segments: list[str], mode: str) -> tuple[str, str]:
 
 
 def _describe_text_view_action(testid: str, value: str, action_id: str) -> str | None:
-    """Plain-English description for Text View testids of the form '{prefix}{mode}:{path}'
-    (add-child-text has a third ':{prop_name}' part). Returns None for any other testid.
-    """
+    """Plain-English description for Text View testids of the form
+    '{prefix}{mode}:{path}' (add-child-text has a 3rd ':{prop_name}' part).
+    Returns None if the testid is not a Text View action."""
     prefix = next((p for p in _TEXT_VIEW_PREFIXES if testid.startswith(p)), None)
     if prefix is None:
         return None
@@ -79,6 +79,7 @@ def _describe_text_view_action(testid: str, value: str, action_id: str) -> str |
         return (f'Cleared the entire {mode_label} text '
                 f'<br><small><code>{action_id}</code></small>')
 
+    # Plain English first, raw id underneath
     return (f'{text} in the {mode_label} text view'
             f'<br><small><code>{action_id}</code></small>')
 
@@ -86,24 +87,36 @@ def _describe_text_view_action(testid: str, value: str, action_id: str) -> str |
 def _describe_action(step: "StepResult") -> str:
     testid = step.kwargs.get("testid", "")
     value  = _esc(step.kwargs.get("value", ""))
+    # Text View actions pick their new value inside the executor, so kwargs["value"] is empty;
+    # the mutation loop records what actually changed as "observed_value".
+    if not value and step.kwargs.get("observed_value"):
+        value = _esc(step.kwargs["observed_value"])
 
-    # Repair steps have no testid, only undo/redo clicks. Show the persisting failures and outcome from kwargs.
+    # Repair steps have no testid (they are direct undo/redo clicks), so describe them from their kwargs
     if step.action_id.startswith("repair:"):
         failures = step.kwargs.get("persisting_failures", [])
         role = step.kwargs.get("role", "attempt")
         actions = step.action_id[len("repair:"):]
         failures_str = ", ".join(f"<code>{f}</code>" for f in failures) or "?"
-        if role == "clear_text_auto_undo":
-            outcome = ("" if step.kwargs.get("succeeded")
-                       else "; some invariants are still failing afterwards")
-            return f'Auto-undo (<code>{actions}</code>) of the previous clear-text action{outcome}'
         if role == "succeeded":
             return (f'Auto-repair (<code>{actions}</code>): cleared persisting '
                     f'failure(s) {failures_str}')
         if role == "attempt":
             return (f'Auto-repair attempt (<code>{actions}</code>) for {failures_str} '
-                    f'- checking whether this cleared it')
-        return (f'Repair attempt did not clear {failures_str} - reverted '
+                    f'— checking whether this cleared it')
+        if role in ("mode_switch_back", "mode_switch_forward"):
+            direction = "back to the prior mode" if role == "mode_switch_back" else "forward again"
+            return f'Switched mode ({direction}) around an auto-repair'
+        if role == "clear_text_auto_undo":
+            return f'Auto-undo (<code>{actions}</code>) of the preceding clear-text action'
+        if role == "invalid_schema_recovery":
+            return (f'Recovery (<code>{actions}</code>): undoing toward a valid schema '
+                    f'({_esc(step.kwargs.get("recovery_reason", ""))})')
+        if role == "invalid_schema_recovery_revert":
+            return (f'Recovery did not reach a valid schema - reverted '
+                    f'(<code>{actions}</code>) and stopped forcing recovery for this run')
+        # remaining role: "revert"
+        return (f'Repair attempt did not clear {failures_str} — reverted '
                 f'(<code>{actions}</code>), giving up on further auto-repair for '
                 f'this failure unless it resolves and recurs later')
 
@@ -152,6 +165,8 @@ def _format_mismatch(mismatch: dict) -> str:
     actual_str   = "error icon shown" if shows else "no error icon shown"
     value_json   = json.dumps(value, indent=2, default=str)
 
+    # Why the schema says the value is invalid (INV-D6 "reason" list of
+    # {"path", "message"} dicts - every simultaneous violation).
     reason_html = ""
     violations = mismatch.get("reason") or []
     if isinstance(violations, list) and violations:
@@ -166,6 +181,7 @@ def _format_mismatch(mismatch: dict) -> str:
                 <div>{lines}</div>
             </div>'''
 
+    # What the GUI's own validation tooltip said, if an icon was shown.
     gui_html = ""
     gui_msgs = mismatch.get("gui_messages") or []
     if isinstance(gui_msgs, list) and gui_msgs:
@@ -202,6 +218,7 @@ def _format_failure(failure) -> str:
     elif failure.details:
         mismatches_html = f"<pre>{json.dumps(failure.details, indent=2, default=str)}</pre>"
 
+    # Evidence section
     evidence_html = ""
     if hasattr(failure, 'evidence') and failure.evidence:
         items = "".join(
@@ -224,11 +241,7 @@ def _format_failure(failure) -> str:
 
 
 def _format_state_diff(before: dict | None, after: dict | None) -> str:
-    """Before/after diff of the tracked facets for a failing step, in the same shape as the triage
-    report (see analyze_mutation_logs._state_diff_html).
-
-    Returns "" if `after` is None or no tracked facet changed.
-    """
+    """Exact before/after diff of the tracked facets of a failing step, or "" if `after` is None or nothing changed."""
     if after is None:
         return ""
 
@@ -267,10 +280,10 @@ def _format_state_diff(before: dict | None, after: dict | None) -> str:
 
 
 def _entered_value_html(step: "StepResult") -> str:
-    """Exact value passed to the action, plus the created property name for add-property steps."""
+    """The exact value passed to the action (escaped), plus the created property name for add-property steps."""
     parts = []
     rep = step.kwargs.get("value_repr")
-    if rep is None:  # history written before value_repr existed
+    if rep is None:  # no value_repr recorded
         raw = step.kwargs.get("value", "")
         rep = repr(raw) if raw != "" else None
     if rep is not None:
@@ -292,7 +305,10 @@ def export_html_log(
     data_file: str | None = None,
     render_state_diffs: bool = False,
 ):
-    """render_state_diffs is off by default so a live run's log does not change. replay_runner passes True."""
+    """Write the step log to `path`.
+
+    render_state_diffs: show a before/after state diff on failing steps. Off by default; the replay turns it on.
+    """
     total  = len(history)
     errors = sum(1 for s in history if not s.action_succeeded)
     fails  = sum(1 for s in history if s.action_succeeded and s.report and not s.report.passed)
@@ -319,6 +335,7 @@ def export_html_log(
 
     steps_html = ""
     for i, s in enumerate(history):
+        # Status
         if not s.action_succeeded:
             badge = '<span class="badge badge-error">Error</span>'
             step_class = "step-error"
@@ -337,6 +354,7 @@ def export_html_log(
         value_html = _entered_value_html(s)
         inv_line = f'<div class="inv-line">{s.report.summary()}</div>' if s.report else ""
 
+        # Evidence for all invariants (passing + failing)
         all_evidence_html = ""
         if s.report:
             for r in s.report.results:
@@ -354,6 +372,7 @@ def export_html_log(
                     <summary>Invariant evidence</summary>
                     {all_evidence_html}
                 </details>"""
+        # Failures
         failures_html = ""
         if s.report and s.report.failures:
             failures_html = '<div class="failures">'
@@ -361,15 +380,18 @@ def export_html_log(
                 failures_html += _format_failure(f)
             failures_html += "</div>"
 
+        # State diff: only for failing steps that carry a snapshot
         state_diff_html = ""
         if render_state_diffs and step_class == "step-fail" and s.snapshot is not None:
             prev_snapshot = history[i - 1].snapshot if i > 0 else None
             state_diff_html = _format_state_diff(prev_snapshot, s.snapshot)
 
+        # Error
         error_html = ""
         if s.action_error:
             error_html = f'<div class="action-error"><b>Error:</b> {s.action_error}</div>'
 
+        # Screenshot
         screenshot_html = ""
         if s.screenshot_path:
             abs_path = os.path.abspath(s.screenshot_path)
@@ -381,12 +403,15 @@ def export_html_log(
                     <img src="file:///{uri}" class="screenshot"/>
                 </details>'''
 
+        # Available actions (collapsible)
         actions_html = ""
         if hasattr(s, 'available_actions') and s.available_actions:
             selected_testid = s.kwargs.get("testid", "")
 
+            # Build category groups
             grouped = {}
             for testid, label, interaction in s.available_actions:
+                # Derive category from testid
                 if testid.startswith("expand-") or testid.startswith("collapse-"):
                     cat = "Expand / Collapse"
                 elif testid.startswith("input-string-") or testid.startswith("input-number-") or testid.startswith(
@@ -410,7 +435,8 @@ def export_html_log(
 
             groups_html = ""
             for cat, items in grouped.items():
-                # A Schema-tab step can discover thousands of add-child-text actions. Rendering them all made the log 70MB+.
+                # Cap the list: a Schema-tab step can discover thousands of add-child-text actions, which
+                # made the log huge. The selected action is always kept; the full list is in history.json.
                 shown = items[:_MAX_ACTIONS_PER_CATEGORY]
                 if selected_testid and not any(t == selected_testid for t, _, _ in shown):
                     selected_entry = next((it for it in items if it[0] == selected_testid), None)
@@ -430,7 +456,7 @@ def export_html_log(
 
             actions_html = f"""
             <details class="actions-wrap">
-                <summary>Available actions ({len(s.available_actions)}) - ★ selected</summary>
+                <summary>Available actions ({len(s.available_actions)}) — ★ selected</summary>
                 <div class="actions-grid">{groups_html}</div>
             </details>"""
 
@@ -669,11 +695,4 @@ function updateLabel(type) {{
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
-    abs_path = os.path.abspath(path)
-    print(f"\nLog → {abs_path}")
-    import subprocess
-    try:
-        subprocess.run(['clip'], input=abs_path.encode(), check=True)
-        print("   (path copied to clipboard - Ctrl+V in browser address bar)")
-    except Exception:
-        pass
+    print(f"\nLog: {os.path.abspath(path)}")

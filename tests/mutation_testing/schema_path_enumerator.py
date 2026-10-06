@@ -1,12 +1,11 @@
-"""Given a JSON Schema and the value at a node of a conforming instance, works out which properties
-or items can still be added at that node. It replaces arbitrary generated names and types in the
-"add child" and "add array item" Text View operations.
+"""Which properties and items can still be added at a node of a JSON document, given its schema.
 
-- Data tab: root_schema is the loaded schema, the instance is the data.
-- Schema tab: root_schema is META_SCHEMA_SIMPLIFIED, the instance is the schema.
+The "add child" and "add array item" Text View actions use it to pick names and types the schema allows, in both
+editors: Data Editor (root_schema = the user's schema, instance = the data) and Schema Editor
+(root_schema = META_SCHEMA_SIMPLIFIED, instance = the schema).
 
-This is not a full JSON Schema validator. It resolves $ref, allOf, oneOf/anyOf and if/then/else,
-using the `jsonschema` library for $ref resolution and condition checks.
+This is not a full validator. It resolves only what is needed to answer "what can be added here"
+($ref, allOf, oneOf/anyOf, if/then/else), using the `jsonschema` library.
 """
 from __future__ import annotations
 
@@ -20,7 +19,8 @@ from referencing.jsonschema import DRAFT202012
 MAX_REF_DEPTH = 40  # guards against the meta-schema's self-reference via $ref
 
 
-_UNSET = object()  # sentinel: const:null is a valid value, distinct from no const
+_UNSET = object()  # sentinel, since const:null is a legitimate value distinct from "no const"
+
 
 @dataclass
 class EffectiveSchema:
@@ -44,7 +44,7 @@ def _is_ref(node: Any) -> bool:
 
 
 def _resolve_local_ref(root_schema: dict, ref: str) -> dict:
-    """Resolve a local '#/$defs/...' or '#/definitions/...' pointer against root_schema."""
+    """Resolve a local '#/$defs/...' / '#/definitions/...' JSON Pointer against root_schema."""
     if not ref.startswith("#/"):
         raise ValueError(f"only local refs are supported by this resolver, got: {ref}")
     node: Any = root_schema
@@ -58,9 +58,10 @@ _SYNTHETIC_ROOT_ID = "urn:schema-path-enumerator:root"
 
 
 def _build_root_validator(root_schema: dict) -> Draft202012Validator:
-    """A validator anchored at root_schema, with a resolver whose base URI matches how root_schema is
-    registered, so relative $refs in extracted fragments resolve (see _instance_matches). Schemas
-    without a top-level $id get a synthetic one. It never appears in results.
+    """A validator anchored at root_schema, so relative $refs in extracted fragments resolve.
+
+    User schemas often have no top-level $id, which the registry needs as a key, so a synthetic one is used. It never
+    leaks into results, which contain resolved dicts only.
     """
     schema_for_registration = root_schema if "$id" in root_schema else {**root_schema, "$id": _SYNTHETIC_ROOT_ID}
     resource = Resource.from_contents(schema_for_registration, default_specification=DRAFT202012)
@@ -69,11 +70,10 @@ def _build_root_validator(root_schema: dict) -> Draft202012Validator:
 
 
 def _instance_matches(root_validator: Draft202012Validator, condition_schema: Any, instance: Any) -> bool:
-    """Whether `instance` validates against `condition_schema`. Used to pick if/then/else branches.
+    """Whether `instance` validates against `condition_schema` (used to pick if/then/else and oneOf/anyOf branches).
 
-    The condition is usually a fragment of the root document and may contain relative $refs. Validated
-    standalone, those refs fail to resolve, so it is swapped into the anchored validator with evolve(),
-    which keeps the original base URI.
+    The condition is usually a fragment of the root document and may hold relative $refs. Validating it standalone
+    would resolve them against an empty base URI, so it is swapped into the anchored validator with evolve().
     """
     if condition_schema is True:
         return True
@@ -83,7 +83,7 @@ def _instance_matches(root_validator: Draft202012Validator, condition_schema: An
     try:
         return validator.is_valid(instance)
     except Exception:
-        # an unresolvable condition counts as non-matching instead of raising mid-run
+        # A malformed or unresolvable condition counts as not matching, so discovery does not crash
         return False
 
 
@@ -97,7 +97,8 @@ def _merge_into(target: EffectiveSchema, src: EffectiveSchema) -> None:
         target.additional_properties = src.additional_properties
     if src.items is not None and target.items is None:
         target.items = src.items
-    # pattern/enum/const: later/outer branch wins, same approximation as properties/required. Two patterns stacked across allOf branches are not both enforced.
+    # pattern/enum/const: the later/outer branch wins. This is not full allOf semantics: two patterns in
+    # separate allOf branches would both have to hold, which this resolver does not attempt.
     if src.pattern is not None:
         target.pattern = src.pattern
     if src.enum is not None:
@@ -105,7 +106,7 @@ def _merge_into(target: EffectiveSchema, src: EffectiveSchema) -> None:
     if src.const is not _UNSET:
         target.const = src.const
 
-    # length and range bounds combine exactly with min/max
+    # Length and range bounds combine exactly: "at least X and at least Y" is "at least max(X, Y)"
     target.min_length = _tighter(target.min_length, src.min_length, max)
     target.max_length = _tighter(target.max_length, src.max_length, min)
     target.minimum = _tighter(target.minimum, src.minimum, max)
@@ -127,11 +128,10 @@ def resolve_effective_schema(
     _depth: int = 0,
     _root_validator: Draft202012Validator | None = None,
 ) -> EffectiveSchema:
-    """Merge $ref, allOf and if/then/else into one EffectiveSchema describing what is valid at a node
-    whose current value is `instance`.
+    """Merge $ref / allOf / oneOf / anyOf / if-then-else into one EffectiveSchema for a node whose current value is `instance`.
 
-    additionalProperties is approximated: if any applicable branch says false, the node is treated as
-    closed. That is enough to decide whether to offer the generic out-of-schema add action.
+    additionalProperties is approximated: if any applicable branch says false, the node is treated as closed. That is
+    enough to decide whether the generic out-of-schema add action is worth offering.
     """
     if _root_validator is None:
         _root_validator = _build_root_validator(root_schema)
@@ -142,12 +142,12 @@ def resolve_effective_schema(
     if subschema is True or subschema is None:
         return eff  # unconstrained
     if subschema is False:
-        return eff  # never valid; nothing addable here
+        return eff  # never valid; caller treats as "nothing addable here"
 
     if _is_ref(subschema):
         target = _resolve_local_ref(root_schema, subschema["$ref"])
         _merge_into(eff, resolve_effective_schema(root_schema, target, instance, _depth + 1, _root_validator))
-        # 2020-12 allows keywords next to $ref, so fall through
+        # 2020-12 allows sibling keywords alongside $ref - fall through.
 
     if "allOf" in subschema:
         for branch in subschema["allOf"]:
@@ -159,13 +159,13 @@ def resolve_effective_schema(
         if branch is not None:
             _merge_into(eff, resolve_effective_schema(root_schema, branch, instance, _depth + 1, _root_validator))
 
-    # oneOf/anyOf: only the branches the instance matches apply, evaluated like an "if" condition
+    # oneOf/anyOf: only the branches the instance matches apply (the meta-schema's "jsonSchema" def is such a oneOf)
     for composition_key in ("oneOf", "anyOf"):
         for branch in subschema.get(composition_key, []):
             if _instance_matches(_root_validator, branch, instance):
                 _merge_into(eff, resolve_effective_schema(root_schema, branch, instance, _depth + 1, _root_validator))
 
-    # keywords declared directly on this node
+    # literal keywords declared directly on this node
     if "type" in subschema:
         t = subschema["type"]
         eff.types |= {t} if isinstance(t, str) else set(t)
@@ -202,28 +202,27 @@ def resolve_effective_schema(
 def enumerate_addable_properties(
     root_schema: dict, subschema: Any, current_object: dict
 ) -> list[tuple[str, Any]]:
-    """(name, unresolved child subschema) pairs for schema-known properties that are not yet keys of
-    current_object.
-    """
+    """(name, unresolved child subschema) pairs for schema properties that are not yet keys of current_object."""
     eff = resolve_effective_schema(root_schema, subschema, current_object)
     return [(name, child) for name, child in eff.properties.items() if name not in current_object]
 
 
 def additional_properties_allowed(root_schema: dict, subschema: Any, current_object: dict) -> bool:
-    """Whether to offer the generic out-of-schema add-property action here."""
+    """Whether the generic out-of-schema add-property action is worth offering here."""
     eff = resolve_effective_schema(root_schema, subschema, current_object)
     return eff.additional_properties is not False
 
 
 def resolve_items_schema(root_schema: dict, subschema: Any, current_array: list) -> Any:
-    """The unresolved subschema for array items at this node, or None."""
+    """The (unresolved) subschema governing array items at this node, or None."""
     eff = resolve_effective_schema(root_schema, subschema, current_array)
     return eff.items
 
 
 def infer_base_type(root_schema: dict, subschema: Any, sample_instance: Any = None) -> str | None:
-    """Best-effort type for a child schema, used to pick the kind of value to generate. One of
-    'object', 'array', 'string', 'integer', 'number', 'boolean', 'null', or None if unconstrained.
+    """Best-effort single type of a child schema ('object', 'array', 'string', 'integer', 'number', 'boolean' or 'null'), to pick a value to generate.
+
+    None if unconstrained; the caller may then pick any type.
     """
     eff = resolve_effective_schema(root_schema, subschema, sample_instance if sample_instance is not None else {})
     for preferred in ("object", "array", "string", "integer", "number", "boolean", "null"):
@@ -237,14 +236,11 @@ def infer_base_type(root_schema: dict, subschema: Any, sample_instance: Any = No
 
 
 def resolve_subschema_at_path(root_schema: dict, path: list, root_instance: Any) -> Any:
-    """Walk `path` (object keys as str, array indices as int, as in dom_discoverer's path_to_testid_string)
-    through root_schema, following 'properties', 'additionalProperties' and 'items' and resolving
-    $ref, allOf, if/then/else and oneOf at each step. Returns the (possibly unresolved) subschema that
-    governs the node at `path` in `root_instance`.
+    """The (possibly unresolved) subschema governing the node at `path` in root_instance, or None if the schema does not cover it.
 
-    Returns None if the schema does not cover `path` (a key not in 'properties' with
-    'additionalProperties: false', or an index with no 'items'). Callers treat that as nothing to
-    enumerate, not as an error.
+    `path` is a list of object keys and array indices (as in discovery/paths.py). It is followed through
+    'properties', 'additionalProperties' and 'items', resolving $ref, allOf, oneOf and if/then/else at each step.
+    This lets discovery ask what governs one nested node, since add targets are found by walking the document.
     """
     current_schema: Any = root_schema
     current_instance: Any = root_instance
@@ -267,5 +263,5 @@ def resolve_subschema_at_path(root_schema: dict, path: list, root_instance: Any)
         try:
             current_instance = current_instance[segment]
         except (KeyError, IndexError, TypeError):
-            current_instance = {}  # only affects if/then resolution deeper down
+            current_instance = {}  # best-effort only affects further if/then resolution deeper down
     return current_schema
