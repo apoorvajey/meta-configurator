@@ -6,10 +6,11 @@
     "promotion_threshold": "Per-dataset support (held / observations) a candidate needs in EVERY dataset to be promoted. In (0, 1].",
     "change_count_min_share": "change_count template: the most common DeepDiff change count k is only proposed if it covers at least this share of the steps. In (0, 1].",
     "max_examples": "How many hold / fail examples are kept per finding, and how many counter-examples are listed per line of the report.",
+    "guard_min_gain": "Guarded rules (inference/guards.py): a guarded rule is kept only if its support beats the same rule without the guard by at least this much in at least one dataset. In (0, 1].",
+    "edit_distance_work_limit": "edit_distance template (inference/json_edit_distance.py): how many units of work comparing one pair of snapshots may cost. A pair that needs more gives no observation instead of slowing the run. Integer >= 1.",
     "sweep_start": "threshold_sweep.py: first promotion threshold to try.",
     "sweep_end": "threshold_sweep.py: last promotion threshold to try (inclusive).",
-    "sweep_step": "threshold_sweep.py: increment between thresholds.",
-    "dashboard_near_margin": "Dashboard and report: a per-dataset support that is below promotion_threshold by no more than this margin is shown as 'close' (amber). In (0, 1]."
+    "sweep_step": "threshold_sweep.py: increment between thresholds."
   },
   "default": {
     "min_observations": 5,
@@ -18,10 +19,11 @@
     "promotion_threshold": 0.85,
     "change_count_min_share": 0.5,
     "max_examples": 3,
+    "guard_min_gain": 0.05,
+    "edit_distance_work_limit": 200000,
     "sweep_start": 0.70,
     "sweep_end": 1.00,
-    "sweep_step": 0.05,
-    "dashboard_near_margin": 0.15
+    "sweep_step": 0.05
   },
   "strict": {
     "promotion_threshold": 0.95

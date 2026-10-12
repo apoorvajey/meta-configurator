@@ -1,4 +1,4 @@
-"""TEMP-COLLAPSE-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-COLLAPSE-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp07_collapse_preserves_schema"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-COLLAPSE-01: collapsing a tree node does not modify the schema."""
+    """Collapsing a tree node does not modify the schema."""
     if not _is_collapse(ctx.action):
         return None
 

@@ -3,7 +3,9 @@
   "episodes": {
     "_comment": "An episode is a stretch of consecutive failing steps, reported as one finding.",
     "max_pass_gap": 2,
-    "_max_pass_gap_note": "Passing steps allowed inside an episode before it ends. Failures that flicker stay one episode.",
+    "_max_pass_gap_note": "Passing steps that re-checked a failing rule, allowed inside an episode before it ends. Failures that flicker stay one episode. Passing steps that did not check the failing rules (e.g. schema-panel steps while a Data-panel rule fails) are not counted here.",
+    "max_unchecked_gap": 5,
+    "_max_unchecked_gap_note": "Steps that did not check the failing rules, allowed inside an episode before it ends anyway, so an episode cannot span a whole run just because its rule is rarely checked.",
     "blip_max_steps": 3,
     "_blip_max_steps_note": "An unnamed episode that recovered by itself and lasted at most this many steps is a blip (listed in a table, not as a card).",
     "repro_window": 8,
@@ -37,13 +39,33 @@
     "INV-D6": "The GUI's validation icons match the schema violations in the data",
     "INV-S1": "The Schema Text View parses to exactly the same object as the editor's internal schema",
     "INV-S2": "Every top-level schema key has a visible row in the Schema GUI",
-    "INV-GUI-ERR-01": "A validation error shown in the Text View is also shown by the GUI View's error indicator"
+    "INV-GUI-ERR-01": "A validation error shown in the Text View is also shown by the GUI View's error indicator",
+    "INV-G2": "The GUI is not stuck on a loading spinner"
   },
   "retired_invariants": {
     "_comment": "Episodes that fail only these invariants are filtered out.",
     "INV-D2": "Retired: replaced by temporal invariant TEMP-ADD-03"
   },
   "known_bugs": [
+    {
+      "id": "BUG-05",
+      "summary": "After a schema containing a null where a sub-schema is expected (e.g. additionalProperties: null, set by changing its type) is cleared and restored with undo/redo, the Schema GUI stays stuck on a loading spinner (the app logs 'Cannot read properties of null')",
+      "invariants": [
+        "INV-G2"
+      ]
+    },
+    {
+      "id": "BUG-06",
+      "summary": "A keyword with an invalid value (e.g. maxProperties: -1) on a schema node without 'type' is not flagged in the hosted version; the development branch flags it",
+      "invariants": ["INV-S4"],
+      "when_action_kinds": ["edit"]
+    },
+    {
+      "id": "BUG-01",
+      "summary": "Undo reverts the data format in the Data Text View, but the format selector still shows the previous format",
+      "invariants": ["INV-D1", "INF-A28E3AE0"],
+      "when_action_kinds": ["undo", "redo", "switch"]
+    },
     {
       "id": "BUG-02",
       "summary": "Undo leaves an orphaned row across Text View and GUI View",
@@ -58,13 +80,20 @@
       "invariants": [
         "INV-GUI-ERR-01"
       ]
+    },
+    {
+      "id": "BUG-03",
+      "summary": "Schema Text View content is valid YAML but the format selector shows 'json' (stale Ace undo history desyncs the format label)",
+      "invariants": [
+        "INV-S1"
+      ]
     }
   ],
   "caveats": {
     "undo_redo_across_panels": "This sequence uses Undo/Redo and touches both panels. Undo stacks are per panel (Data and Schema), so first check that the Undo was pressed in the same panel as the edit; otherwise the failure may not be an app bug."
   },
   "screenshots": {
-    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder, one level below it, and <root>/<run_id>.",
+    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder (tests/output/runs/<run_id>/screenshots) and, for runs recorded before the runs/ layout, in <root>/<run_id>.",
     "enabled": true,
     "root": "mutation_screenshots",
     "filename_regex": "^step_(?P<n>\\d+)_(?P<name>.*)$",
@@ -75,12 +104,12 @@
     "jpeg_quality": 75
   },
   "state_snapshots": {
-    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run and by replay_runner for a replay. A card shows the diff when files for its run_id are found here. Otherwise it suggests: python -m tests.mutation_testing.replay_runner --history <history.json>",
+    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run (tests/output/runs/<run_id>/states) and by replay_runner for a replay (tests/output/runs/<run_id>/replays/<replay_id>/states). A card shows the diff when the states folder next to the history is found. Runs recorded before the runs/ layout are looked up in <root>/<run_id>. Otherwise it suggests: python -m tests.mutation_testing.replay.replay_runner --history <history.json>",
     "root": "replay_snapshots",
     "_root_note": "Files are <root>/<run_id>/step_<N>_before.json and step_<N>_after.json, where N is the 0-based position in the history's 'steps' list."
   },
   "report": {
-    "default_html_path": "reports/triage_report.html",
+    "default_html_path": "tests/output/reports/triage_report.html",
     "table_max_rows": 15,
     "open_in_browser": true
   },
@@ -115,6 +144,9 @@
     "INV-D4": {
       "look_for": "The GUI shows a row with content that has no matching key in the data (an orphaned row), or a data key has no row."
     },
+    "INV-G2": {
+      "look_for": "A loading spinner stays on in the GUI View and never goes away; the GUI does not respond."
+    },
     "INV-GUI-ERR-01": {
       "look_for": "The Text View marks a validation error, but the GUI View shows no error icon for that field."
     }
@@ -132,7 +164,7 @@
   "defaults": {
     "_comment": "Used when no folder is given.",
     "paths": [
-      "mutation_history"
+      "tests/output/runs"
     ]
   },
   "log_excerpt": {
@@ -172,10 +204,15 @@
     "screenshot_quality": 92,
     "inferred_rule_prefixes": ["INF-"],
     "_inferred_rule_prefixes_note": "Rules mined automatically from recorded runs. A problem found only by such rules is tagged 'inferred rule' and sorted last, because the rule itself may be wrong.",
+    "blank_gui_prefix": "GUI is blank",
+    "_blank_gui_prefix_note": "An INV-D4 message starting with this text means no data key has a GUI row (blank GUI). Must match _BLANK_PREFIX in gui_rows_match_data_keys.py.",
+    "blank_gui_implies": ["INV-D3", "INV-D6"],
+    "_blank_gui_implies_note": "Rules dropped from a problem when it is a blank GUI: with no rows there are no stars or icons, so these failures are fallout, not separate problems.",
     "short_names": {
       "INV-D1": "Data Text View differs from the internal data",
       "INV-D3": "Required-field stars in the GUI are wrong",
       "INV-D4": "GUI rows do not match the data (orphaned or missing row)",
+      "INV-D4:blank": "The GUI is blank (no data key has a row)",
       "INV-D5": "String values in the GUI differ from the data",
       "INV-D6": "Validation icons in the GUI are wrong",
       "INV-S0": "The schema is no longer a valid object",
@@ -183,11 +220,12 @@
       "INV-S2": "A top-level schema key has no GUI row",
       "INV-S3": "Schema title field differs from the internal schema",
       "INV-GUI-ERR-01": "Text View shows a validation error the GUI does not",
+      "INV-G2": "The GUI is stuck on a loading spinner (frozen)",
       "TEMP-ADD-03": "Adding a required item does not reach the data"
     }
   },
   "run_logs": {
-    "_comment": "The mutation loop's own log files: <root>/<folder or file whose name contains the run id>, also looked up next to mutation_history. The root must be 'mutation_logs' (plural), matching mutation_logs/<run_id>/mutation_log.html.",
+    "_comment": "The mutation loop's own log: tests/output/runs/<run_id>/mutation_log.html, found next to the history. The root below is only the older layout (mutation_logs/<run_id>/mutation_log.html, plural).",
     "root": "mutation_logs",
     "max_files": 5
   }

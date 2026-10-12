@@ -1,4 +1,4 @@
-"""TEMP-EDIT-02. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-EDIT-02."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_new03_edit_field_data_editor_preserves_schema"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-EDIT-02: editing a data field in Data Editor mode never modifies the schema. Schema Editor
+    """Editing a data field in Data Editor mode never modifies the schema. Schema Editor
     meta-fields (title, type, $ref, ...) are excluded because they edit the schema by design.
     """
     if not _is_edit_field_data_editor(ctx.action):

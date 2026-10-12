@@ -6,13 +6,16 @@ from tests.shared.python.test_panel import TestPanel
 from tests.mutation_testing.discovery.page_capture import _get_current_active_mode, js_click_for_testid
 from tests.invariants.invariants_core import InvariantReport
 from tests.invariants.schema_validity import schema_meta_violations
-from tests.mutation_testing.loop.step_result import StepResult
+from tests.mutation_testing.runs.step_result import StepResult
 from tests.mutation_testing.loop.action_weights import _MODE_SWITCH_TESTID
 from tests.mutation_testing.loop.app_setup import _safe_filename_part
+from tests.mutation_testing.loop.console import show
 
 
 class RepairMixin:
     """Repair of persisting failures by undo."""
+
+    MAX_UNDO_ATTEMPTS = 15   # undos of one walk-back; the known-good state must be reachable within this many edits
 
     @staticmethod
     def _clean_for(report: InvariantReport, persisting_names: set[str]) -> bool:
@@ -57,6 +60,11 @@ class RepairMixin:
         The state is re-read after each click, so no fixed undo count is assumed (one step can take several undo
         entries). MAX_UNDO_ATTEMPTS only guards against a runaway loop; hitting it is not success.
 
+        No click is made when the known-good state is further back than MAX_UNDO_ATTEMPTS edits in the current mode
+        (e.g. INV-D6 is only evaluated in Data mode, so after a long stretch of Schema edits the last state where it
+        passed is the one before all of them). Clicking stops after UNCHANGED_UNDO_LIMIT undos in a row that
+        change nothing (empty undo stack in that mode), and only the undos that changed something are redone.
+
         Matching the snapshot is necessary but not sufficient: it covers only de_data, de_schema, se_schema and se_data,
         not the raw Text View content, which some failures depend on. Success is therefore confirmed by a fresh
         invariant check of the persisting failures. Without a known-good snapshot this falls back to
@@ -67,18 +75,24 @@ class RepairMixin:
         """
         target_snapshot, target_step = self._find_last_known_good_snapshot(persisting_names)
         if target_snapshot is None:
-            print(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
-            print("      No known-good state on record to walk back to — "
+            show(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
+            show("      No known-good state on record to walk back to — "
                   "falling back to the single-undo policy")
             return self._repair_policy_single_undo_or_revert(persisting_names, last_action_testid)
 
         current_mode = _get_current_active_mode(self.page)  # after a mode switch the caller has already switched back to the prior mode
         mode_undo = "schema_undo" if current_mode == "schemaEditor" else "undo"
         mode_redo = "schema_redo" if current_mode == "schemaEditor" else "redo"
-        MAX_UNDO_ATTEMPTS = 15
+        MAX_UNDO_ATTEMPTS = self.MAX_UNDO_ATTEMPTS
+        UNCHANGED_UNDO_LIMIT = 2
 
-        print(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
-        print(f"      Walking back toward the recorded state from step {target_step}")
+        show(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
+        edits_back = self._edits_since(target_step, current_mode)
+        if edits_back > MAX_UNDO_ATTEMPTS:
+            show(f"      The last state where it passed is step {target_step}, {edits_back} {current_mode} edits back "
+                 f"(more than {MAX_UNDO_ATTEMPTS} undos) - not walking back, giving up on auto-repair for this failure")
+            return {"succeeded": False, "still_failing": sorted(persisting_names), "steps": []}
+        show(f"      Walking back toward the recorded state from step {target_step}")
 
         def _cleared(report: InvariantReport) -> bool:
             return not ({r.name for r in report.failures} & persisting_names)
@@ -86,6 +100,8 @@ class RepairMixin:
         target_fields = {k: target_snapshot[k] for k in ("de_data", "de_schema", "se_schema", "se_data")}
         steps = []
         clicks_done = 0
+        effective_clicks = 0      # undos that changed the state; only these are redone when giving up
+        unchanged_in_a_row = 0
         resolved = False
 
         # Check before clicking: some failures never change the state (e.g. clear-text leaves an unparseable
@@ -94,14 +110,15 @@ class RepairMixin:
             fresh = self.checker.run_all()
             if _cleared(fresh):
                 resolved = True
-                print(f"      ✓ Live state already matches step {target_step}'s recorded state, "
+                show(f"      ✓ Live state already matches step {target_step}'s recorded state, "
                       f"and the failure is confirmed resolved (0 undos needed)")
             else:
-                print(f"      Live state matches step {target_step}'s recorded snapshot, but "
+                show(f"      Live state matches step {target_step}'s recorded snapshot, but "
                       f"{sorted(persisting_names)} still fails there too — undo/redo can't fix "
                       f"this (it depends on something the snapshot doesn't track, e.g. raw Text "
                       f"View editor content) — giving up without clicking anything")
         else:
+            state_before_click = self._read_full_snapshot()
             for attempt in range(1, MAX_UNDO_ATTEMPTS + 1):
                 self._click_testid_direct(mode_undo)
                 self._recent_action_testids.append(mode_undo)
@@ -109,15 +126,28 @@ class RepairMixin:
                 report_now = self.checker.run_all()
                 steps.append({"testid": mode_undo, "report": report_now})
 
-                if self._read_full_snapshot() == target_fields:
+                state_now = self._read_full_snapshot()
+                if state_now == state_before_click:
+                    unchanged_in_a_row += 1
+                else:
+                    unchanged_in_a_row = 0
+                    effective_clicks += 1
+                state_before_click = state_now
+
+                if state_now == target_fields:
                     if _cleared(report_now):
                         resolved = True
-                        print(f"      ✓ Reached step {target_step}'s recorded state after "
+                        show(f"      ✓ Reached step {target_step}'s recorded state after "
                               f"{attempt} undo(s), and the failure is confirmed resolved")
                     else:
-                        print(f"      Reached step {target_step}'s recorded state after "
+                        show(f"      Reached step {target_step}'s recorded state after "
                               f"{attempt} undo(s), but {sorted(persisting_names)} still fails "
                               f"there too — undo/redo can't fix this one")
+                    break
+
+                if unchanged_in_a_row >= UNCHANGED_UNDO_LIMIT:
+                    show(f"      {mode_undo} changed nothing {unchanged_in_a_row} times in a row (nothing left to undo in "
+                         f"this mode) - stopping the walk-back")
                     break
 
             self._recent_action_testids = self._recent_action_testids[-2:]
@@ -125,8 +155,8 @@ class RepairMixin:
         if resolved:
             return {"succeeded": True, "cleared": sorted(persisting_names), "steps": steps}
 
-        print(f"      ✗ Reverting {clicks_done} undo(s) and giving up on auto-repair for this failure")
-        for _ in range(clicks_done):
+        show(f"      ✗ Reverting {effective_clicks} undo(s) and giving up on auto-repair for this failure")
+        for _ in range(effective_clicks):
             self._click_testid_direct(mode_redo)
             self._recent_action_testids.append(mode_redo)
             report_now = self.checker.run_all()
@@ -155,8 +185,8 @@ class RepairMixin:
         else:
             repair_click, revert_click = mode_undo, mode_redo
 
-        print(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
-        print(f"      Attempting repair: {repair_click}")
+        show(f"\n   Persisting failure(s) detected: {sorted(persisting_names)}")
+        show(f"      Attempting repair: {repair_click}")
         self._click_testid_direct(repair_click)
         self._recent_action_testids.append(repair_click)
 
@@ -164,14 +194,14 @@ class RepairMixin:
         still_failing = {r.name for r in post_repair_report.failures} & persisting_names
 
         if not still_failing:
-            print("      ✓ Repair succeeded — persisting failure(s) cleared")
+            show("      ✓ Repair succeeded — persisting failure(s) cleared")
             return {
                 "succeeded": True,
                 "cleared": sorted(persisting_names),
                 "steps": [{"testid": repair_click, "report": post_repair_report}],
             }
 
-        print(f"      ✗ Repair did not clear {sorted(still_failing)} — reverting "
+        show(f"      ✗ Repair did not clear {sorted(still_failing)} — reverting "
               f"({revert_click}) and giving up on auto-repair for this failure "
               f"(it will keep logging normally, just without further repair attempts)")
         self._click_testid_direct(revert_click)
@@ -241,7 +271,9 @@ class RepairMixin:
             try:
                 live = self._read_full_snapshot()
                 candidates = []
-                if live["se_schema"] != target["se_schema"]:
+                # de_schema is the schema being edited (the same as se_data). se_schema is the meta-schema the Schema
+                # Editor is governed by, which never changes, so it can never point at the Schema Editor.
+                if live["de_schema"] != target["de_schema"]:
                     candidates.append("schemaEditor")
                 if live["de_data"] != target["de_data"]:
                     candidates.append("dataEditor")
@@ -256,6 +288,44 @@ class RepairMixin:
         if last_action_testid == _MODE_SWITCH_TESTID:
             return "dataEditor" if current_mode == "schemaEditor" else "schemaEditor"
         return current_mode
+
+    def _walk_back_too_far(self, persisting: set[str], last_action_testid: str) -> str | None:
+        """A message if the last known-good state is further back than a walk-back can reach, else None.
+
+        Checked before any click, mode switch included, so a hopeless repair costs nothing.
+        """
+        target, target_step = self._find_last_known_good_snapshot(persisting)
+        if target is None:
+            return None
+        mode = self._choose_repair_mode(persisting, last_action_testid, _get_current_active_mode(self.page))
+        edits_back = self._edits_since(target_step, mode)
+        if edits_back <= self.MAX_UNDO_ATTEMPTS:
+            return None
+        return (f"\n   Persisting failure(s) detected: {sorted(persisting)}\n"
+                f"      The last state where they passed is step {target_step}, {edits_back} {mode} edits back "
+                f"(more than {self.MAX_UNDO_ATTEMPTS} undos) - not walking back, giving up on auto-repair for this failure")
+
+    def _edits_since(self, target_step: int | None, mode: str | None) -> int:
+        """Number of successful edits made in `mode` after step `target_step` (what undo would have to take back).
+
+        Expand/collapse, format changes and mode switches do not create undo entries and are not counted.
+        """
+        if target_step is None:
+            return 0
+        not_edits = ("expand-", "collapse-", "format-selector", _MODE_SWITCH_TESTID)
+        count = 0
+        for sr in self.history:
+            snap = sr.snapshot
+            if snap is not None and (snap.get("step") or 0) <= target_step:
+                continue
+            if not sr.action_id.startswith("dynamic:") or not sr.action_succeeded:
+                continue
+            testid = sr.kwargs.get("testid", "")
+            if testid.startswith(not_edits) or testid in ("undo", "redo", "schema_undo", "schema_redo"):
+                continue
+            if sr.kwargs.get("el_mode") == mode:
+                count += 1
+        return count
 
     def _most_recent_edit_mode(self, target_step: int | None, candidates: list[str]) -> str | None:
         """Mode of the latest successful action after `target_step` that ran in one of `candidates`."""
@@ -301,10 +371,10 @@ class RepairMixin:
 
         Switches to Schema mode first if needed and back afterwards (both logged as replayable steps).
         If MAX_RECOVERY_UNDOS undos do not get there, the undos are redone and forced recovery is
-        switched off for the rest of the run (so a stuck case cannot loop). Returns True if recovered.
+        switched off until the schema is valid again (so a stuck case cannot loop). Returns True if recovered.
         """
         start_mode = _get_current_active_mode(self.page)
-        print(f"\n   Invalid schema ({reason}) - undoing in the Schema Editor until it is valid again")
+        show(f"\n   Invalid schema ({reason}) - undoing in the Schema Editor until it is valid again")
         if start_mode != "schemaEditor":
             rep = self._click_mode_switch_for_repair()
             self._log_mode_switch_step(rep, step_num, "mode_switch_back",
@@ -323,11 +393,11 @@ class RepairMixin:
             self._log_recovery_click("schema_undo", rep, step_num, attempt,
                                      "invalid_schema_recovery", recovered, reason)
             if recovered:
-                print(f"      ✓ Schema valid again after {attempt} undo(s)")
+                show(f"      ✓ Schema valid again after {attempt} undo(s)")
                 break
 
         if not recovered:
-            print(f"      ✗ Still invalid after {clicks} undo(s) - reverting and not forcing recovery again this run")
+            show(f"      ✗ Still invalid after {clicks} undo(s) - reverting and not forcing recovery again until the schema is valid")
             for k in range(clicks):
                 self._click_testid_direct("schema_redo")
                 rep = self.checker.run_all()
@@ -361,9 +431,10 @@ class RepairMixin:
 
         if not violations:
             if self._schema_valid is False:
-                print("   ✓ Schema is valid again")
+                show("   ✓ Schema is valid again")
             self._schema_valid = True
             self._steps_in_invalid = 0
+            self._recovery_disabled = False   # a failed recovery only pauses forced recovery until the schema is valid again
             return
 
         if self._schema_valid is not False:
@@ -371,7 +442,7 @@ class RepairMixin:
             self._steps_in_invalid = 0
             result.kwargs["schema_became_invalid"] = True
             result.kwargs["schema_meta_violations"] = violations[:3]
-            print(f"   Schema became invalid (episode {self._invalid_episodes}): "
+            show(f"   Schema became invalid (episode {self._invalid_episodes}): "
                   f"{violations[0]['deep_path']}: {violations[0]['message']}")
         else:
             self._steps_in_invalid += 1
@@ -427,12 +498,17 @@ class RepairMixin:
                            if n.startswith("INV-") and n not in self._prev_checked_names
                            } - self._repair_already_attempted
 
-        if persisting and action_succeeded:
+        too_far = self._walk_back_too_far(persisting, last_action_testid) if persisting and action_succeeded else None
+        if too_far:
+            show(too_far)
+            self._repair_already_attempted |= persisting
+
+        if persisting and action_succeeded and not too_far:
             mode_before_repair = _get_current_active_mode(self.page)
             repair_mode = self._choose_repair_mode(persisting, last_action_testid, mode_before_repair)
             switched_for_repair = repair_mode is not None and repair_mode != mode_before_repair
             if switched_for_repair:
-                print("\n    Persisting failure follows a mode switch — "
+                show("\n    Persisting failure follows a mode switch — "
                       "switching back to the prior mode before repair "
                       "(undo/redo only touch the currently active mode's stack)")
                 switch_back_report = self._click_mode_switch_for_repair()
@@ -500,7 +576,7 @@ class RepairMixin:
                 self._repair_already_attempted |= set(repair_info["still_failing"])
 
             if switched_for_repair:
-                print("    Switching forward again to restore the mode "
+                show("    Switching forward again to restore the mode "
                       "the triggering step left us in")
                 switch_forward_report = self._click_mode_switch_for_repair()
                 self._log_mode_switch_step(
@@ -514,7 +590,7 @@ class RepairMixin:
                 still_failing_after_switch = {r.name for r in report.failures} & persisting
                 if still_failing_after_switch:
                     self._repair_already_attempted |= still_failing_after_switch
-                    print(f"      ✗ {sorted(still_failing_after_switch)} still fails after switching "
+                    show(f"      ✗ {sorted(still_failing_after_switch)} still fails after switching "
                           f"forward - repair did not fix it, giving up on this failure")
 
         # Forget failures that cleared, so a later occurrence gets a new repair attempt

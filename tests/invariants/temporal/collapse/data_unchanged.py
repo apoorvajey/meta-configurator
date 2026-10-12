@@ -1,4 +1,4 @@
-"""TEMP-COLLAPSE-02. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-COLLAPSE-02."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp06_collapse_preserves_data"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-COLLAPSE-02: collapsing a tree node is navigation only, so the data is identical before and
+    """Collapsing a tree node is navigation only, so the data is identical before and
     after.
     """
     if not _is_collapse(ctx.action):

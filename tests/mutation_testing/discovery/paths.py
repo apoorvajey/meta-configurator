@@ -47,9 +47,7 @@ def _humanize_segment(segment: Any) -> str:
     """One path segment in plain English: 'DrivingSpeed' -> 'Driving Speed', 'car1' -> 'Car 1', index N -> 'item N+1'."""
     if isinstance(segment, int):
         return f"item {segment + 1}"
-    # Insert a space before each capital that follows a lowercase letter
-    # or digit (camelCase/PascalCase -> words), and between a letter and
-    # an immediately-following digit run. Hyphens become spaces too.
+    # camelCase/PascalCase -> words; a space between a letter and an immediately following digit run; hyphens become spaces
     s = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', ' ', str(segment))
     s = re.sub(r'(?<=[a-zA-Z])(?=[0-9])', ' ', s)
     s = s.replace('-', ' ')

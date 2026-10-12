@@ -1,4 +1,4 @@
-"""TEMP-EXPAND-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-EXPAND-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp04_expand_preserves_data"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-EXPAND-01: expanding a tree node is navigation only, so the data is identical before and after."""
+    """Expanding a tree node is navigation only, so the data is identical before and after."""
     if not _is_expand(ctx.action):
         return None
 

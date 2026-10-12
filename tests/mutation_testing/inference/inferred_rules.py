@@ -45,12 +45,16 @@ def evaluate_inferred_rules(prev: dict | None, curr: dict | None, action: str,
             message = f"{rule['statement']} ✓"
         else:
             message = f"{rule['statement']} - violated ({len(violations)}/{len(observations)} observation(s))"
-            if rule.get("min_support", 1.0) < 1.0:
+            if rule.get("promotion") == "manual":
+                message += (f" [accepted by hand although it was not promotable ({rule.get('verdict', '?')}); "
+                            f"minimum support {rule.get('min_support', 0.0):.0%}]")
+            elif rule.get("min_support", 1.0) < 1.0:
                 message += (f" [promoted at {rule['min_support']:.0%} minimum support: "
                             f"known exceptions exist in the traces]")
         results.append(InvariantResult(
             name, passed, message,
-            {} if passed else {"violations": violations[:3], "asserts": rule["card"]["asserts"]},
+            {} if passed else {"violations": violations[:3], "asserts": rule["card"]["asserts"],
+                               "definitions": rule["card"].get("definitions")},
             evidence=[f"rule={rule['id']}", f"action={action}", f"category={category}",
                       f"asserts: {rule['card']['asserts']}"],
         ))

@@ -6,7 +6,7 @@ import random
 from typing import Any
 from tests.shared.python.utils import SessionMode, force_editor_mode
 from tests.shared.python.test_panel import TestPanel
-from tests.mutation_testing.schema_path_enumerator import (
+from tests.mutation_testing.discovery.schema_path_enumerator import (
     enumerate_addable_properties,
     additional_properties_allowed,
     resolve_items_schema,
@@ -30,8 +30,8 @@ class TextViewAddMixin:
                                target_property_name: str | None = None) -> None:
         """Add a new child property to an object by editing the Text View document.
 
-        If `target_property_name` is given (a schema property still missing here, or "*" for one outside the schema), it
-        is re-checked and used. If it is None (no schema, or the node is not covered by it), name and type are arbitrary.
+        With `target_property_name` (a schema property still missing here, or "*" for one outside the schema) it is
+        re-checked and used; with None (no schema, or the node is not covered by it) name and type are arbitrary.
         The root ("") is a valid target; it has no property-data-<path> element, so the document's first '{' is used.
         """
         from tests.shared.python.utils_code_editor import read_text_editor_raw
@@ -148,10 +148,9 @@ class TextViewAddMixin:
             print("   [add-child-text] could not insert new property")
 
     def _click_add_array_item_text(self, mode: str, path_str: str) -> None:
-        """Insert a new item at a random position of an array in the Text View document.
-
-        The item type comes from the array's 'items' subschema if it resolves to a concrete type, else it is arbitrary.
-        There is one discovered action per array node.
+        """Insert a new item at a random position of an array in the Text View document. The item type comes from the
+        array's 'items' subschema if it resolves to a concrete type, else it is arbitrary. One discovered action
+        per array node.
         """
         from tests.shared.python.utils_code_editor import read_text_editor_raw
 

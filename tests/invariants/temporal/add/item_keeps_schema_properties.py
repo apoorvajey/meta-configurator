@@ -1,4 +1,4 @@
-"""TEMP-ADD-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-ADD-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp16_add_item_preserves_schema_properties"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-ADD-01: adding an array item never adds or removes schema.properties keys."""
+    """Adding an array item never adds or removes schema.properties keys."""
     if not _is_add_item(ctx.action):
         return None
 

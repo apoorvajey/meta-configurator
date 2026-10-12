@@ -12,28 +12,23 @@ from playwright.sync_api import Page
 from tests.shared.python.utils import SessionMode, path_to_json_pointer, json_pointer_to_path
 
 
-# TestPanel class
 class TestPanel:
-    """
-    Python mirror of utilsTestPanel.ts.
+    """Wraps the read/write operations on MetaConfigurator's test panel, whose data-testid structure is:
 
-    Wraps all read/write operations on MetaConfigurator's test panel.
-    The test panel data-testid structure is:
+    [data-testid="test-component-{mode}"]
+        [data-testid="data"]                  ← raw data JSON
+        [data-testid="schema"]                ← raw schema JSON
+        [data-testid="current-path"]          ← JSON pointer (hidden at root)
+        [data-testid="current-selected-element"] ← JSON pointer (hidden at root)
 
-        [data-testid="test-component-{mode}"]
-            [data-testid="data"]                  ← raw data JSON
-            [data-testid="schema"]                ← raw schema JSON
-            [data-testid="current-path"]          ← JSON pointer (hidden at root)
-            [data-testid="current-selected-element"] ← JSON pointer (hidden at root)
-
-            [data-testid="data-input"]            ← write data
-            [data-testid="submit-data"]
-            [data-testid="schema-input"]          ← write schema
-            [data-testid="submit-schema"]
-            [data-testid="current-path-input"]    ← write path
-            [data-testid="submit-current-path"]
-            [data-testid="current-selected-element-input"]  ← write selected
-            [data-testid="submit-current-selected-element"]
+        [data-testid="data-input"]            ← write data
+        [data-testid="submit-data"]
+        [data-testid="schema-input"]          ← write schema
+        [data-testid="submit-schema"]
+        [data-testid="current-path-input"]    ← write path
+        [data-testid="submit-current-path"]
+        [data-testid="current-selected-element-input"]  ← write selected
+        [data-testid="submit-current-selected-element"]
     """
 
     def __init__(self, page: Page, mode: SessionMode = SessionMode.DataEditor):
@@ -46,7 +41,6 @@ class TestPanel:
         tc.wait_for(state="visible", timeout=5000)
         return tc
 
-    # Read operations (ground truth)
     def get_data(self) -> Any:
         """Read the raw internal data object."""
         el = self._component().get_by_test_id("data")
@@ -66,10 +60,7 @@ class TestPanel:
         return json.loads(content)
 
     def get_current_path(self, expect_non_root: bool = True) -> list:
-        """
-        Read the current navigation path.
-        Returns [] when at root (element is hidden at root, matching TS behaviour).
-        """
+        """Read the current navigation path; [] at the root, where the element is hidden (as in the TS original)."""
         el = self._component().get_by_test_id("current-path")
         if expect_non_root:
             el.wait_for(state="visible", timeout=3000)
@@ -95,7 +86,6 @@ class TestPanel:
                 return json_pointer_to_path(raw)
             return []
 
-    # Write operations (test setup / mutation seeding)
     def force_data(self, data: Any):
         """Overwrite the internal data object."""
         tc = self._component()
@@ -137,8 +127,7 @@ class TestPanel:
         self.page.wait_for_timeout(300)
 
 
-# Module-level convenience functions
-# (mirrors the standalone exported functions in utilsTestPanel.ts)
+# Module-level convenience functions (mirror the exported functions in utilsTestPanel.ts)
 def tp_get_data(page: Page, mode: SessionMode = SessionMode.DataEditor) -> Any:
     return TestPanel(page, mode).get_data()
 

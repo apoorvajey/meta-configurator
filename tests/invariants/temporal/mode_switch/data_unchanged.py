@@ -1,4 +1,4 @@
-"""TEMP-MODE-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-MODE-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_new05_mode_switch_preserves_data"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-MODE-01: switching between Data Editor and Schema Editor does not modify the user data."""
+    """Switching between Data Editor and Schema Editor does not modify the user data."""
     if not _is_mode_switch(ctx.action):
         return None
 

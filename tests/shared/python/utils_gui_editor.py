@@ -6,7 +6,6 @@ from playwright.sync_api import Page
 from tests.shared.python.utils import path_to_string
 
 
-# Property existence / visibility
 def check_property_existence(page: Page, property_path: list, should_be_visible: bool):
     """Assert that a GUI editor property row is (or is not) visible."""
     path_str = path_to_string(property_path)
@@ -20,11 +19,8 @@ def check_property_existence(page: Page, property_path: list, should_be_visible:
 
 
 def read_property_exists(page: Page, property_path: list) -> bool:
-    """
-    Non-asserting version: returns True if the property row exists in the DOM.
-    Uses count() > 0 rather than is_visible() to avoid false negatives
-    when the row exists but is scrolled out of the viewport.
-    Used by invariant checks.
+    """Non-asserting: True if the property row exists in the DOM. Uses count() > 0 rather than is_visible() to avoid
+    false negatives when the row is scrolled out of the viewport.
     """
     try:
         path_str = path_to_string(property_path)
@@ -34,14 +30,9 @@ def read_property_exists(page: Page, property_path: list) -> bool:
 
 
 def read_top_level_property_keys(page: Page) -> list[str]:
-    """
-    Every top-level property-data-<key> row currently rendered, with no
-    further nesting (i.e. the key itself contains no '.' or '['). Needed
-    to check the REVERSE direction of GUI-vs-data: not just "does every
-    data key have a row" but "does every row correspond to an actual
-    data key" — a row can otherwise persist for a key schema.required
-    still lists even after the key itself was removed from data (e.g.
-    via an undo that touched data but not schema).
+    """Every top-level property-data-<key> row currently rendered (the key contains no '.' or '['). Needed for the
+    reverse direction of GUI-vs-data: a row can persist for a key that schema.required still lists after the key
+    was removed from data (e.g. by an undo that touched data but not schema).
     """
     try:
         testids = page.evaluate("""
@@ -52,7 +43,6 @@ def read_top_level_property_keys(page: Page) -> list[str]:
     except Exception:
         return []
 
-# String properties
 def edit_string_property(page: Page, property_path: list, value: str):
     """Type a value into a string property text field."""
     path_str = path_to_string(property_path)
@@ -73,10 +63,7 @@ def check_string_property(page: Page, property_path: list, expected_value: str):
 
 
 def read_string_property(page: Page, property_path: list) -> str | None:
-    """
-    Non-asserting version: returns the current value, or None if not visible.
-    Used by invariant checks.
-    """
+    """Non-asserting: the current value, or None if not visible."""
     try:
         path_str = path_to_string(property_path)
         field = page.get_by_test_id(f"property-data-{path_str}").get_by_role("textbox")
@@ -87,7 +74,6 @@ def read_string_property(page: Page, property_path: list) -> str | None:
     return None
 
 
-# Boolean properties
 def edit_boolean_property(page: Page, property_path: list, value: bool):
     """Click the true/false button for a boolean property."""
     path_str = path_to_string(property_path)
@@ -98,13 +84,9 @@ def edit_boolean_property(page: Page, property_path: list, value: bool):
     page.wait_for_timeout(300)
 
 
-# Number / integer properties
 def edit_number_property(page: Page, property_path: list, value: float):
-    """
-    Set a numeric spinbutton property.
-
-    Uses the same native value setter trick as the TypeScript original
-    to bypass React's controlled input behaviour.
+    """Set a numeric spinbutton property, using the same native value setter trick as the TypeScript original to
+    bypass React's controlled input behaviour.
     """
     path_str = path_to_string(property_path)
     spin = page.get_by_test_id(f"property-data-{path_str}").get_by_role("spinbutton")
@@ -133,7 +115,6 @@ def check_number_property(page: Page, property_path: list, expected_value: float
         f"Property '{path_str}': expected '{expected_value}', got aria-valuenow='{actual}'"
 
 
-# Array / object structure
 def add_array_item(page: Page, property_path: list):
     """Click the add-item button for an array property."""
     path_str = path_to_string(property_path)
@@ -158,11 +139,8 @@ def remove_optional_property_value(page: Page, property_path: list):
 
 
 def expand_or_collapse_property(page: Page, property_name: str):
-    """
-    Click the expand/collapse button for an object or array row.
-
-    Note: uses a regex on the cell name because the full label includes
-    child count, e.g. 'address : object 2 properties'.
+    """Click the expand/collapse button for an object or array row. Matches the cell name by regex because the full
+    label includes the child count, e.g. 'address : object 2 properties'.
     """
     import re
     btn = page.get_by_role("cell", name=re.compile(f"^{property_name} :")).get_by_role("button")
@@ -170,7 +148,6 @@ def expand_or_collapse_property(page: Page, property_name: str):
     page.wait_for_timeout(300)
 
 
-# Validation / metadata
 def check_property_schema_violation(page: Page, property_path: list, should_be_visible: bool):
     """Assert that a schema violation icon is (or is not) shown for a property."""
     path_str = path_to_string(property_path)
@@ -196,10 +173,7 @@ def check_property_required(page: Page, property_path: list, should_be_visible: 
 
 
 def read_required_star_visible(page: Page, property_path: list) -> bool:
-    """
-    Non-asserting version: returns True if the required star is visible.
-    Used by invariant checks.
-    """
+    """Non-asserting: True if the required star is visible."""
     try:
         path_str = path_to_string(property_path)
         star = page.get_by_test_id(

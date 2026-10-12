@@ -1,5 +1,5 @@
 {
-  "_comment": "Data Editor focus. Data Editor gets a 20:3 Mode-level weight over Schema Editor. Everything else matches the default profile.",
+  "_comment": "Data Editor focus: Mode weight 20:3 over Schema Editor; all other weights as in the default profile. Select with set_action_weights_profile('data_focus').",
 
   "Schema Editor": {
     "weight": 3,

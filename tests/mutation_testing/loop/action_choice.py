@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from tests.mutation_testing.discovery.element import ElementDescriptor, CATEGORY_LABELS
-from tests.mutation_testing.loop.step_result import StepResult
+from tests.mutation_testing.runs.step_result import StepResult
 
 
 class ActionChoiceMixin:

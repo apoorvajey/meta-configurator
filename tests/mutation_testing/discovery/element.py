@@ -40,10 +40,8 @@ class ElementDescriptor:
 
     @property
     def view(self) -> str:
-        """Which 'view' bucket this action belongs to, for the Mode > View > Action hierarchy.
-
-        Schema Diagram actions are not discovered yet, so 'Schema Diagram' is never returned; it exists in the weights
-        config only as a placeholder.
+        """The 'view' bucket of this action, for the Mode > View > Action hierarchy. 'Schema Diagram' is never returned
+        (its actions are not discovered yet); it exists in the weights config only as a placeholder.
         """
         _text_view_prefixes = (
             "edit-text-", "add-child-text-", "change-type-text-",
@@ -147,7 +145,7 @@ class ElementDescriptor:
         if self.testid == "mode-active-false":
             return "Switch between Data and Schema"
         if self.testid == "format-selector":
-            return "Switch file format (JSON / YAML / XML)"
+            return "Switch file format (JSON / YAML)"
         if self.testid == "undo":
             return "Undo the last change (in Data)"
         if self.testid == "redo":
@@ -268,10 +266,8 @@ _SELECT_PATTERNS = (
 
 
 def _infer_element_mode(testid: str, current_mode: str) -> str:
-    """'dataEditor' or 'schemaEditor' for a discovered testid.
-
-    Text View and undo/redo testids encode the mode; GUI View testids do not, so they get `current_mode`
-    (the mode active on screen, computed once per discover() call).
+    """Text View and undo/redo testids encode the mode; GUI View testids do not, so they get `current_mode` (the mode
+    active on screen, computed once per discover() call). Returns 'dataEditor' or 'schemaEditor'.
     """
     if testid in ("undo", "redo"):
         return "dataEditor"

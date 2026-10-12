@@ -4,7 +4,7 @@ from __future__ import annotations
 from playwright.sync_api import Page
 from tests.shared.python.utils import SessionMode
 from tests.shared.python.test_panel import TestPanel
-from tests.mutation_testing.schema_path_enumerator import (
+from tests.mutation_testing.discovery.schema_path_enumerator import (
     enumerate_addable_properties,
     additional_properties_allowed,
     resolve_subschema_at_path,
@@ -212,7 +212,7 @@ class DOMDiscoverer:
                 continue
             try:
                 tp = TestPanel(self.page, session_mode)
-                target = tp.get_data()  # the document being edited (the "data" slot on both tabs); see the governing_schema note just below for why this must NOT be tp.get_schema() here
+                target = tp.get_data()
             except Exception:
                 continue
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 from typing import Any
 from tests.mutation_testing.discovery.element import ElementDescriptor
+from tests.mutation_testing.discovery.values import roll_valid
 
 
 _FORMAT_OPTIONS = ["json", "yaml"]  # the app registers only these as live formats
@@ -187,6 +188,7 @@ class GuiActionsMixin:
         parent_path = el.testid[len("add-property-"):]
         self._last_added_property_parent_path = ""
         self._last_added_property_name = ""
+        self._last_added_property_path = ""
 
         # Mark every editable that exists BEFORE the click. The new name editor is then identified by
         # the absence of the mark, not by DOM position: property labels are contenteditable too, so
@@ -198,42 +200,33 @@ class GuiActionsMixin:
                     .forEach(e => e.setAttribute('data-mc-pre', '1'));
             }
         """)
-        clicked = self.page.evaluate(f"""
-            () => {{
-                const spans = [...document.querySelectorAll('[data-testid="add-property-"]')];
-                for (const span of spans) {{
+        clicked = self.page.evaluate("""
+            (parentPath) => {
+                const all = [...document.querySelectorAll('[data-testid^="add-property-"]')]
+                    .filter(e => e.offsetParent !== null);
+                // 1) The testid already carries the parent path (what discovery returns).
+                const exact = all.find(e => e.getAttribute('data-testid') === 'add-property-' + parentPath);
+                if (exact) { exact.click(); return 'exact'; }
+                // 2) Empty-suffix control: parent = nearest previous row one aria-level up (same rule as discovery).
+                for (const span of all.filter(e => e.getAttribute('data-testid') === 'add-property-')) {
                     const row = span.closest('tr');
                     if (!row) continue;
-                    let contextDepth = -1;
-                    let p = row.previousElementSibling;
-                    while (p) {{
-                        const tog = p.querySelector('button.p-treetable-node-toggle-button');
-                        if (tog) {{ contextDepth = parseFloat(tog.style.marginLeft) || 0; break; }}
-                        p = p.previousElementSibling;
-                    }}
+                    const parentLevel = parseInt(row.getAttribute('aria-level') || '1') - 1;
                     let prev = row.previousElementSibling;
-                    while (prev) {{
-                        const toggler = prev.querySelector('button.p-treetable-node-toggle-button');
-                        const label   = prev.querySelector('[id^="_label_"]');
-                        if (toggler && label) {{
-                            const prevMargin = parseFloat(toggler.style.marginLeft) || 0;
-                            if (prevMargin < contextDepth) {{
-                                const resolvedPath = label.id.replace('_label_', '');
-                                if (resolvedPath === '{parent_path}') {{
-                                    span.click();
-                                    return true;
-                                }}
-                                break;
-                            }}
-                        }}
+                    while (prev) {
+                        const label = prev.querySelector('[id^="_label_"]');
+                        if (label && parseInt(prev.getAttribute('aria-level') || '1') === parentLevel) {
+                            if (label.id.replace('_label_', '') === parentPath) { span.click(); return 'positional'; }
+                            break;
+                        }
                         prev = prev.previousElementSibling;
-                    }}
-                }}
-                return false;
-            }}
-        """)
-        if not clicked:
-            raise RuntimeError(f"add-property: control for '{parent_path}' not found")
+                    }
+                }
+                return all.map(e => e.getAttribute('data-testid')).slice(0, 12);
+            }
+        """, parent_path)
+        if not isinstance(clicked, str):
+            raise RuntimeError(f"add-property: control for '{parent_path}' not found; add-property ids in DOM: {clicked}")
 
         self.page.wait_for_timeout(400)
 
@@ -267,9 +260,23 @@ class GuiActionsMixin:
         self.page.keyboard.type(new_name)
         self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(300)
-        print(f"   new property named '{new_name}'")
+        # Where the key really landed, read back from the tree's row labels. The control id names the schema that
+        # receives the property (e.g. definitions.Complex); in the Schema Editor the key itself lands one level
+        # deeper (definitions.Complex.properties.meadow). The shortest match is the new row, not a deeper namesake.
+        landed = ""
+        try:
+            landed = self.page.wait_for_function(
+                """([parent, name]) => [...document.querySelectorAll('[id^="_label_"]')]
+                       .map(e => e.id.replace('_label_', ''))
+                       .filter(p => p.startsWith(parent + '.') && p.endsWith('.' + name))
+                       .sort((a, b) => a.length - b.length)[0] || ''""",
+                arg=[parent_path, new_name], timeout=2000).json_value()
+        except Exception:
+            pass  # row label not rendered in time: log the name only
+        print(f"   new property '{new_name}' added at {landed}" if landed else f"   new property named '{new_name}'")
         self._last_added_property_parent_path = parent_path
         self._last_added_property_name = new_name
+        self._last_added_property_path = landed
 
     def _select(self, el: ElementDescriptor, value: Any = None) -> None:
         if el.testid == "format-selector":
@@ -309,7 +316,7 @@ class GuiActionsMixin:
         maximum = prop_schema.get("maximum", 100)
         multiple_of = prop_schema.get("multipleOf")
         is_integer = prop_schema.get("type") == "integer"
-        use_valid = random.random() < 0.5
+        use_valid = roll_valid()
 
         if not use_valid:
             invalid_choices = [

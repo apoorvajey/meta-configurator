@@ -1,0 +1,237 @@
+{
+  "INF-211D0B93": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-5EEE2C81": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-9FFFFF53": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-896D61C8": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-AD59D39C": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-5C4FE313": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-AD9634CE": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-038A66FD": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-6266D645": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-A28E3AE0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 98
+  },
+  "INF-B559BE98": {
+    "status": "accepted",
+    "tier": "investigate",
+    "minSupport": 74
+  },
+  "INF-DCE8AC44": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-592FCED5": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-6B7ACFBF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E075E3B5": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E6D2360B": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-061911D3": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-9D1B4131": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-9AE0A84E": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-1E4861CD": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 88
+  },
+  "INF-CEAC2F39": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-6D118B0D": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-037CC91C": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-CE20C70A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-DE681A06": {
+    "status": "rejected",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-F0443651": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-83E8B833": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-EB0ED7F1": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-F55A226A": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-058BFBF6": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-C7DB6FD6": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 80
+  },
+  "INF-40399451": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-66209615": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-4E7D96FC": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-31BFD8F0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E13091AF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-74BC3624": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-A9B85B97": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-6EFDFA0A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E2FE53C7": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-F4BD449D": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-0FD73F5A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E8C6D1CF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-C8939CA0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 98
+  },
+  "INF-01C4BDCF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-34E7D8F6": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-19106981": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 89
+  }
+}

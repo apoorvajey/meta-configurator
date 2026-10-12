@@ -10,6 +10,23 @@ from tests.mutation_testing.discovery.element import ElementDescriptor
 from tests.mutation_testing.discovery.schema_resolution import _resolve_prop_schema_dict
 from tests.mutation_testing.discovery.paths import testid_path_string_to_list
 
+# Chance that a generated value is valid, set from run_config.json (see profile_config.apply_configured_valid_probability).
+# "gui": GUI View fills/selects. "text_view": Text View edit-text.
+_VALID_P = {"gui": 0.5, "text_view": 0.8}
+
+
+def set_valid_probability(gui: float, text_view: float) -> None:
+    _VALID_P["gui"], _VALID_P["text_view"] = gui, text_view
+
+
+def get_valid_probability(kind: str = "gui") -> float:
+    return _VALID_P[kind]
+
+
+def roll_valid(kind: str = "gui") -> bool:
+    """True with the configured probability of generating a valid value."""
+    return random.random() < _VALID_P[kind]
+
 
 def _generate_typed_value(allowed_kinds: list[str]) -> tuple[str, Any]:
     """Pick a random kind from allowed_kinds and generate a value of it (shared by add-child-text, change-type-text and array item insertion)."""
@@ -96,16 +113,16 @@ class ValueGenerator:
             prop_name = el.testid[len("input-select-"):]
             prop_schema = self._prop_schema(prop_name)
             if prop_schema.get("type") == "string":
-                use_valid = force_valid if force_valid is not None else (random.random() < 0.5)
+                use_valid = force_valid if force_valid is not None else roll_valid()
                 return self._string_value(prop_schema, use_valid)
             # For meta-schema string fields with no schema definition (e.g. $id, description, title)
             if el.tag == "input" and not prop_schema:
-                use_valid = force_valid if force_valid is not None else (random.random() < 0.5)
+                use_valid = force_valid if force_valid is not None else roll_valid()
                 return self._string_value({}, use_valid)
         if el.interaction != "fill":
             return None
 
-        use_valid = force_valid if force_valid is not None else (random.random() < 0.5)
+        use_valid = force_valid if force_valid is not None else roll_valid()
         prop_name   = el.property_name
         prop_schema = self._prop_schema(prop_name) if prop_name else {}
 

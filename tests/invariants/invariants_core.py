@@ -1,35 +1,22 @@
-"""Mode-specific invariant checkers for MetaConfigurator mutation testing.
+"""Mode-specific invariant checkers: shared helpers, result classes, the two checker classes and the dispatcher.
 
-    InvariantDispatcher reads the active mode from the UI and runs:
-        InvariantCheckerDataEditor    (Data Editor)
-        InvariantCheckerSchemaEditor  (Schema Editor)
-        nothing                       (Settings)
+InvariantDispatcher reads the active mode from the UI and runs InvariantCheckerDataEditor,
+InvariantCheckerSchemaEditor, or nothing (Settings). Each invariant is one file in
+invariants/state/<data_editor|schema_editor|any_editor>/, loaded by load_invariant_plugins() at the bottom.
 
-    Data Editor
-        INV-D1          Text View reflects internal data
-        INV-D3          GUI required stars match schema.required
-        INV-D4          GUI rows exist for all data keys
-        INV-D5          GUI string values match data
-        INV-D6          GUI validation icons match schema violations
-        INV-GUI-ERR-01  GUI validation icon matches the Text View additionalProperties error
+Data Editor:   INV-D1 Text View = data, D3 required stars, D4 GUI rows for all data keys, D5 GUI strings = data,
+               D6 validation icons = schema violations, INV-GUI-ERR-01 icon for the additionalProperties error.
+Schema Editor: INV-S0 schema is an object, S1 Text View = schema, S2 GUI rows for top-level keys,
+               S3 title field = schema, S4 validation icons = meta-schema violations.
+Both:          INV-G1 no uncaught app errors, INV-G2 GUI not stuck loading.
 
-    Schema Editor
-        INV-S0  Schema state is an object
-        INV-S1  Text View reflects internal schema
-        INV-S2  GUI rows exist for all top-level schema keys
-        INV-S3  Schema title field matches internal schema
-        INV-S4  Schema GUI validation icons match meta-schema violations of the schema
-
-Where the code lives: this file holds the shared helpers, result/report classes, the two checker classes
-(with their GUI helper methods) and the dispatcher. Each invariant itself is one file in
-tests/invariants/state/<data_editor|schema_editor>/ and is loaded by load_invariant_plugins() at the bottom.
-
-There is no INV-D2. "Required fields present in data" only holds as a transition postcondition
-(TEMP-ADD-03), because undo can legitimately break it as a standing rule.
+There is no INV-D2: "required fields present in data" only holds as a transition postcondition (TEMP-ADD-03),
+because undo can legitimately break it as a standing rule.
 """
 
 from __future__ import annotations
 import re
+import time
 from dataclasses import dataclass, field
 from playwright.sync_api import Page
 from jsonschema import validate, Draft202012Validator, RefResolver, FormatChecker
@@ -43,8 +30,8 @@ _JSON_POINTER_RE = re.compile(r"(/[^\s\"']+)")
 
 
 def _path_to_testid_string(path: list) -> str:
-    """Mirrors discovery.paths.path_to_testid_string(). Duplicated so this module does not depend on the
-    mutation_testing package. Keep in sync with pathToString() in MetaConfigurator's pathUtils.ts.
+    """Mirrors discovery.paths.path_to_testid_string() without importing mutation_testing.
+    Keep in sync with pathToString() in MetaConfigurator's pathUtils.ts.
     """
     result = ""
     for p in path:
@@ -56,12 +43,10 @@ def _path_to_testid_string(path: list) -> str:
 
 
 def _find_additional_properties_violations(data, schema, path: list | None = None) -> list[tuple[list, str]]:
-    """Walk `data` alongside `schema` and return (parent_path, offending_key) for every key in an object
-    whose schema has additionalProperties: false and does not list that key under properties or
-    patternProperties.
+    """(parent_path, offending_key) for every key of an object whose schema has additionalProperties: false
+    and lists the key under neither properties nor patternProperties.
 
-    This only follows properties and patternProperties through plain dict schemas. It does not resolve
-    additionalProperties behind $ref, allOf or oneOf.
+    Follows properties and patternProperties through plain dict schemas only; does not resolve $ref, allOf or oneOf.
     """
     path = path or []
     violations: list[tuple[list, str]] = []
@@ -111,8 +96,8 @@ def _value_violates_schema(value, prop_schema, root_schema=None) -> bool:
 
 
 def _get_ace_annotations(page: Page, mode: SessionMode) -> list[dict]:
-    """Ace's gutter annotations for the given editor, [{row, column, text, type}, ...]. This is how AJV
-    errors are assumed to reach the Text View; not checked against every app version.
+    """Ace's gutter annotations for the editor, [{row, column, text, type}, ...]. Assumed to be how AJV errors
+    reach the Text View; not checked against every app version.
     """
     mode_str = "dataEditor" if mode == SessionMode.DataEditor else "schemaEditor"
     try:
@@ -132,11 +117,11 @@ def _get_ace_annotations(page: Page, mode: SessionMode) -> list[dict]:
 
 def _text_view_error_for_key(page: Page, mode: SessionMode, raw_text: str | None,
                              key: str, message_substr: str = _ADDITIONAL_PROPS_MSG) -> list[dict]:
-    """Ace annotations whose text contains `message_substr` and that can be attributed to `key` by either:
+    """Ace annotations containing `message_substr` that can be attributed to `key` by either:
     (a) a JSON pointer in the annotation text whose last segment is `key`, or
-    (b) the annotation's row, looked up in the raw text for `"key"`. AJV keeps instancePath apart from
-        the message, so this is the more likely case.
-    Either counts as a match.     """
+    (b) the annotation's row, looked up in the raw text for `"key"` (the likelier case: AJV keeps instancePath
+        apart from the message).
+    """
     annotations = _get_ace_annotations(page, mode)
     lines = raw_text.split("\n") if raw_text else []
     matches = []
@@ -162,8 +147,7 @@ def _text_view_error_for_key(page: Page, mode: SessionMode, raw_text: str | None
 
 def _gui_error_icon_and_tooltip_for_path(page: Page, full_path: list) -> dict:
     """Path-aware version of InvariantCheckerDataEditor's _property_has_error_icon() and
-    _get_validation_error_messages(), which only handle top-level keys. Nested paths are untested,
-    since INV-D3, D5 and D6 only use top-level keys.
+    _get_validation_error_messages(), which only handle top-level keys. Nested paths are untested.
     """
     path_str = _path_to_testid_string(full_path)
     testid = f"property-metadata-{path_str}"
@@ -191,9 +175,9 @@ def _gui_error_icon_and_tooltip_for_path(page: Page, full_path: list) -> dict:
 
 
 def _diagnose_unparseable_text(page: Page, mode, ground_truth=None) -> tuple[str, dict]:
-    """Returns (message, details). If the content parses under the other format than the selected one
-    (a known desync) and `ground_truth` is given, the alternate parse is diffed against ground_truth,
-    to show whether the data diverged too or only the format label is wrong.
+    """(message, details). If the content parses under the other format than the selected one (a known desync)
+    and `ground_truth` is given, the alternate parse is diffed against it to show whether the data diverged
+    too or only the format label is wrong.
     """
     import json as _json
     import yaml as _yaml
@@ -273,12 +257,25 @@ class InvariantResult:
 
 
 def _print_detail_value(key: str, value) -> None:
-    """Pretty-print a details[key] value. Lists of dicts (e.g. INV-D6's per-property mismatches) are
-    printed one item per line with field labels. Anything else is printed on one line.
+    """Pretty-print details[key]: lists of dicts (e.g. INV-D6's per-property mismatches) one item per line with
+    field labels, anything else on one line.
     """
     if isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
         print(f"      {key} ({len(value)}):")
         for i, item in enumerate(value):
+            changes = item.get("changes")
+            if isinstance(changes, list) and changes and all(isinstance(c, dict) and "path" in c for c in changes):
+                # inferred-rule violation: one line per differing field instead of a cut-off before/after blob
+                total = item.get("changed_fields", len(changes))
+                print(f"        [{i}] {total} field(s) differ:")
+                for c in changes:
+                    print(f"            {c['path']}: {c.get('before')}  →  {c.get('after')}")
+                if total > len(changes):
+                    print(f"            … and {total - len(changes)} more")
+                for k, v in item.items():
+                    if k not in ("changes", "changed_fields"):
+                        print(f"            {k}: {v!r}")
+                continue
             fields = ", ".join(f"{k}={v!r}" for k, v in item.items())
             print(f"        [{i}] {fields}")
     elif isinstance(value, list) and value:
@@ -290,9 +287,8 @@ def _print_detail_value(key: str, value) -> None:
 
 
 def _diff_nested(a, b, path: str = "") -> list[tuple[str, object, object]]:
-    """Walk two values in parallel and return (path, a_value, b_value) for every difference. Used for the
-    detail pairs of INV-D1 and INV-S1. Only dicts are recursed into; any other difference, lists
-    included, is one leaf difference at that path.
+    """(path, a_value, b_value) for every difference between two values (INV-D1 and INV-S1 details).
+    Recurses into dicts only; any other difference, lists included, is one leaf.
     """
     diffs = []
     if isinstance(a, dict) and isinstance(b, dict):
@@ -382,22 +378,25 @@ class _BaseInvariantChecker:
 
     def run_all(self) -> InvariantReport:
         report = InvariantReport(mode=self.mode.value)
-        for name in sorted(dir(self)):
-            if name.startswith("_inv_"):
-                try:
-                    result: InvariantResult = getattr(self, name)()
-                    report.results.append(result)
-                except Exception as e:
-                    _toks = []
-                    for _t in name[len("_inv_"):].split("_"):
-                        _toks.append(_t.upper())
-                        if re.fullmatch(r"[a-z]?\d+", _t):
-                            break
-                    report.results.append(InvariantResult(
-                        name=f"CHK-ERR-INV-{'-'.join(_toks)} check crashed",
-                        passed=False,
-                        message=f"Exception during check ({type(e).__name__}): {e}",
-                    ))
+        self.run_started = time.monotonic()   # lets a RUN_LAST check count the time earlier checks already took
+        # Name order, except checks with RUN_LAST (see load_invariant_plugins), which go last.
+        names = sorted((n for n in dir(self) if n.startswith("_inv_")),
+                       key=lambda n: (getattr(getattr(self, n), "run_last", False), n))
+        for name in names:
+            try:
+                result: InvariantResult = getattr(self, name)()
+                report.results.append(result)
+            except Exception as e:
+                _toks = []
+                for _t in name[len("_inv_"):].split("_"):
+                    _toks.append(_t.upper())
+                    if re.fullmatch(r"[a-z]?\d+", _t):
+                        break
+                report.results.append(InvariantResult(
+                    name=f"CHK-ERR-INV-{'-'.join(_toks)} check crashed",
+                    passed=False,
+                    message=f"Exception during check ({type(e).__name__}): {e}",
+                ))
         return report
 
 
@@ -410,9 +409,9 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
     def _gui_row_has_value(self, key: str) -> bool:
         """True if the top-level row for `key` shows content, False if it is an empty schema placeholder.
 
-        Object properties are pre-rendered with a nested form for their required sub-properties even when
-        the key is absent from data, so a nested property-data-* row is not evidence of a value. Array
-        rows (property-data-{key}[0], [1], ...) only exist when the data has items, so they are.
+        Object properties are pre-rendered with a nested form for their required sub-properties even when the key
+        is absent from data, so a nested property-data-* row is not evidence of a value. Array rows only exist
+        when the data has items.
         """
         row = self.page.locator(f'[data-testid="property-data-{key}"]')
         if row.count() == 0:
@@ -432,8 +431,8 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
         return False
 
     def _property_has_error_icon(self, key: str) -> dict:
-        """Returns {"row_found": bool, "icon_shown": bool}, kept separate so INV-D6 evidence can tell a row
-        that never rendered from a row without an icon.
+        """{"row_found", "icon_shown"}, kept separate so INV-D6 evidence can tell a row that never rendered
+        from a row without an icon.
         """
         try:
             container = self.page.get_by_test_id(f"property-metadata-{key}")
@@ -459,12 +458,10 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
                 text = errors.nth(i).inner_text().strip()
                 if text:
                     messages.append(text)
-            # dismiss the overlay with Escape and move the mouse away
             self.page.keyboard.press("Escape")
             self.page.wait_for_timeout(100)
             self.page.mouse.move(0, 0)
             self.page.wait_for_timeout(300)
-            # wait for the popover to disappear
             try:
                 self.page.wait_for_selector(".p-popover", state="hidden", timeout=1000)
             except Exception:
@@ -474,11 +471,7 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
             return []
 
 class InvariantCheckerSchemaEditor(_BaseInvariantChecker):
-    """Invariants for Schema Editor mode. Ground truth: TestPanel(page, SessionMode.SchemaEditor).get_schema()
-
-    The Schema Editor GUI renders the schema against the JSON Schema meta-schema, so the top-level keys
-    shown are the schema's own: $schema, title, type, properties, required, $defs, etc.
-    """
+    """Invariants for Schema Editor mode. Ground truth: TestPanel(page, SessionMode.SchemaEditor).get_schema()"""
 
     def __init__(self, page: Page):
         super().__init__(page, SessionMode.SchemaEditor)
@@ -487,19 +480,12 @@ class InvariantCheckerSchemaEditor(_BaseInvariantChecker):
 
 
 class InvariantDispatcher:
-    """Reads the active editor mode from the UI and runs the matching checker.
-
-        report = InvariantDispatcher(page).run_all()
-        report.print()
-
-    DataEditor and SchemaEditor run their own checker. Settings returns an empty passing report.
-    """
+    """Reads the active editor mode from the UI and runs the matching checker (Settings: an empty passing report)."""
 
     def __init__(self, page: Page):
         self.page = page
 
     def current_mode(self) -> SessionMode | None:
-        """Read the active mode from the UI."""
         try:
             active = self.page.get_by_test_id("mode-active-true")
             text = active.inner_text().strip()
@@ -514,7 +500,6 @@ class InvariantDispatcher:
         return None
 
     def run_all(self) -> InvariantReport:
-        """Detect the current mode and run the matching invariants."""
         mode = self.current_mode()
 
         if mode == SessionMode.DataEditor:
@@ -542,7 +527,7 @@ class InvariantDispatcher:
 
 
 class InvariantChecker(InvariantDispatcher):
-    """InvariantDispatcher with a `mode` argument kept for callers; it is ignored, the mode is read from the UI."""
+    """InvariantDispatcher that accepts a `mode` argument but ignores it; the mode is read from the UI."""
 
     def __init__(self, page: Page, mode: SessionMode = SessionMode.DataEditor):
         super().__init__(page)
@@ -553,7 +538,7 @@ class InvariantChecker(InvariantDispatcher):
 class InvariantPlugin:
     id: str         # e.g. "INV-D4", as shown in reports
     name: str       # method name, e.g. "_inv_d4_gui_rows_exist_for_data_keys"; stays stable for logs/reports
-    mode: str       # "data" or "schema"
+    mode: str       # "data", "schema" or "any" (both editors)
     check: object   # callable(ctx) -> InvariantResult, ctx is the checker instance
     module: str     # path below tests/invariants/state, e.g. "data_editor/gui_rows_match_data_keys"
 
@@ -561,24 +546,25 @@ class InvariantPlugin:
 INVARIANT_REGISTRY: dict[str, InvariantPlugin] = {}
 
 # The folder below tests/invariants/state decides which editor mode an invariant runs in.
-MODE_FOLDERS = {"data_editor": "data", "schema_editor": "schema"}
+MODE_FOLDERS = {"data_editor": "data", "schema_editor": "schema", "any_editor": "any"}
 
 
-def _bound_method(check):
+def _bound_method(check, run_last: bool = False):
     """Wrap a plugin's check(ctx) as a method, so _BaseInvariantChecker.run_all() finds it via dir()."""
     def method(self):
         return check(self)
     method.__doc__ = check.__doc__
+    method.run_last = run_last
     return method
 
 
 def load_invariant_plugins() -> dict[str, InvariantPlugin]:
-    """Import every module below tests/invariants/state and attach its check() to the checker class of its
-    folder. Safe to call more than once. A broken plugin raises: a silently missing invariant would make a run
-    look healthier than it is.
+    """Import every module below invariants/state and attach its check() to the checker class of its folder.
+    Safe to call more than once. A broken plugin raises: a silently missing invariant would make a run look
+    healthier than it is.
 
-    A plugin defines ID (e.g. "INV-D4"), NAME (method name, starting with "_inv_"; appears in history.json
-    and reports, so keep it stable) and check(ctx). To add an invariant, copy a file and change those.
+    A plugin defines ID (e.g. "INV-D4"), NAME (method name starting with "_inv_"; appears in history.json and
+    reports, so keep it stable) and check(ctx). Optional RUN_LAST = True runs it after all others in its editor.
     """
     import importlib
     import pkgutil
@@ -602,7 +588,9 @@ def load_invariant_plugins() -> dict[str, InvariantPlugin]:
             if other.module != label and (inv_id == other.id or name == other.name):
                 raise ImportError(f"{label}: ID {inv_id} or NAME {name} is already defined in {other.module}")
         INVARIANT_REGISTRY[name] = InvariantPlugin(inv_id, name, mode, check, label)
-        setattr(classes[mode], name, _bound_method(check))
+        run_last = bool(getattr(module, "RUN_LAST", False))
+        for cls in (classes.values() if mode == "any" else [classes[mode]]):
+            setattr(cls, name, _bound_method(check, run_last))
     return INVARIANT_REGISTRY
 
 
@@ -612,4 +600,3 @@ def list_invariants() -> list[InvariantPlugin]:
 
 
 load_invariant_plugins()   # must stay the last statement: the plugins import names defined above
-

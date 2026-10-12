@@ -21,11 +21,10 @@ class TextViewPrimitivesMixin:
         """)
 
     def _replace_range(self, mode: str, start_index: int, end_index: int, new_text: str) -> bool:
-        """Replace [start_index, end_index) with new_text via Ace's session.replace(), as one undo entry.
+        """Replace [start_index, end_index) via Ace's session.replace(), as one undo entry.
 
-        Typing instead would go through Ace's auto-closing brackets (typing "[]" over a selection leaves a stray "]").
-        Use this, or _insert_at for pure insertions, for every Text View edit that writes JSON text; _delete_span is
-        fine for pure removals.
+        Typing instead would go through Ace's auto-closing brackets (typing "[]" over a selection leaves a stray "]"),
+        so use this or _insert_at for every Text View edit that writes JSON text; _delete_span is fine for pure removals.
         """
         result = self.page.evaluate(f"""
             () => {{
@@ -46,8 +45,8 @@ class TextViewPrimitivesMixin:
         return True
 
     def _insert_at(self, mode: str, index: int, text: str) -> bool:
-        """Insert text at one position via Ace's session.insert(). Like _replace_range, this avoids typing,
-        because the inserted text can contain brackets and quotes that auto-closing would corrupt.
+        """Insert text via Ace's session.insert(). Like _replace_range, this avoids typing, whose auto-closing would
+        corrupt inserted brackets and quotes.
         """
         result = self.page.evaluate(f"""
             () => {{

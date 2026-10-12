@@ -1,4 +1,4 @@
-"""TEMP-ADD-02. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-ADD-02."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_new04_add_item_required_increases_required_count"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-ADD-02: adding an item to the required array increases len(schema.required) by exactly 1."""
+    """Adding an item to the required array increases len(schema.required) by exactly 1."""
     if not _is_add_item_required(ctx.action):
         return None
 

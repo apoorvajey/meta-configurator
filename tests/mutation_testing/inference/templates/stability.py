@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from tests.mutation_testing.inference.facets import FACETS
-from tests.mutation_testing.inference.common import Observation, _MISSING, _short, schema_path_value
+from tests.mutation_testing.inference.common import Observation, _MISSING, leaf_changes, schema_path_value
 
 
 def rule_stability(before: dict, after: dict, facet: str | None = None,
@@ -13,8 +13,13 @@ def rule_stability(before: dict, after: dict, facet: str | None = None,
             return []
     else:
         a, b = FACETS[facet](before), FACETS[facet](after)
+        if a is None or b is None:  # the facet is not recorded in this snapshot: nothing to compare
+            return []
     same = a == b
-    return [(same, {} if same else {"before": _short(a), "after": _short(b)})]
+    if same:
+        return [(True, {})]
+    changes, total = leaf_changes(a, b)
+    return [(False, {"changed_fields": total, "changes": changes})]
 
 
 NAME = "stability"

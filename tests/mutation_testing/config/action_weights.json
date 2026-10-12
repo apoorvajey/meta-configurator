@@ -1,5 +1,5 @@
 {
-  "_comment": "Default profile. No Mode or View bias: Schema Editor and Data Editor at 10/10, GUI View and Text View at 5/5 in both modes. Action-type weights favour add and fill over expand and collapse, with light undo/redo. Differs from 'random' only at the action level.",
+  "_comment": "Default profile (balanced): Schema Editor and Data Editor equal (10/10), GUI View and Text View equal (5/5). Action types are weighted realistically (add and fill favoured over expand/collapse, light undo/redo baseline). Select with set_action_weights_profile(None) or ('default').",
 
   "Schema Editor": {
     "weight": 10,

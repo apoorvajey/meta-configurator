@@ -1,5 +1,5 @@
 {
-  "_comment": "Text View focus. GUI View is disabled under both modes, so only Text View actions are picked, plus a light baseline of undo/redo, expand/collapse and mode_switch.",
+  "_comment": "Text View focus: GUI View is disabled in both modes, so only Text View actions are chosen, plus a light baseline of undo/redo, expand/collapse and mode switches. Select with set_action_weights_profile('textview_focus').",
   "Schema Editor": {
     "weight": 10,
     "enabled": true,

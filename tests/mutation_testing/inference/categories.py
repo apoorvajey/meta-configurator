@@ -24,14 +24,12 @@ def _action_category(action: str) -> str:
     if any(action.startswith(p) for p in (
         "input-string-", "input-number-", "input-boolean-", "input-select-"
     )): return "edit_field"
-    if action.startswith("expand-"):          return "expand"
-    if action.startswith("collapse-"):        return "collapse"
+    if action.startswith(("expand-", "collapse-", "mode-active-")): return "ui_only"
     if action.startswith("rename-"):          return "rename"
     if action.startswith("remove-property-"): return "remove"
     if action.startswith("add-property-"):    return "add_property"
     if action == "add-item-required":         return "add_item_required"
     if action.startswith("add-item-"):        return "add_item"
-    if action.startswith("mode-active-"):     return "mode_switch"
     if action in ("undo", "redo", "schema_undo", "schema_redo"): return "undo_redo"
     if action == "format-selector":           return "format_toggle"
     return "other"
@@ -48,18 +46,17 @@ ACTION_CATEGORY_DESCRIPTIONS = {
     "rename_child_text":      'action starts with "rename-child-text-"',
     "clear_text":             'action starts with "clear-text-"',
     "edit_field":             'action starts with "input-string-", "input-number-", "input-boolean-" or "input-select-"',
-    "expand":                 'action starts with "expand-"',
-    "collapse":               'action starts with "collapse-"',
     "rename":                 'action starts with "rename-" (Text View renames excluded)',
     "remove":                 'action starts with "remove-property-"',
     "add_property":           'action starts with "add-property-"',
     "add_item_required":      'action is exactly "add-item-required"',
     "add_item":               'action starts with "add-item-" (except "add-item-required")',
-    "mode_switch":            'action starts with "mode-active-" (tab switch)',
     "undo_redo":              'action is "undo", "redo", "schema_undo" or "schema_redo"',
     "format_toggle":          'action is exactly "format-selector"',
     "undo_then_redo":         'an undo immediately followed by its matching redo (same run, adjacent steps; see _round_trip_pairs)',
     "redo_then_undo":         'a redo immediately followed by its matching undo (same run, adjacent steps; see _round_trip_pairs)',
+    "undo_inverse":           'an undo directly after an edit that changed the data or the schema (same run, adjacent steps), compared with the state before that edit; see _undo_pairs. Mined and reviewed only: the loop does not check it per step',
+    "ui_only":                'action starts with "expand-", "collapse-" or "mode-active-" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)',
     "other":                  'any action not matched by another category',
 }
 
@@ -120,4 +117,29 @@ def _round_trip_pairs(snapshots: list[dict]) -> list[tuple[dict, dict, str]]:
             pairs.append((a, c, "undo_then_redo"))
         elif b_action in _REDO_ACTIONS and c_action in _UNDO_ACTIONS:
             pairs.append((a, c, "redo_then_undo"))
+    return pairs
+
+
+# Actions that are not edits: an undo after one of them has nothing to take back.
+_NOT_UNDOABLE_CATEGORIES = {"undo_redo", "ui_only", "format_toggle"}
+
+
+def _undo_pairs(snapshots: list[dict]) -> list[tuple[dict, dict, str]]:
+    """(before, after, tag) for an edit directly followed by an undo, in one run (three consecutive snapshots).
+    'before' is the snapshot before the edit and 'after' the snapshot after the undo, copied with the edit's action
+    name added as 'undone_action'. The edit must have changed the data or the schema, otherwise the undo has nothing to restore.
+    """
+    pairs: list[tuple[dict, dict, str]] = []
+    for i in range(1, len(snapshots) - 1):
+        a, b, c = snapshots[i - 1], snapshots[i], snapshots[i + 1]
+        run = a.get("run_id")
+        if run is None or b.get("run_id") != run or c.get("run_id") != run:
+            continue
+        if not (b.get("step", 0) > a.get("step", -1) and c.get("step", 0) >= b.get("step", 0)):
+            continue  # the loop often logs an undo under the step number of the edit it undoes, so the undo may repeat it
+        if c.get("action", "") not in _UNDO_ACTIONS or _action_category(b.get("action", "")) in _NOT_UNDOABLE_CATEGORIES:
+            continue
+        if a.get("de_data") == b.get("de_data") and a.get("de_schema") == b.get("de_schema"):
+            continue
+        pairs.append((a, {**c, "undone_action": b.get("action", "")}, "undo_inverse@any"))
     return pairs

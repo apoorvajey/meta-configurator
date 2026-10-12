@@ -1,4 +1,4 @@
-"""INV-S1. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-S1."""
 from __future__ import annotations
 from tests.shared.python.utils_code_editor import read_text_editor_content
 from tests.invariants.invariants_core import InvariantResult, _diagnose_unparseable_text

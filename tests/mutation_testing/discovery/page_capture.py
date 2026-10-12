@@ -6,11 +6,10 @@ from tests.shared.python.utils import SessionMode
 
 
 def capture_text_view(page: Page, mode: SessionMode) -> dict:
-    """Text View state of one mode: raw editor content, its parsed form (None if unparseable) and the format selector value.
+    """Text View state of one mode: {"raw", "parsed" (None if unparseable), "format"}, all None if the editor is not mounted.
 
-    The format selector testid is not qualified by mode, so the format is only captured for the active mode
-    (None for the other one; switching modes just to read it would change the state). Returns
-    {"raw": None, "parsed": None, "format": None} if the editor is not mounted.
+    The format selector testid is not qualified by mode, so the format is captured for the active mode only
+    (None for the other one; switching modes just to read it would change the state).
     """
     from tests.shared.python.utils_code_editor import read_text_editor_raw, read_text_editor_content
 
@@ -33,14 +32,55 @@ def capture_text_view(page: Page, mode: SessionMode) -> dict:
     except Exception:
         pass
 
-    return {"raw": raw, "parsed": parsed, "format": fmt}
+    return {"raw": raw, "parsed": parsed, "format": fmt, **_capture_ace_extras(page, mode_str)}
+
+
+def _capture_ace_extras(page: Page, mode_str: str) -> dict:
+    """What the Ace editor of a Text View knows besides its text; {} if the editor or window.ace cannot be reached.
+
+    annotation_errors / annotation_warnings / first_annotation   the markers Ace shows in the gutter
+    cursor                                                       [row, column]
+    undo_depth / redo_depth                                      length of Ace's own undo / redo stack (None if the stack is
+                                                                 not found). Not verified: whether the app's undo button
+                                                                 uses this history or a separate one
+    line_count                                                   number of lines in the editor
+    """
+    try:
+        extras = page.evaluate("""
+            (prefix) => {
+                const el = document.querySelector('[id^="code-editor-' + prefix + '"]');
+                const editor = el && window.ace ? window.ace.edit(el.id) : null;
+                if (!editor) return null;
+                const session = editor.getSession();
+                const notes = session.getAnnotations() || [];
+                const count = t => notes.filter(n => n.type === t).length;
+                const first = notes.find(n => n.type === 'error') || notes.find(n => n.type === 'warning');
+                const um = session.getUndoManager();
+                const undo = um ? (um.$undoStack || um.undostack) : null;
+                const redo = um ? (um.$redoStack || um.redostack) : null;
+                const pos = editor.getCursorPosition();
+                return {
+                    annotation_errors: count('error'),
+                    annotation_warnings: count('warning'),
+                    first_annotation: first ? String(first.text).slice(0, 200) : null,
+                    cursor: [pos.row, pos.column],
+                    undo_depth: undo ? undo.length : null,
+                    redo_depth: redo ? redo.length : null,
+                    line_count: session.getLength(),
+                };
+            }
+        """, mode_str)
+    except Exception:
+        return {}
+    return extras or {}
 
 
 def capture_gui_facts(page: Page) -> dict:
     """Per-path GUI facts for every rendered row (collapsed nodes have no row, so this is what the user sees).
 
     icon_shown and required_star_shown come from the validation-error-icon and required-star children of
-    property-metadata-{path}; value comes from the input, textarea or select in the row. Tooltips are not
+    property-metadata-{path}; value, control ('input:text', 'input:number', 'input:checkbox', 'textarea', 'select', ...)
+    and disabled (disabled or read-only) come from the input, textarea or select in the row. Tooltips are not
     collected because they need a hover (about 1.5 s per property). Uses one page.evaluate() call.
     """
     return page.evaluate("""
@@ -59,6 +99,9 @@ def capture_gui_facts(page: Page) -> dict:
                 if (input) {
                     if (!result[path]) result[path] = {};
                     result[path].value = (input.type === 'checkbox') ? input.checked : input.value;
+                    const tag = input.tagName.toLowerCase();
+                    result[path].control = tag === 'input' ? 'input:' + input.type : tag;
+                    result[path].disabled = !!(input.disabled || input.readOnly);
                 }
             });
             return result;
@@ -88,13 +131,41 @@ def js_click_for_testid(testid: str) -> str | None:
 
 
 def _get_current_active_mode(page: Page) -> str:
-    """'dataEditor' or 'schemaEditor' for the mode tab that is currently active.
-
-    GUI View testids carry no mode, unlike Text View testids, so the loop needs this to attribute their actions.
-    Reads the 'mode-active-true' tab label ('Data' or 'Schema').
+    """'dataEditor' or 'schemaEditor' for the active mode tab, from the 'mode-active-true' tab label. GUI View
+    testids carry no mode, unlike Text View testids, so the loop needs this to attribute their actions.
     """
     try:
         label = page.get_by_test_id("mode-active-true").first.inner_text(timeout=1000).strip().lower()
     except Exception:
         label = ""
     return "schemaEditor" if "schema" in label else "dataEditor"
+
+
+# The PrimeVue TreeTable spinner; INV-G2 looks for the same element.
+LOADING_SPINNER_SELECTOR = ".p-treetable-loading-icon"
+
+
+def capture_spinner_present(page: Page) -> bool | None:
+    """True if the GUI shows a loading spinner right now, False if not, None if the page could not be asked.
+    No waiting: INV-G2 has already waited for the spinner to settle before the snapshot is built.
+    """
+    try:
+        return page.locator(LOADING_SPINNER_SELECTOR).count() > 0
+    except Exception:
+        return None
+
+
+def capture_app_build(page: Page) -> str | None:
+    """File name(s) of the app's main script bundle (for example 'index-981d8f4a.js'), None if there is none.
+
+    The hosted site changes under the harness; this tells a change of the site from a change of the harness.
+    """
+    try:
+        names = page.evaluate("""
+            () => [...document.scripts].map(s => s.src).filter(Boolean)
+                .map(u => u.split('/').pop().split('?')[0])
+                .filter(n => /^index-.+\\.js$/.test(n))
+        """)
+    except Exception:
+        return None
+    return ",".join(sorted(set(names))) or None

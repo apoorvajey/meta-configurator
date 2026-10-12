@@ -8,7 +8,7 @@ from typing import Any
 from playwright.sync_api import Page
 from tests.shared.python.utils import SessionMode
 from tests.shared.python.test_panel import TestPanel
-from tests.mutation_testing.schema_path_enumerator import resolve_subschema_at_path, resolve_effective_schema
+from tests.mutation_testing.discovery.schema_path_enumerator import resolve_subschema_at_path, resolve_effective_schema
 from tests.mutation_testing.discovery.paths import _value_at_path
 
 

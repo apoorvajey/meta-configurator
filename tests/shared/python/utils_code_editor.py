@@ -5,16 +5,20 @@ from typing import Any
 from playwright.sync_api import Page
 
 from tests.shared.python.utils import SessionMode, select_all
+import yaml
 
 
-# Reading
+class _StringTimestampLoader(yaml.SafeLoader):
+    """SafeLoader that leaves ISO timestamps as strings, matching the app (YAML 1.2 core behaviour)."""
+
+
+_StringTimestampLoader.yaml_implicit_resolvers = {
+    ch: [(tag, rx) for tag, rx in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+    for ch, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
 def get_code_editor(page: Page, mode: SessionMode | str = ""):
-    """
-    Locate the code editor element for a given mode.
-
-    The id prefix pattern is: code-editor-{mode}
-    e.g. code-editor-dataEditor, code-editor-schemaEditor
-    """
+    """Locate the code editor element for a mode (id prefix code-editor-{mode}, e.g. code-editor-dataEditor)."""
     mode_val = mode.value if isinstance(mode, SessionMode) else mode
     return page.locator(f'[id^="code-editor-{mode_val}"]')
 
@@ -34,10 +38,8 @@ def check_code_editor_for_text(page: Page, text: str, mode: SessionMode | str = 
 
 
 def read_text_editor_raw(page: Page, mode: SessionMode | str = "") -> str | None:
-    """
-    Read the Text View's raw string content with no parsing applied —
-    for building diagnostic messages when read_text_editor_content()
-    fails to parse it under the currently-selected format.
+    """The Text View's raw string with no parsing, for diagnostics when read_text_editor_content() fails to parse it
+    under the selected format.
     """
     mode_val = mode.value if isinstance(mode, SessionMode) else mode
     try:
@@ -53,11 +55,7 @@ def read_text_editor_raw(page: Page, mode: SessionMode | str = "") -> str | None
 
 
 def read_text_editor_content(page: Page, mode: SessionMode | str = "") -> Any | None:
-    """
-    Read the text editor content and parse it according to the
-    currently selected format (JSON, YAML, or XML).
-    Returns a Python object, or None if parsing fails.
-    """
+    """Read the text editor content parsed according to the selected format (JSON or YAML); None if parsing fails."""
     import json
     import yaml
 
@@ -77,36 +75,25 @@ def read_text_editor_content(page: Page, mode: SessionMode | str = "") -> Any | 
     except Exception:
         return None
 
-    # Detect current format
     try:
         fmt = page.get_by_test_id("format-selector").inner_text().lower().strip()
     except Exception:
         fmt = "json"
 
-    # Parse according to format
     if "yaml" in fmt:
         try:
-            return yaml.safe_load(content)
+            return yaml.load(content, Loader=_StringTimestampLoader)
         except Exception:
             return None
-    elif "xml" in fmt:
-        return None
     else:
         try:
             return json.loads(content)
         except Exception:
             return None
 
-# Writing
 def force_code_editor_text(page: Page, text: str, mode: SessionMode | str = ""):
-    """
-    Overwrite the entire content of the code editor.
-
-    Uses the same approach as the TS original:
-    1. Click to focus
-    2. Select all + delete
-    3. Type character by character
-    4. Click away to trigger the change/blur event
+    """Overwrite the entire content of the code editor as the TS original does: click to focus, select all and
+    delete, type character by character, click away to trigger the blur/change event.
     """
     editor = get_code_editor(page, mode)
     editor.click()
@@ -118,7 +105,6 @@ def force_code_editor_text(page: Page, text: str, mode: SessionMode | str = ""):
 
     editor.press("Enter")
 
-    # Click away from the editor to trigger the blur/change event
     vp = page.viewport_size() or {"width": 1280, "height": 720}
     page.mouse.click(vp["width"] - 10, vp["height"] - 10)
     page.wait_for_timeout(800)

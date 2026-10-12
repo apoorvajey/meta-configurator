@@ -1,4 +1,4 @@
-"""TEMP-EDIT-03. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-EDIT-03."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp03_edit_field_preserves_required_count"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-EDIT-03: editing a field value never changes schema.required. It only changes through
+    """Editing a field value never changes schema.required. It only changes through
     add-item-required or remove-property.
     """
     if not _is_edit_field(ctx.action):

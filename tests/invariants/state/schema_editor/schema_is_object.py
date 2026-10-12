@@ -1,4 +1,4 @@
-"""INV-S0. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-S0."""
 from __future__ import annotations
 from tests.invariants.invariants_core import InvariantResult
 

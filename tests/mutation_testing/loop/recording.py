@@ -20,7 +20,7 @@ class RecordingMixin:
         schema_option_name and data_file (a bare file name) record the dataset so replay loads the same pair.
         run_config and resolved_settings are passed through to replay_runner.export_history().
         """
-        from tests.mutation_testing.replay.history_io import export_history
+        from tests.mutation_testing.runs.history_io import export_history
         export_history(self.history, path,
                         schema_option_name=schema_option_name, data_file=data_file,
                         run_config=run_config, resolved_settings=resolved_settings)
@@ -33,9 +33,12 @@ class RecordingMixin:
         """
         if not self._screenshots_enabled:
             return None
+        if self._screenshots_failures_only and not invariants_failed:
+            return None
         if invariants_failed:
             self._scroll_to_validation_error()
         screenshot_path = os.path.join(self._screenshots_dir, filename)
+        os.makedirs(self._screenshots_dir, exist_ok=True)
         self.page.screenshot(path=screenshot_path)
         print(f"   {screenshot_path}")
         return screenshot_path
@@ -45,13 +48,14 @@ class RecordingMixin:
         return build_snapshot(self.page, action, step, self.run_id, self._dataset)
 
     def _append_snapshot(self, snapshot: dict) -> None:
-        """Append one snapshot as a JSON line to invariant_miner_traces/<dataset>.jsonl (_untagged.jsonl without a dataset).
+        """Append one snapshot as a JSON line to tests/output/traces/<dataset>.jsonl (_untagged.jsonl without a dataset).
 
         Written per snapshot so a run killed by the batch timeout keeps its trace; only the last line can be cut off,
         which the loader skips.
         """
         slug = self._dataset or "_untagged"
-        out = Path("invariant_miner_traces") / f"{slug}.jsonl"
+        from tests.mutation_testing.common.paths import TRACES_DIR
+        out = TRACES_DIR / f"{slug}.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("a", encoding="utf-8") as f:
             f.write(json.dumps(snapshot, default=str))
@@ -62,7 +66,7 @@ class RecordingMixin:
         """Print how many snapshots this run recorded (they were written by _append_snapshot())."""
         n = sum(1 for s in self.history if s.snapshot is not None)
         print(f"[SnapshotCollector] {n} snapshot(s) written this run "
-              f"(appended incrementally to invariant_miner_traces/"
+              f"(appended incrementally to tests/output/traces/"
               f"{self._dataset or '_untagged'}.jsonl as each was recorded)")
 
     def _scroll_to_validation_error(self) -> None:

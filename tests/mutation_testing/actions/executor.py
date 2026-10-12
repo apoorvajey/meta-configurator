@@ -1,4 +1,4 @@
-"""InteractionExecutor: performs a discovered action on the page. The actions themselves live in the mixins of this package."""
+"""InteractionExecutor: performs a discovered action on the page; the actions live in this package's mixins."""
 
 from __future__ import annotations
 
@@ -45,15 +45,11 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
         self.page.wait_for_timeout(400)
 
     def _get_prop_schema(self, testid: str) -> dict:
-        """
-        Look up the schema for a property given its full path testid
-        e.g. 'input-select-Vehicles.bus1.DrivingSpeed' → DrivingSpeed schema
-        """
+        """The schema of a property given its full-path testid, e.g. 'input-select-Vehicles.bus1.DrivingSpeed'."""
         schema = self._current_schema or {}
         if not schema:
             return {}
 
-        # Strip the prefix to get the dot-path
         for prefix in ("input-select-", "input-string-", "input-number-"):
             if testid.startswith(prefix):
                 path = testid[len(prefix):]
@@ -66,12 +62,10 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
         for part in parts:
             if not part:
                 continue
-            # Try properties first, then additionalProperties
             if "properties" in current and part in current["properties"]:
                 current = current["properties"][part]
             elif "additionalProperties" in current and isinstance(current["additionalProperties"], dict):
                 current = current["additionalProperties"]
-                # Now navigate into this schema's properties
                 if "properties" in current and part in current["properties"]:
                     current = current["properties"][part]
             elif "items" in current and isinstance(current["items"], dict):
@@ -82,12 +76,10 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
                 return {}
         return current if isinstance(current, dict) else {}
 
-    # Schema-aware name generator
     def _generate_property_name(self, parent_path: str) -> str:
-        """A property name shaped by the parent's propertyNames pattern (capital-first or lowercase), from the shared word bank.
-
-        The casing check is a heuristic on the pattern text ("A-Z", "a-z"). It does not verify that the name satisfies
-        the pattern or, for add-item-required, that it is a property of the schema.
+        """A property name shaped by the parent's propertyNames pattern (capital-first or lowercase), from the shared
+        word bank. The casing is a heuristic on the pattern text ("A-Z", "a-z"); it does not verify that the name
+        satisfies the pattern or, for add-item-required, that it is a property of the schema.
         """
         schema = self._current_schema or {}
         if not parent_path:
@@ -132,9 +124,8 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
     _DEFS_PREFIX_RE = re.compile(r"^(\$defs|definitions)\.(.+)$")
 
     def _split_defs_prefix(self, path: list) -> list:
-        """Split a pre-merged first segment ('$defs.stringProperty') into '$defs' and the name.
-
-        The tree renders $defs as its own collapsible row, so it must be expanded as a separate ancestor.
+        """Split a pre-merged first segment ('$defs.stringProperty') into '$defs' and the name. The tree renders $defs
+        as its own collapsible row, so it must be expanded as a separate ancestor.
         """
         if path and isinstance(path[0], str):
             m = self._DEFS_PREFIX_RE.match(path[0])
@@ -178,7 +169,7 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
                         if (btn) btn.click();
                     }}
                 """)
-                # Wait for the child row to mount (a fixed sleep was too short for some $defs subtrees)
+                # Wait for the child row to mount; subtrees under $defs can take longer than a fixed sleep
                 next_str = path_to_testid_string(path[:i + 1])
                 try:
                     self.page.wait_for_function(
@@ -188,7 +179,7 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
                 except Exception:
                     self.page.wait_for_timeout(300)
             elif state == "expanded":
-                pass  # already open, nothing to do
+                pass
             elif state == "no-toggle":
                 # Not collapsible (expected sometimes, e.g. discovery gaps): tally instead of printing per ancestor
                 self._silent_no_toggle_count += 1

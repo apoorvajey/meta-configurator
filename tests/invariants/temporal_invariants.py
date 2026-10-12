@@ -1,31 +1,10 @@
 """Temporal invariants: each compares two consecutive state snapshots (before and after an action) to check
 that the right things changed and the right things did not.
 
-TemporalInvariantChecker takes prev_snapshot, curr_snapshot and the testid of the action, and
-returns an InvariantReport in the same format as InvariantChecker.
-
-    TEMP-EDIT-01      after edit-field: schema.properties keys unchanged
-    TEMP-EDIT-02      after edit-field (Data Editor): schema entirely unchanged
-    TEMP-EDIT-03      after edit-field: len(schema.required) unchanged
-    TEMP-EXPAND-01    after expand: data unchanged
-    TEMP-EXPAND-02    after expand: schema unchanged
-    TEMP-COLLAPSE-01  after collapse: schema unchanged
-    TEMP-COLLAPSE-02  after collapse: data unchanged
-    TEMP-RENAME-01    after rename: number of data keys unchanged
-    TEMP-RENAME-02    after rename: len(schema.properties) unchanged
-    TEMP-RENAME-03    after rename: schema.properties has exactly one key swapped
-    TEMP-RENAME-04    after rename: data has exactly one key swapped
-    TEMP-ADD-01       after add-item: schema.properties keys unchanged
-    TEMP-ADD-02       after add-item-required: len(schema.required) grows by exactly 1
-    TEMP-ADD-03       after add-item-required: a new required key appears in data
-    TEMP-MODE-01      after mode switch: data unchanged
-    TEMP-MODE-02      after mode switch: schema unchanged
-    NEW-07            the schema state stays an object, after any action
-
-Where the code lives: this file holds the helpers, the checker class (snapshot accessors, run_all) and the loader.
-Each invariant is one file in tests/invariants/temporal/<action>/, loaded at the bottom of this file.
-
-Inferred rules from inferred_rules.json are checked as well (see evaluate_inferred_rules).
+TemporalInvariantChecker takes prev_snapshot, curr_snapshot and the testid of the action and returns an
+InvariantReport like InvariantChecker. Each invariant is one file in invariants/temporal/<action>/, loaded
+at the bottom of this file (list_temporal_invariants() lists them). Inferred rules from inferred_rules.json
+are checked as well (evaluate_inferred_rules).
 """
 
 from __future__ import annotations
@@ -75,17 +54,10 @@ def _is_mode_switch(action: str) -> bool:
 class TemporalInvariantChecker:
     """Checks the temporal invariants between two consecutive snapshots.
 
-    Each snapshot is a dict with:
-        de_data:   Data Editor data
-        de_schema: Data Editor schema
-        se_schema: Schema Editor schema (the meta-schema)
-        se_data:   Schema Editor data (the user schema when the Schema Editor is active)
-        action:    testid of the action that produced the snapshot
-        step:      step number
+    Each snapshot is a dict with de_data and de_schema (Data Editor data and schema), se_schema (the
+    meta-schema), se_data (the user schema when the Schema Editor is active), action (testid) and step.
 
-        checker = TemporalInvariantChecker(prev=prev_snap, curr=curr_snap, action=el.testid)
-        report = checker.run_all()
-        report.print()
+        report = TemporalInvariantChecker(prev=prev_snap, curr=curr_snap, action=el.testid).run_all()
     """
 
     def __init__(self, prev: dict, curr: dict, action: str):
@@ -93,7 +65,6 @@ class TemporalInvariantChecker:
         self.curr   = curr or {}
         self.action = action
 
-        # accessors
         self.prev_data   = self.prev.get("de_data", {}) or {}
         self.curr_data   = self.curr.get("de_data", {}) or {}
         self.prev_schema = self.prev.get("de_schema", {}) or {}
@@ -162,14 +133,13 @@ def _bound_method(name: str, check):
 
 
 def load_temporal_plugins() -> dict[str, TemporalInvariantPlugin]:
-    """Import every module below tests/invariants/temporal and attach its check() to TemporalInvariantChecker.
+    """Import every module below invariants/temporal and attach its check() to TemporalInvariantChecker.
     Safe to call more than once. A broken plugin raises: a silently missing invariant would make a run look
     healthier than it is.
 
     A plugin defines ID (e.g. "TEMP-ADD-02"), NAME (starting with "_inv_"; a crashed check is reported under
-    it, so keep it stable) and check(ctx). ctx is the TemporalInvariantChecker (ctx.prev, ctx.curr,
-    ctx.action, ctx.prev_data, ...). check() returns an InvariantResult, or None when the rule does not
-    apply to this action. To add one, copy a file and change those.
+    it, so keep it stable) and check(ctx), which returns an InvariantResult, or None when the rule does not
+    apply to this action.
     """
     import importlib
     import pkgutil

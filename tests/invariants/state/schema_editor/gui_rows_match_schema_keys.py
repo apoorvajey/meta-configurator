@@ -1,4 +1,4 @@
-"""INV-S2. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-S2."""
 from __future__ import annotations
 from tests.shared.python.utils_gui_editor import read_property_exists
 from tests.invariants.invariants_core import InvariantResult
@@ -8,13 +8,11 @@ NAME = "_inv_s2_gui_rows_exist_for_schema_keys"
 
 
 def check(ctx) -> InvariantResult:
-    """Every top-level key in the schema must have a visible row in the Schema Editor GUI View. The GUI
-    renders the schema as a form against the meta-schema, so 'title', 'type', 'properties', 'required',
-    '$defs' etc. each get a property-data-{key} row. Keys starting with '$' use the key name directly,
-    e.g. property-data-$schema.
+    """Every top-level schema key has a visible row in the Schema Editor GUI View (property-data-{key}; keys
+    starting with '$' use the key name directly, e.g. property-data-$schema).
 
-    A non-dict schema is not treated like an empty {}. It fails here, because skipping the per-key walk
-    is not the same as all keys being present. INV-S0 reports the corruption itself.
+    A non-dict schema fails here instead of being treated as {}: skipping the per-key walk is not the same as
+    all keys being present. INV-S0 reports the corruption itself.
     """
     name = "INV-S2 GUI rows exist for top-level schema keys"
     schema = ctx.tp.get_schema()

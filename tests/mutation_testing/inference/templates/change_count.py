@@ -9,7 +9,9 @@ from tests.mutation_testing.inference.common import Observation
 
 
 def change_count(before_value: Any, after_value: Any) -> int:
-    """Number of DeepDiff change entries (-1 if DeepDiff fails)."""
+    """Number of DeepDiff change entries (-1 if DeepDiff fails or a value is None: the facet is not recorded)."""
+    if before_value is None or after_value is None:
+        return -1
     if before_value == after_value:
         return 0
     try:

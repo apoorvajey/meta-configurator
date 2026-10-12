@@ -1,0 +1,392 @@
+{
+  "_about": "The hand-written invariants of tests/invariants and the inferred rule that would say the same. 'categories' are action categories of the engine ('*' = any action, 'base' = any tab, 'base@tab' = that tab). 'implied_by' lists stronger statements that also count. Used by inference/manual_coverage.py.",
+  "invariants": [
+    {
+      "id": "INV-D1",
+      "name": "Data Text View reflects internal data",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/text_view_matches_data.py",
+      "expressible": true,
+      "template": "text_store_agreement",
+      "params": {
+        "view": "data"
+      },
+      "categories": [
+        "*"
+      ]
+    },
+    {
+      "id": "INV-D3",
+      "name": "GUI required stars match schema.required",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/required_stars.py",
+      "expressible": true,
+      "template": "gui_required_agreement",
+      "params": {
+        "transition": false
+      },
+      "categories": [
+        "*"
+      ]
+    },
+    {
+      "id": "INV-D4",
+      "name": "GUI rows complete, no stale values",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/gui_rows_match_data_keys.py",
+      "expressible": true,
+      "template": "gui_row_set",
+      "params": {
+        "transition": false
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Only the 'no stale rows' half; 'every data key has a row' is not covered by a template."
+    },
+    {
+      "id": "INV-D5",
+      "name": "GUI string values match data",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/gui_strings_match_data.py",
+      "expressible": true,
+      "template": "gui_value_agreement",
+      "params": {
+        "transition": false
+      },
+      "categories": [
+        "*"
+      ]
+    },
+    {
+      "id": "INV-D6",
+      "name": "GUI validation icons match schema violations",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/validation_icons.py",
+      "expressible": true,
+      "template": "gui_validation_agreement",
+      "params": {
+        "transition": false
+      },
+      "categories": [
+        "*"
+      ]
+    },
+    {
+      "id": "INV-GUI-ERR-01",
+      "name": "GUI icon matches the Text View additionalProperties error",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/additional_properties_icon.py",
+      "expressible": false,
+      "reason": "Compares the GUI with an error shown in the Text View, which is not in the snapshots."
+    },
+    {
+      "id": "INV-S0",
+      "name": "Schema state is an object",
+      "kind": "state",
+      "source": "tests/invariants/state/schema_editor/schema_is_object.py",
+      "expressible": false,
+      "reason": "No template checks the type of a store."
+    },
+    {
+      "id": "INV-S1",
+      "name": "Schema Text View reflects internal schema",
+      "kind": "state",
+      "source": "tests/invariants/state/schema_editor/text_view_matches_schema.py",
+      "expressible": true,
+      "template": "text_store_agreement",
+      "params": {
+        "view": "schema"
+      },
+      "categories": [
+        "*"
+      ]
+    },
+    {
+      "id": "INV-S2",
+      "name": "GUI rows exist for all top-level schema keys",
+      "kind": "state",
+      "source": "tests/invariants/state/schema_editor/gui_rows_match_schema_keys.py",
+      "expressible": false,
+      "reason": "No template reads the Schema Editor's GUI rows (se_gui)."
+    },
+    {
+      "id": "INV-S3",
+      "name": "Schema title field matches internal schema",
+      "kind": "state",
+      "source": "tests/invariants/state/schema_editor/title_matches_schema.py",
+      "expressible": false,
+      "reason": "No template reads the Schema Editor's GUI rows (se_gui)."
+    },
+    {
+      "id": "INV-S4",
+      "name": "Schema GUI validation icons match meta-schema violations",
+      "kind": "state",
+      "source": "tests/invariants/state/schema_editor/validation_icons.py",
+      "expressible": false,
+      "reason": "Needs the meta-schema as an oracle and the Schema Editor's GUI rows."
+    },
+    {
+      "id": "INV-G1",
+      "name": "No uncaught app errors",
+      "kind": "state",
+      "source": "tests/invariants/state/any_editor/no_uncaught_app_errors.py",
+      "expressible": false,
+      "reason": "Browser errors are not part of the snapshots."
+    },
+    {
+      "id": "INV-G2",
+      "name": "GUI is not stuck on a loading spinner",
+      "kind": "state",
+      "source": "tests/invariants/state/any_editor/gui_not_stuck_loading.py",
+      "expressible": false,
+      "reason": "Loading state is not part of the snapshots."
+    },
+    {
+      "id": "TEMP-EDIT-01",
+      "name": "edit-field keeps schema.properties keys",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/edit/schema_properties_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema.properties"
+      },
+      "categories": [
+        "edit_field"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "schema"
+          }
+        }
+      ]
+    },
+    {
+      "id": "TEMP-EDIT-02",
+      "name": "edit-field in the Data Editor keeps the schema",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/edit/schema_unchanged_in_data_editor.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema"
+      },
+      "categories": [
+        "edit_field@data"
+      ]
+    },
+    {
+      "id": "TEMP-EDIT-03",
+      "name": "edit-field keeps the length of schema.required",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/edit/required_count_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema.required"
+      },
+      "categories": [
+        "edit_field"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "schema"
+          }
+        }
+      ]
+    },
+    {
+      "id": "TEMP-EXPAND-01",
+      "name": "expand keeps the data",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/expand/data_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "data"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-EXPAND-02",
+      "name": "expand keeps the schema",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/expand/schema_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-COLLAPSE-01",
+      "name": "collapse keeps the schema",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/collapse/schema_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-COLLAPSE-02",
+      "name": "collapse keeps the data",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/collapse/data_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "data"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-MODE-01",
+      "name": "mode switch keeps the data",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/mode_switch/data_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "data"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-MODE-02",
+      "name": "mode switch keeps the schema",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/mode_switch/schema_unchanged.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema"
+      },
+      "categories": [
+        "ui_only@data",
+        "ui_only@schema"
+      ],
+      "note": "Expand, collapse and mode switch are one category (ui_only) in the engine."
+    },
+    {
+      "id": "TEMP-RENAME-01",
+      "name": "rename keeps the number of data keys",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/rename/data_key_count_unchanged.py",
+      "expressible": false,
+      "reason": "Needs a template that compares the number of keys."
+    },
+    {
+      "id": "TEMP-RENAME-02",
+      "name": "rename keeps the number of schema.properties",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/rename/schema_property_count_unchanged.py",
+      "expressible": false,
+      "reason": "Needs a template that compares the number of keys."
+    },
+    {
+      "id": "TEMP-RENAME-03",
+      "name": "rename swaps exactly one schema.properties key",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/rename/one_schema_key_swapped.py",
+      "expressible": false,
+      "reason": "Needs a template for 'exactly one key swapped'."
+    },
+    {
+      "id": "TEMP-RENAME-04",
+      "name": "rename swaps exactly one data key",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/rename/one_data_key_swapped.py",
+      "expressible": false,
+      "reason": "Needs a template for 'exactly one key swapped'."
+    },
+    {
+      "id": "TEMP-ADD-01",
+      "name": "add-item keeps schema.properties keys",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/add/item_keeps_schema_properties.py",
+      "expressible": true,
+      "template": "stability",
+      "params": {
+        "facet": "schema.properties"
+      },
+      "categories": [
+        "add_item"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "schema"
+          }
+        }
+      ]
+    },
+    {
+      "id": "TEMP-ADD-02",
+      "name": "add-item-required grows schema.required by one",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/add/required_count_grows_by_one.py",
+      "expressible": true,
+      "template": "change_count",
+      "params": {
+        "facet": "schema.required"
+      },
+      "categories": [
+        "add_item_required"
+      ],
+      "note": "change_count finds 'exactly k changes'; it does not say the change is a growth."
+    },
+    {
+      "id": "TEMP-ADD-03",
+      "name": "add-item-required adds the key to the data",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/add/required_key_appears_in_data.py",
+      "expressible": true,
+      "template": "path_key",
+      "params": {
+        "a": "schema.required",
+        "b": "data"
+      },
+      "categories": [
+        "add_item_required"
+      ]
+    },
+    {
+      "id": "NEW-07",
+      "name": "The schema state stays an object after any action",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/schema_stays_object.py",
+      "expressible": false,
+      "reason": "No template checks the type of a store."
+    }
+  ]
+}

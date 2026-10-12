@@ -1,4 +1,4 @@
-"""TEMP-RENAME-02. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-RENAME-02."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp09_rename_preserves_schema_property_count"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-RENAME-02: renaming a property does not add or remove schema.properties entries."""
+    """Renaming a property does not add or remove schema.properties entries."""
     if not _is_rename(ctx.action):
         return None
 

@@ -1,4 +1,4 @@
-"""INV-S3. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-S3."""
 from __future__ import annotations
 from tests.shared.python.utils_gui_editor import read_string_property
 from tests.invariants.invariants_core import InvariantResult

@@ -1,4 +1,4 @@
-"""INV-GUI-ERR-01. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-GUI-ERR-01."""
 from __future__ import annotations
 from tests.shared.python.utils_code_editor import read_text_editor_raw
 from tests.invariants.invariants_core import InvariantResult, _ADDITIONAL_PROPS_MSG, _find_additional_properties_violations, _gui_error_icon_and_tooltip_for_path, _path_to_testid_string, _text_view_error_for_key
@@ -8,15 +8,12 @@ NAME = "_inv_gui_err_01_additional_properties_desync"
 
 
 def check(ctx) -> InvariantResult:
-    """An AJV additionalProperties violation shown in Text View must also appear as a
-    validation-error-icon, with a matching tooltip, on the row in GUI View.
+    """An AJV additionalProperties violation shown in the Text View must also appear as a validation-error-icon,
+    with a matching tooltip, on the GUI View row.
 
-    Suspected desync: the generic fallback widget for keys with no schema node (which is what an
-    additionalProperties: false violation is) may not use the same isInvalid() logic as schema-bound
-    fields such as StringProperty.vue, which INV-D6 covers.
-
-    The violating key is taken from comparing get_data() with get_schema() in Python
-    (_find_additional_properties_violations), because the Text View display is what is under test.
+    Suspected desync: the generic widget for keys with no schema node may not share isInvalid() with
+    schema-bound fields such as StringProperty.vue (covered by INV-D6). The violating key comes from comparing
+    get_data() with get_schema() (_find_additional_properties_violations).
     """
     name = "INV-GUI-ERR-01 GUI validation icon matches Text View additionalProperties error"
 

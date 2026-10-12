@@ -1,4 +1,4 @@
-"""TEMP-RENAME-04. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-RENAME-04."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_new02_rename_swaps_data_key"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-RENAME-04: a rename removes one key from data and adds one. A nested rename changes no
+    """A rename removes one key from data and adds one. A nested rename changes no
     top-level key, which is also valid.
     """
     if not _is_rename(ctx.action) or ctx.prev_step == 0:

@@ -1,4 +1,4 @@
-"""TEMP-EXPAND-02. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-EXPAND-02."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp05_expand_preserves_schema"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-EXPAND-02: expanding a tree node does not modify the schema."""
+    """Expanding a tree node does not modify the schema."""
     if not _is_expand(ctx.action):
         return None
 

@@ -6,7 +6,7 @@ import random
 import re
 from tests.shared.python.utils import SessionMode, force_editor_mode
 from tests.shared.python.test_panel import TestPanel
-from tests.mutation_testing.discovery.values import ValueGenerator, _generate_typed_value
+from tests.mutation_testing.discovery.values import ValueGenerator, _generate_typed_value, roll_valid
 from tests.mutation_testing.discovery.paths import (
     _find_matching_close_bracket,
     _value_at_path,
@@ -52,7 +52,7 @@ class TextViewModifyMixin:
                   "state likely changed since discovery, skipping")
             return
 
-        use_valid = forced_valid if isinstance(forced_valid, bool) else (random.random() < 0.8)
+        use_valid = forced_valid if isinstance(forced_valid, bool) else roll_valid("text_view")
 
         # Use the type the schema declares, not the Python type of the current value: an earlier invalid write
         # can leave a wrong type in place and generation would lock onto it. Without a schema (or if the node
@@ -205,12 +205,12 @@ class TextViewModifyMixin:
             return
 
     def _click_clear_text(self, mode: str) -> None:
-        """Replace the whole Text View document with "{}", the way a user selects all and retypes.
+        """Replace the whole Text View document with an empty one, as a user selecting all and retyping would: "{}" in
+        JSON (a blank text is not valid JSON), blank in YAML (parses to null, not {}).
 
-        The edit is one _replace_range call, so it is a single undo step and the end state is valid JSON.
-        setValue() is avoided because it resets Ace's undo manager, which the undo-based repair needs.
-        It checks that the GUI View resets its rows together with the now-empty data (INV-D4) and that
-        the Text View keeps matching the internal state (INV-D1, INV-S1).
+        One _replace_range call, so a single undo step; setValue() is avoided because it resets Ace's undo
+        manager, which the undo-based repair needs. Checks that the GUI View resets its rows together with the
+        now-empty data (INV-D4) and that the Text View keeps matching the internal state (INV-D1, INV-S1).
         """
         from tests.shared.python.utils_code_editor import read_text_editor_raw
 
@@ -226,8 +226,12 @@ class TextViewModifyMixin:
             current_format = self.page.get_by_test_id("format-selector").inner_text().lower()
         except Exception:
             pass
-        if "json" not in current_format:
-            print(f"   [clear-text] current format is '{current_format}', not json — skipping")
+        if "json" in current_format:
+            empty_document = "{}"
+        elif "yaml" in current_format:
+            empty_document = ""
+        else:
+            print(f"   [clear-text] current format is '{current_format}', not json or yaml — skipping")
             return
 
         raw_text = read_text_editor_raw(self.page, session_mode)
@@ -238,9 +242,10 @@ class TextViewModifyMixin:
             print("   [clear-text] document is already empty — nothing to clear, skipping")
             return
 
-        print(f"   [clear-text] clearing entire {mode} document ({len(raw_text)} chars)")
+        print(f"   [clear-text] clearing entire {mode} document ({len(raw_text)} chars) "
+              f"to {empty_document!r} ({current_format.strip()})")
 
-        if not self._replace_range(mode, 0, len(raw_text), "{}"):
+        if not self._replace_range(mode, 0, len(raw_text), empty_document):
             print("   [clear-text] could not replace document content")
             return
 

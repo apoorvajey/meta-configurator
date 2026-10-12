@@ -1,13 +1,18 @@
 {
-  "_comment": "Settings for one mutation-loop run, read by profile_config.py. Keys starting with _ are documentation and are ignored.",
-  "action_weights_profile": "default",
+  "_comment": "Mutation loop run settings. Edit values below and re-run \u2014 no code change needed. Keys starting with _ are documentation only and are ignored by the reader.",
+  "action_weights_profile": "random",
   "_action_weights_profile_options": "default | textview_focus | schema_focus | data_focus | random",
   "schema": "random",
   "_schema_options": "random | Autonomous Vehicle Schema | Feature Testing Schema | Strenda Schema | EnzymeML Schema",
-  "num_steps": 100,
-  "_num_steps_note": "positive integer, number of mutation steps per run",
+  "num_steps": 60,
+  "_num_steps_note": "positive integer \u2014 number of mutation steps per run",
+  "valid_value_probability": 0.5,
+  "_valid_value_probability_note": "0.0-1.0 \u2014 chance a generated GUI value is valid (1.0 = never invalid, 0.0 = always invalid)",
+  "text_view_valid_value_probability": 0.5,
+  "_text_view_valid_value_probability_note": "0.0-1.0 \u2014 same, but for Text View edit-text only",
   "screenshots": true,
-  "_screenshots_note": "true | false, capture a screenshot every step",
+  "screenshots_failures_only": false,
+  "_screenshots_note": "true | false \u2014 whether to capture a screenshot each step",
   "run_mode": "background",
-  "_run_mode_options": "background | watch_failures | interactive | null (null asks at the terminal)"
+  "_run_mode_options": "background | watch_failures | interactive | null (null = ask at the terminal prompt each run)"
 }

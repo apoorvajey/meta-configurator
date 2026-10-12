@@ -1,4 +1,4 @@
-"""TEMP-EDIT-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-EDIT-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp01_edit_field_preserves_schema_properties"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-EDIT-01: editing a field value never adds or removes keys in schema.properties."""
+    """Editing a field value never adds or removes keys in schema.properties."""
     if not _is_edit_field(ctx.action):
         return None
 

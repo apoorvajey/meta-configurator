@@ -1,4 +1,4 @@
-"""INV-D6. Loaded by invariants_core.load_invariant_plugins()."""
+"""INV-D6."""
 from __future__ import annotations
 from jsonschema import RefResolver
 from jsonschema import Draft202012Validator, FormatChecker

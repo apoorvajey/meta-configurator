@@ -1,4 +1,4 @@
-"""TEMP-ADD-03. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-ADD-03."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp_add03_add_item_required_propagates_to_data"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-ADD-03: after add-item-required, any new required key appears in data, whether or not
+    """After add-item-required, any new required key appears in data, whether or not
     it is defined in schema.properties.
 
     The app creates the data slot even when the key has no definition in schema.properties.

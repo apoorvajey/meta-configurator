@@ -1,27 +1,19 @@
-"""One entry point for all mutation-testing tools. Run from the repository root.
+"""Entry point for all mutation-testing tools; run from the repository root.
 
-    python -m tests.cli                  menu: pick an action, then optionally its options from a second menu
-    python -m tests.cli run              one mutation loop run
-    python -m tests.cli run --runs 24    24 unattended runs, then the report of exactly those runs
-    python -m tests.cli report           the distinct problems found across all runs
-    python -m tests.cli replay           replay the latest run (--history <file> for another one)
-    python -m tests.cli infer            mine invariants from the recorded traces
-    python -m tests.cli sweep            how the promotion threshold changes the mined invariants
-    python -m tests.cli invariants       list every invariant that is loaded
+    python -m tests.cli                 interactive menu
+    python -m tests.cli <command> ...   options after a command are passed to the tool behind it
 
-Everything after a command is passed unchanged to the tool behind it, so
-`python -m tests.cli report --last-hours 12` is the same as `python -m tests.mutation_testing.issue_report
---last-hours 12`, and `python -m tests.cli replay --help` shows that tool's own options.
-Exceptions: `run --runs N` starts the unattended batch runner instead of a single run and builds the report
-afterwards (`--no-report` skips it), and `invariants` runs inside this script.
-To add a tool: add one line to COMMANDS.
+`run --runs N` starts the batch runner and then builds the report; `invariants` runs in this script.
+To add a tool, add one line to COMMANDS.
 """
 from __future__ import annotations
 
 import importlib.util
+import os
 import shlex
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -33,23 +25,32 @@ EXIT_INTERRUPTED = 130
 # command -> (description, candidate modules; the first one that exists is used)
 COMMANDS: dict[str, tuple[str, list[str]]] = {
     "run": ("Run the mutation loop once (--runs N: N unattended runs, then the report)",
-            ["tests.mutation_testing.mutation_loop"]),
+            ["tests.mutation_testing.loop.mutation_loop"]),
     "report": ("Show the distinct problems found across all runs",
-               ["tests.mutation_testing.issue_report"]),
+               ["tests.mutation_testing.reports.issue_report"]),
     "replay": ("Replay the latest run (--history <history.json> for another one)",
-               ["tests.mutation_testing.replay_runner"]),
+               ["tests.mutation_testing.replay.replay_runner"]),
     "infer": ("Mine invariants from the recorded traces",
-              ["tests.mutation_testing.invariant_inference_engine"]),
+              ["tests.mutation_testing.inference.invariant_inference_engine"]),
     "sweep": ("Show how the promotion threshold changes the mined invariants",
-              ["tests.mutation_testing.threshold_sweep"]),
+              ["tests.mutation_testing.inference.threshold_sweep"]),
+    "archive": ("Archive recorded traces (after a major code change, before a batch)",
+                ["tests.mutation_testing.traces.trace_store"]),
+    "corpus": ("HTML report of the runs in the recorded traces",
+               ["tests.mutation_testing.traces.corpus_report"]),
+    "review": ("Review the inferred rules (html / export / import)",
+               ["tests.mutation_testing.inference.review_tool"]),
 }
-BATCH_MODULES = ["tests.mutation_testing.overnight_runner"]
+BATCH_MODULES = ["tests.mutation_testing.loop.batch_runner"]
 LIST_COMMAND = "invariants"
-LIST_DESCRIPTION = "List every invariant that is loaded (--mode data|schema|temporal)"
+LIST_DESCRIPTION = "List every invariant that is loaded (--mode data|schema|any|temporal)"
 HELP_FLAGS = ("-h", "--help", "help")
 
 RUNS_FLAG = "--runs"
+MAX_MINUTES_FLAG = "--max-minutes"   # a time budget also makes it a batch, with or without --runs
 NO_REPORT_FLAG = "--no-report"
+ORIGIN_ENV = "MT_ORIGIN_COMMAND"   # the command line the user ran; the report prints it so the run can be repeated
+RUNS_DEFAULT = "15"                # default of batch_runner --runs; written out when the menu left it open
 SINCE_FORMAT = "%Y%m%d_%H%M%S"   # the timestamp format of run ids; the report accepts it for --since
 
 
@@ -81,7 +82,8 @@ def _launch(candidates: list[str], args: list[str]) -> int:
 
 
 def _is_batch(args: list[str]) -> bool:
-    return any(a == RUNS_FLAG or a.startswith(RUNS_FLAG + "=") for a in args)
+    return any(a in (RUNS_FLAG, MAX_MINUTES_FLAG) or a.startswith((RUNS_FLAG + "=", MAX_MINUTES_FLAG + "="))
+               for a in args)
 
 
 def batch_and_report(batch_args: list[str], report: bool = True) -> int:
@@ -102,6 +104,11 @@ def run_command(args: list[str]) -> int:
     return batch_command(args) if _is_batch(args) else _launch(COMMANDS["run"][1], args)
 
 
+def _remember_command(command_line: str) -> None:
+    """Hand the command line to the tools started below (environment variable); the report shows it."""
+    os.environ[ORIGIN_ENV] = command_line
+
+
 def _first_sentence(doc: str | None) -> str:
     if not doc:
         return ""
@@ -110,7 +117,7 @@ def _first_sentence(doc: str | None) -> str:
 
 
 def list_invariants_command(args: list[str]) -> int:
-    modes = ("data", "schema", "temporal")
+    modes = ("data", "schema", "any", "temporal")
     mode = None
     if args:
         if len(args) == 2 and args[0] == "--mode" and args[1] in modes:
@@ -132,9 +139,8 @@ def list_invariants_command(args: list[str]) -> int:
     return EXIT_OK
 
 
-# ---------------------------------------------------------------------------------------------
-# Menu
-# ---------------------------------------------------------------------------------------------
+# Menu. Each action asks only what it needs; Enter uses the tool's default. Settings that cannot be combined are
+# the alternatives of one Pick; rarely needed ones sit behind "More options?".
 
 def _split_args(text: str) -> list[str]:
     """Split typed options like a shell, but keep backslashes (Windows paths) and drop surrounding quotes."""
@@ -142,164 +148,355 @@ def _split_args(text: str) -> list[str]:
 
 
 @dataclass(frozen=True)
-class Opt:
-    """One option offered in the second menu. flag=None means a positional argument."""
+class Ask:
+    """One question; Enter skips it (the tool's default applies) unless `required`.
+
+    flag=None is a positional argument. kind: "text", "int", "float", "fraction" (0 to 1), "choice",
+    "yes" (y adds the flag), "no" (n adds the flag, for --no-... flags), "pick" (one of a numbered list)
+    or "multi" (several, e.g. 1,3). `options` returns the list for pick/multi when the question is asked;
+    if it returns nothing, the question falls back to free text.
+    """
     label: str
     flag: str | None
-    kind: str = "text"          # "flag" (on/off), "text", "int", "float" or "choice"
+    kind: str = "text"
     hint: str = ""
     choices: tuple[str, ...] = ()
+    required: bool = False
+    options: Callable[[], list[str]] | None = None
 
 
-TIME_HINT = "(YYYY-MM-DD HH:MM)"
-BATCH_DEFAULT_HINT = "(Enter = the batch runner's default)"
+@dataclass(frozen=True)
+class Pick:
+    """Alternatives that cannot be combined: (label, fixed arguments, follow-up questions). The first is the default."""
+    label: str
+    options: tuple[tuple[str, tuple[str, ...], tuple[object, ...]], ...]
 
-BATCH_OPTIONS = (
-    Opt("Number of runs", "--runs", "int", BATCH_DEFAULT_HINT),
-    Opt("Time limit per run in seconds", "--timeout", "int", BATCH_DEFAULT_HINT),
-    Opt("Only these schemas", "--datasets", hint="(comma-separated, e.g. Strenda Schema,EnzymeML Schema)"),
-    Opt("Shuffle the schema order in each round", "--shuffle-laps", "flag"),
-    Opt("Do not build the report afterwards", NO_REPORT_FLAG, "flag"),
-)
-REPORT_OPTIONS = (
-    Opt("Folder or history.json to read", None, hint="(Enter = all runs in mutation_history)"),
-    Opt("Only runs from the last N hours", "--last-hours", "float"),
-    Opt("Only runs since", "--since", hint=TIME_HINT),
-    Opt("Only runs until", "--until", hint=TIME_HINT),
-    Opt("Write the report to this file", "--html"),
-    Opt("Do not open the report in the browser", "--no-open", "flag"),
-)
-REPLAY_OPTIONS = (
-    Opt("Replay this history file instead of the latest run", "--history"),
-    Opt("Replay every run since", "--since", hint=TIME_HINT),
-    Opt("Replay every run in this folder", "--folder"),
-    Opt("Run quietly up to step N, then step through by hand", "--until", "int"),
-    Opt("Step through by hand from the start", "--interactive", "flag"),
-    Opt("Pause when a step fails", "--pause-on-failure", "flag"),
-    Opt("Also write an HTML log", "--html", "flag"),
-    Opt("Without a visible browser window", "--headless", "flag"),
-)
-INFER_OPTIONS = (
-    Opt("Folder with the recorded traces", "--snapshots-dir"),
-    Opt("Only these datasets", "--datasets", hint="(comma-separated)"),
-    Opt("Minimum observations per dataset", "--min-obs", "int"),
-    Opt("Promotion threshold", "--threshold", "float", "(0 to 1)"),
-    Opt("Settings profile", "--profile", hint="(a profile name from inference_config.json)"),
-    Opt("Write the dashboard to this file", "--dashboard"),
-    Opt("Write the Markdown report to this file", "--report"),
-    Opt("Print the raw per-dataset details", "--verbose", "flag"),
-)
-INVARIANT_OPTIONS = (
-    Opt("Only one kind of invariant", "--mode", "choice", choices=("data", "schema", "temporal")),
-)
 
-# (label, command name shown in the echo, options of the second menu, action(options typed or chosen),
-#  flag the typed command needs but the menu may leave out: shown as <default> in the echo)
+@dataclass(frozen=True)
+class Action:
+    group: str                      # heading in the menu
+    label: str
+    summary: str                    # one line next to the label
+    command: str                    # name shown in the echoed command line
+    run: Callable[[list[str]], int]
+    steps: tuple[object, ...] = ()  # the questions that matter for most runs (Ask / Pick)
+    more: tuple[object, ...] = ()   # rarely needed questions, asked only after "More options?"
+    more_hint: str = ""             # what is behind "More options?"
+    implied_flag: str | None = None  # flag the typed command needs but the questions may leave out
+    confirm: bool = True            # show the command line and wait for Enter before running
+
+
+def _batch_schemas() -> list[str]:
+    """The schemas listed in "_schema_options" of run_config.json (the batch runner reads the same list)."""
+    try:
+        from tests.mutation_testing.loop.batch_runner import read_configured_options
+        return read_configured_options()[0]
+    except Exception:
+        return []
+
+
+def _batch_profiles() -> list[str]:
+    """The profiles listed in "_action_weights_profile_options" of run_config.json."""
+    try:
+        from tests.mutation_testing.loop.batch_runner import read_configured_options
+        return read_configured_options()[1]
+    except Exception:
+        return []
+
+
+def _inference_profiles() -> list[str]:
+    """The profiles defined in inference_config.json (keys starting with "_" are documentation)."""
+    try:
+        import json
+        from tests.mutation_testing.inference.inference_config import DEFAULT_CONFIG_PATH
+        raw = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+        return [name for name, section in raw.items() if not name.startswith("_") and isinstance(section, dict)]
+    except Exception:
+        return []
+
+
+TIME_HINT = "YYYY-MM-DD HH:MM"
+DATASETS = Ask("Only these datasets", "--datasets", hint="comma-separated")
+PROFILE = Ask("Settings profile", "--profile", "pick", hint="Enter = default", options=_inference_profiles)
+MIN_OBS = Ask("Minimum observations per dataset", "--min-obs", "int")
+TRACES = Ask("Folder with the recorded traces", "--snapshots-dir")
+HEADLESS = Ask("Hide the browser window", "--headless", "yes")
+
+# Replaying one run: how it is stepped through. These are alternatives because --headless cannot be combined
+# with the manual modes, and --interactive and --until are two ways to start stepping by hand.
+REPLAY_HOW = Pick("How should it run?", (
+    ("Automatically", (), ()),
+    ("Automatically, pausing when a step fails", ("--pause-on-failure",), ()),
+    ("Automatically, with the browser window hidden", ("--headless",), ()),
+    ("Step through by hand from the start", ("--interactive",), ()),
+    ("Quietly up to a step, then step through by hand", (),
+     (Ask("Step number", "--until", "int", required=True),)),
+))
+# What to do with a run that has no failures left (replay_runner --clean-runs). Enter = the tool's own default:
+# ask for one run, skip for several.
+CLEAN_RUNS = Ask("If the run is already clean", "--clean-runs", "choice", hint="Enter = ask (one run) or skip (several)",
+                 choices=("ask", "skip", "include"))
+# Several runs are replayed without waiting for input, so the step-through modes do not apply to them.
+REPLAY_WHAT = Pick("What should be replayed?", (
+    ("The latest run", (), (REPLAY_HOW, CLEAN_RUNS)),
+    ("One specific run", (), (Ask("Run folder or history.json", "--history",
+                                  hint="path to a run folder or to its history.json", required=True),
+                              REPLAY_HOW, CLEAN_RUNS)),
+    ("Every run since a time", (), (Ask("Since", "--since", hint=TIME_HINT + ", or an age like 48h", required=True),
+                                    Ask("Only from this folder", "--folder"), CLEAN_RUNS, HEADLESS)),
+    ("Every run in a folder", (), (Ask("Folder", "--folder", required=True),
+                                   Ask("Only runs since", "--since", hint=TIME_HINT + ", or an age like 48h"),
+                                   CLEAN_RUNS, HEADLESS)),
+))
+REPORT_PERIOD = Pick("Which runs?", (
+    ("All of them", (), ()),
+    ("The last few hours", (), (Ask("Number of hours", "--last-hours", "float", required=True),)),
+    ("A time window", (), (Ask("From", "--since", hint=TIME_HINT, required=True),
+                           Ask("Until", "--until", hint=TIME_HINT))),
+))
+SWEEP_THRESHOLDS = Pick("Which thresholds?", (
+    ("The range from the settings profile", (), ()),
+    ("A list of my own", (), (Ask("Thresholds", "--thresholds", hint="e.g. 0.5,0.7,0.9", required=True),)),
+    ("A custom range", (), (Ask("From", "--start", "fraction"), Ask("To", "--end", "fraction"),
+                            Ask("Step", "--step", "float"))),
+))
+
 MENU = [
-    ("Run the mutation loop once", "run", (), lambda args: run_command(args), None),
-    ("Run an unattended batch, then show the report", "run", BATCH_OPTIONS, lambda args: batch_command(args),
-     RUNS_FLAG),
-    ("Show the problem report for all runs", "report", REPORT_OPTIONS,
-     lambda args: _launch(COMMANDS["report"][1], args), None),
-    ("Replay the latest run", "replay", REPLAY_OPTIONS, lambda args: _launch(COMMANDS["replay"][1], args), None),
-    ("Mine invariants from the recorded traces", "infer", INFER_OPTIONS,
-     lambda args: _launch(COMMANDS["infer"][1], args), None),
-    ("List the invariants", LIST_COMMAND, INVARIANT_OPTIONS, lambda args: list_invariants_command(args), None),
+    Action("Experiment", "Run once", "one mutation loop", "run", lambda args: run_command(args), confirm=False),
+    Action("Experiment", "Run a batch", "unattended runs, then the report", "run", lambda args: batch_command(args),
+           steps=(Ask("Number of runs", "--runs", "int", hint="default: 15, or as many as the time budget allows"),
+                  Ask("Time budget for the whole batch, in minutes", "--max-minutes", "float",
+                      hint="Enter = none; no new run starts after it"),
+                  Ask("Time limit per run, in seconds", "--timeout", "int", hint="default: 900 = 15 min")),
+           more=(Ask("Only these schemas", "--datasets", "multi", hint="Enter = all", options=_batch_schemas),
+                 Ask("Action-weight profiles, one per round (in the order given)", "--profiles", "multi",
+                     hint="Enter = the one in run_config.json", options=_batch_profiles),
+                 Ask("Build the report afterwards", NO_REPORT_FLAG, "no"),
+                 Ask("Archive the recorded traces first", "--archive-first", "yes"),
+                 Ask("Show the complete output of every run (default: only invariant failures and progress)",
+                     "--verbose", "yes")),
+           more_hint="schemas, profiles, report, archive, full output", implied_flag=RUNS_FLAG),
+    Action("Experiment", "Replay", "re-execute a recorded run", "replay",
+           lambda args: _launch(COMMANDS["replay"][1], args), steps=(REPLAY_WHAT,)),
+    Action("Analysis", "Report", "the distinct problems found across runs", "report",
+           lambda args: _launch(COMMANDS["report"][1], args),
+           steps=(Ask("Folder or history.json to read", None, hint="default: all of runs"),
+                  REPORT_PERIOD),
+           more=(Ask("Save the report as", "--html", hint="default: tests/output/reports/issues/issues_<time>.html"),
+                 Ask("Open the report in the browser", "--no-open", "no")),
+           more_hint="output file, browser"),
+    Action("Analysis", "Infer invariants", "mine rules from the recorded traces", "infer",
+           lambda args: _launch(COMMANDS["infer"][1], args),
+           steps=(DATASETS, Ask("Promotion threshold", "--threshold", "fraction", hint="0 to 1")),
+           more=(PROFILE, MIN_OBS, TRACES,
+                 Ask("Save the Markdown report as", "--report"),
+                 Ask("Print the raw per-dataset details", "--verbose", "yes")),
+           more_hint="profile, minimum observations, folders, output files"),
+    Action("Analysis", "Threshold sweep", "how the threshold changes the mined rules", "sweep",
+           lambda args: _launch(COMMANDS["sweep"][1], args),
+           steps=(DATASETS, SWEEP_THRESHOLDS),
+           more=(PROFILE, MIN_OBS, TRACES, Ask("Save the table as", "--csv", hint="a .csv file"),
+                 Ask("Save the Markdown report as", "--report"), Ask("Save the figure as", "--figure")),
+           more_hint="profile, minimum observations, folders, output files"),
+    Action("Analysis", "Corpus report", "HTML overview of every run in the traces", "corpus",
+           lambda args: _launch(COMMANDS["corpus"][1], args), steps=(), confirm=False),
+    Action("Analysis", "Review rules", "open the HTML review page (html), import the downloaded review (import), or use a CSV sheet (export / import-sheet)", "review",
+           lambda args: _launch(COMMANDS["review"][1], args),
+           steps=(Ask("What to do", None, "choice", hint="Enter = html", choices=("html", "import", "export", "import-sheet")),),
+           confirm=False),
+    Action("Analysis", "Archive traces", "move the recorded traces aside before a fresh batch", "archive",
+           lambda args: _launch(COMMANDS["archive"][1], args),
+           steps=(Ask("Label for the archive", "--label", hint="optional, e.g. before-sampler-fix"),
+                  Ask("Remove only unfinished runs (no history.json) instead", "--drop-incomplete", "yes"),
+                  Ask("Only show what would move", "--dry-run", "yes"))),
+    Action("Analysis", "List invariants", "every invariant that is loaded", LIST_COMMAND,
+           lambda args: list_invariants_command(args),
+           steps=(Ask("Kind of invariant", "--mode", "choice", hint="Enter = all", choices=("data", "schema", "any", "temporal")),),
+           confirm=False),
 ]
 
+RULE = "-" * 64
 
-def _problem(opt: Opt, value: str) -> str | None:
-    """What is wrong with `value` for this option, or None if it is fine."""
-    if opt.kind == "int" and not (value.isdigit() and int(value) > 0):
+
+class _QuitMenu(Exception):
+    """Raised when the user types q at any question."""
+
+
+class _Back(Exception):
+    """Raised when the user types b at any question: back to the menu."""
+
+
+def _read(ask, prompt: str) -> str:
+    answer = ask(prompt).strip()
+    if answer.lower() in ("b", "back"):
+        raise _Back
+    if answer.lower() in ("q", "quit"):
+        raise _QuitMenu
+    return answer
+
+
+def _problem(q: Ask, value: str) -> str | None:
+    """What is wrong with `value` for this question, or None if it is fine."""
+    if q.kind == "int" and not (value.isdigit() and int(value) > 0):
         return "a positive whole number"
-    if opt.kind == "float":
+    if q.kind in ("float", "fraction"):
         try:
-            float(value)
+            number = float(value)
         except ValueError:
             return "a number"
-    if opt.kind == "choice" and value not in opt.choices:
-        return f"one of {', '.join(opt.choices)}"
+        if q.kind == "fraction" and not 0 <= number <= 1:
+            return "a number from 0 to 1"
+    if q.kind == "choice" and value not in q.choices:
+        return f"one of {', '.join(q.choices)}"
     return None
 
 
-def _read_value(opt: Opt, ask, preset: str | None = None) -> list[str]:
-    """The arguments for one option. `preset` is a value typed together with the option number. Asks (again)
-    until the value is valid; an empty answer skips the option."""
-    value = preset
+def _ask_listed(q: Ask, names: list[str], ask) -> str | None:
+    """A numbered list; returns the chosen names joined by commas, or None if Enter was pressed."""
+    many = q.kind == "multi"
+    print(f"\n  {q.label}")
+    for number, name in enumerate(names, start=1):
+        print(f"    {number}  {name}")
+    example = "numbers separated by commas, e.g. 1,3" if many else "a number"
     while True:
-        if value is None:
-            if opt.kind == "choice":
-                prompt = f"{opt.label} ({'/'.join(opt.choices)}): "
-            else:
-                prompt = f"{opt.label} {opt.hint}: " if opt.hint else f"{opt.label}: "
-            value = ask(prompt)
-        value = value.strip().strip("\"'")
+        answer = _read(ask, f"  Choose {example}" + (f" [{q.hint}]" if q.hint else "") + ": ")
+        if not answer:
+            return None
+        tokens = [t for t in answer.replace(" ", ",").split(",") if t]
+        if tokens and (many or len(tokens) == 1) and all(t.isdigit() and 1 <= int(t) <= len(names) for t in tokens):
+            return ",".join(names[int(t) - 1] for t in tokens)
+        print(f"  Please enter {example}, each from 1 to {len(names)}.", file=sys.stderr)
+
+
+def _ask_one(q: Ask, ask) -> str | None:
+    """The answer to one question, asked again until valid. None means skipped (or 'no' to a yes/no question)."""
+    if q.kind in ("pick", "multi") and q.options is not None:
+        names = q.options()
+        if names:
+            return _ask_listed(q, names, ask)
+    if q.kind in ("yes", "no"):
+        shown = "[y/N]" if q.kind == "yes" else "[Y/n]"
+        while True:
+            answer = _read(ask, f"  {q.label}? {shown}: ").lower()
+            if answer in ("", "y", "yes", "n", "no"):
+                break
+            print("  Please answer y or n.", file=sys.stderr)
+        flag_wanted = answer in ("y", "yes") if q.kind == "yes" else answer in ("n", "no")
+        return "on" if flag_wanted else None
+    suffix = (f" ({' / '.join(q.choices)})" if q.kind == "choice" else "") \
+        + (" (required)" if q.required else "") + (f" [{q.hint}]" if q.hint else "")
+    while True:
+        value = _read(ask, f"  {q.label}{suffix}: ").strip("\"'")
         if not value:
-            return []
-        problem = _problem(opt, value)
+            if not q.required:
+                return None
+            print("  This one is needed.", file=sys.stderr)
+            continue
+        problem = _problem(q, value)
         if problem is None:
-            return [opt.flag, value] if opt.flag else [value]
-        print(f"Please enter {problem}.", file=sys.stderr)
-        value = None
+            return value
+        print(f"  Please enter {problem}.", file=sys.stderr)
 
 
-def _parse_pick(answer: str, count: int) -> tuple[int, str | None] | None:
-    """'2' -> option 2. Anything typed after the number is taken as its value ('2 12'), so a user who types the
-    value right away is not rejected. None if the number is not an option."""
-    number, _, value = answer.partition(" ")
-    if not (number.isdigit() and 1 <= int(number) <= count):
-        return None
-    return int(number), value.strip() or None
+def _choose(pick: Pick, ask) -> tuple[list[str], tuple[object, ...]]:
+    """Show the alternatives; returns the fixed arguments and the follow-up questions of the chosen one."""
+    count = len(pick.options)
+    print(f"\n  {pick.label}")
+    for number, (label, _fixed, _steps) in enumerate(pick.options, start=1):
+        print(f"    {number}  {label}")
+    while True:
+        answer = _read(ask, f"  Choose 1-{count} (Enter = 1): ")
+        if not answer:
+            number = 1
+        elif answer.isdigit() and 1 <= int(answer) <= count:
+            number = int(answer)
+        else:
+            print(f"  Please enter a number from 1 to {count}.", file=sys.stderr)
+            continue
+        _label, fixed, steps = pick.options[number - 1]
+        return list(fixed), steps
+
+
+def _collect(steps: tuple[object, ...], ask, positional: list[str], flagged: list[str]) -> None:
+    for step in steps:
+        if isinstance(step, Pick):
+            fixed, follow_up = _choose(step, ask)
+            flagged.extend(fixed)
+            _collect(follow_up, ask, positional, flagged)
+            continue
+        value = _ask_one(step, ask)
+        if value is None:
+            continue
+        if step.flag is None:
+            positional.append(value)
+        elif step.kind in ("yes", "no"):
+            flagged.append(step.flag)
+        else:
+            flagged += [step.flag, value]
 
 
 def _typed(command: str, args: list[str], implied_flag: str | None) -> str:
     """The command line that does the same as the menu choices. Arguments with spaces are quoted."""
     shown = list(args)
-    if implied_flag and implied_flag not in args:
+    if implied_flag and implied_flag not in args and MAX_MINUTES_FLAG not in args:
         shown = [implied_flag, "<default>", *shown]
     quoted = [f'"{a}"' if " " in a else a for a in shown]
     return " ".join(["python -m tests.cli", command, *quoted])
 
 
-def _choose_options(options: tuple[Opt, ...], ask) -> list[str]:
-    """Second menu: one option number, then its value if it needs one. The action starts right after."""
-    print()
-    for number, opt in enumerate(options, start=1):
-        print(f"  {number:>2}  {opt.label}")
-    print("\nType an option number, or press Enter to run with the defaults.")
-    while True:
-        answer = ask("Option: ").strip()
-        if not answer:
-            return []
-        pick = _parse_pick(answer, len(options))
-        if pick is not None:
-            break
-        print(f"'{answer}' is not an option number (1-{len(options)}).", file=sys.stderr)
-    number, preset = pick
-    opt = options[number - 1]
-    return [opt.flag] if opt.kind == "flag" else _read_value(opt, ask, preset)
+def _converse(action: Action, ask) -> list[str]:
+    """Ask what this action needs and return its arguments. Raises _Back / _QuitMenu."""
+    print(f"\n{action.label}   (Enter = default, b = back to the menu, q = quit)")
+    positional: list[str] = []
+    flagged: list[str] = []
+    _collect(action.steps, ask, positional, flagged)
+    if action.more and _read(ask, f"\n  More options ({action.more_hint})? [y/N]: ").lower() in ("y", "yes"):
+        _collect(action.more, ask, positional, flagged)
+    args = positional + flagged
+    if action.confirm:
+        print(f"\n  {_typed(action.command, args, action.implied_flag)}")
+        while _read(ask, "  Press Enter to run, b to go back: ") not in ("", "y"):
+            pass
+    return args
 
 
 def interactive_menu(ask=input) -> int:
-    print("MetaConfigurator mutation testing\n")
-    for number, (label, *_rest) in enumerate(MENU, start=1):
-        print(f"  {number}  {label}")
-    print("  q  Quit\n")
-    print("After the number, options can be typed directly, e.g. `3 --last-hours 12`.\n")
-    tokens = _split_args(ask("Choose: "))
-    choice, typed = (tokens[0].lower() if tokens else ""), tokens[1:]
-    if choice in ("", "q"):
-        return EXIT_OK
-    if not (choice.isdigit() and 1 <= int(choice) <= len(MENU)):
-        print(f"Unknown choice '{choice}'.", file=sys.stderr)
-        return EXIT_USAGE
-    _label, command, options, action, implied_flag = MENU[int(choice) - 1]
-    args = typed if typed or not options else _choose_options(options, ask)
-    print(f"\nSame as typing: {_typed(command, args, implied_flag)}\n")
-    return action(args)
+    width = max(len(a.label) for a in MENU)
+    while True:
+        print("\nMetaConfigurator mutation testing\n" + RULE)
+        group = None
+        for number, action in enumerate(MENU, start=1):
+            if action.group != group:
+                group = action.group
+                print(f"\n  {group}")
+            print(f"    {number}  {action.label:<{width}}   {action.summary}")
+        print(f"\n    q  Quit\n{RULE}")
+        tokens = _split_args(ask(f"Choose [1-{len(MENU)}, q]: "))
+        choice, typed = (tokens[0].lower() if tokens else ""), tokens[1:]
+        if choice in ("", "q"):
+            return EXIT_OK
+        if not (choice.isdigit() and 1 <= int(choice) <= len(MENU)):
+            print(f"Unknown choice '{choice}'.", file=sys.stderr)
+            continue
+        action = MENU[int(choice) - 1]
+        echo = True
+        if typed or not (action.steps or action.more):
+            args = typed                # options typed after the number, e.g. `4 --last-hours 12`
+        else:
+            try:
+                args = _converse(action, ask)
+            except _Back:
+                continue
+            except _QuitMenu:
+                return EXIT_OK
+            echo = not action.confirm   # a confirmed action has just shown its command line
+        _remember_command(_typed(action.command, args, action.implied_flag).replace("<default>", RUNS_DEFAULT))
+        if echo:
+            print(f"\nRunning: {_typed(action.command, args, action.implied_flag)}\n")
+        else:
+            print()
+        return action.run(args)
 
-
-# ---------------------------------------------------------------------------------------------
 
 def _dispatch(argv: list[str], ask) -> int:
     if not argv:
@@ -313,6 +510,8 @@ def _dispatch(argv: list[str], ask) -> int:
         return EXIT_OK
     if command == LIST_COMMAND:
         return list_invariants_command(rest)
+    if command == "run" or command in COMMANDS:
+        _remember_command(_typed(command, rest, None))
     if command == "run":
         return run_command(rest)
     if command in COMMANDS:

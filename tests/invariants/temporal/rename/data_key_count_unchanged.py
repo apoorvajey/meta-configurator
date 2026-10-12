@@ -1,4 +1,4 @@
-"""TEMP-RENAME-01. Loaded by temporal_invariants.load_temporal_plugins()."""
+"""TEMP-RENAME-01."""
 from __future__ import annotations
 
 from tests.invariants.invariants_core import InvariantResult
@@ -9,7 +9,7 @@ NAME = "_inv_temp08_rename_preserves_data_key_count"
 
 
 def check(ctx) -> InvariantResult | None:
-    """TEMP-RENAME-01: renaming a property does not add or remove top-level data keys."""
+    """Renaming a property does not add or remove top-level data keys."""
     if not _is_rename(ctx.action):
         return None
 

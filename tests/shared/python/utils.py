@@ -31,7 +31,6 @@ def _fixtures_base_url(base_url: str) -> str:
     return REMOTE_FIXTURES_BASE_URL
 
 
-# SessionMode enum
 class SessionMode(str, Enum):
     DataEditor   = "dataEditor"
     SchemaEditor = "schemaEditor"
@@ -45,9 +44,7 @@ MODE_MENU_TITLES = {
 }
 
 
-# App setup
 LIVE_BASE_URL = "https://www.metaconfigurator.org"
-
 
 def open_app(
     page: Page,
@@ -109,7 +106,6 @@ def setup_test_panel_via_localstorage(page: Page, base_url: str = LIVE_BASE_URL)
     print("✓ Test panel enabled via localStorage")
 
 
-# Mode switching
 def get_current_editor_mode(page: Page) -> SessionMode:
     active_button = page.get_by_test_id("mode-active-true")
     text = active_button.inner_text()
@@ -131,7 +127,6 @@ def force_editor_mode(page: Page, new_mode: SessionMode):
     page.wait_for_timeout(500)
 
 
-# Data format switching
 DATA_FORMATS = ["json", "yaml"]
 
 
@@ -153,14 +148,12 @@ def force_data_format(page: Page, new_format: str):
     page.wait_for_timeout(300)
 
 
-# Schema selection
 def select_initial_schema_from_examples(page: Page, schema_name: str):
     page.get_by_text("Select a Schema").wait_for(state="visible")
     page.get_by_role("button", name="Example Schema").click()
     page.get_by_role("option", name=schema_name).click()
     page.wait_for_timeout(800)
 
-# Dialog helpers
 def dismiss_dialog_if_present(page: Page):
     try:
         btn = page.get_by_role("button", name="Close")
@@ -172,7 +165,6 @@ def dismiss_dialog_if_present(page: Page):
         pass
 
 
-# Path / JSON Pointer utilities
 def path_to_string(path: list) -> str:
     return ".".join(str(p) for p in path)
 
@@ -189,7 +181,6 @@ def json_pointer_to_path(pointer: str) -> list:
     return pointer.lstrip("/").split("/")
 
 
-# Keyboard helpers
 def select_all(page: Page):
     modifier = "Meta" if platform.system() == "Darwin" else "Control"
     page.keyboard.press(f"{modifier}+A")
