@@ -34,3 +34,4 @@ jobs:
 
       - name: Run snapshot_sharing docker e2e
         run: bash backend/snapshot_sharing/tests/test_docker.sh
+        
