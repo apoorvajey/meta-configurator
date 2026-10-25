@@ -26,7 +26,7 @@ class Episode:
         return self.end - self.start + 1
 
 
-INV_ID_RE = re.compile(r"^[A-Z]+(?:-[A-Z0-9]+)+$")  # INV-D4, INF-E8C6D1CF, TEMP-ADD-03, NEW-07, INV-GUI-ERR-01
+INV_ID_RE = re.compile(r"^[A-Z]+(?:-[A-Z0-9]+)+$")  # INV-D4, INF-E8C6D1CF, TEMP-ADD-03, TEMP-ANY-01, INV-GUI-ERR-01
 
 
 LEGACY_INV_RE = re.compile(r"^_inv_([a-z])(\d+)_")  # _inv_d4_gui_rows_... -> INV-D4
@@ -106,6 +106,9 @@ def build_episodes(run: Run, cfg: dict) -> list[Episode]:
                 cur.outcome = "cleared"
             pass_streak = unchecked_streak = 0
             continue
+
+        if kind == "auto_undo" and _is_failing(step):
+            continue  # the tool's own undo left rules failing: a repair problem, not an invariant failure of the action under test
 
         if _is_failing(step):
             gap = pass_streak + unchecked_streak

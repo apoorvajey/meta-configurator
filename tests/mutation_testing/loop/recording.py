@@ -26,26 +26,76 @@ class RecordingMixin:
                         run_config=run_config, resolved_settings=resolved_settings)
 
     def _capture_screenshot(self, filename: str, invariants_failed: bool) -> str | None:
-        """Screenshot of a logged step (action, repair click or clear-text auto-undo); None if screenshots are off.
+        """Screenshot of a logged step; None if screenshots are off.
 
         If invariants failed, the page first scrolls to the validation error. That changes page state, so replay
         repeats it using resolved_settings.screenshots_enabled from history.json.
         """
         if not self._screenshots_enabled:
             return None
-        if self._screenshots_failures_only and not invariants_failed:
-            return None
         if invariants_failed:
             self._scroll_to_validation_error()
+        if self._screenshots_failures_only:
+            # The screenshot is taken exactly as with failures-only off, but a passing step's is only kept in
+            # memory. If the next logged step fails, it is written out as that step's "previous step" picture.
+            # self._shot_before is the one that preceded this call.
+            data = self.page.screenshot()
+            self._shot_before, self._last_shot = self._last_shot, data
+            if not invariants_failed:
+                return None
+            screenshot_path = os.path.join(self._screenshots_dir, filename)
+            os.makedirs(self._screenshots_dir, exist_ok=True)
+            with open(screenshot_path, "wb") as f:
+                f.write(data)
+            print(f"   {screenshot_path}")
+            return screenshot_path
         screenshot_path = os.path.join(self._screenshots_dir, filename)
         os.makedirs(self._screenshots_dir, exist_ok=True)
         self.page.screenshot(path=screenshot_path)
         print(f"   {screenshot_path}")
         return screenshot_path
 
-    def _build_snapshot(self, action: str, step: int) -> dict:
-        """Snapshot via build_snapshot(), tagged with this run's dataset and run_id (dataset is None if no schema/data pair was given)."""
-        return build_snapshot(self.page, action, step, self.run_id, self._dataset)
+    def _save_pre_step_screenshot(self, filename: str) -> str | None:
+        """Failures-only mode: write the screenshot of the previous logged step to disk (called when this step failed).
+
+        It is the picture _capture_screenshot() took for that step (same scroll rule, same call), kept in memory
+        because that step passed and so was not written. None if there is no previous step or nothing was kept.
+        """
+        data, self._shot_before = self._shot_before, None
+        if not data:
+            return None
+        path = os.path.join(self._screenshots_dir, filename)
+        os.makedirs(self._screenshots_dir, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+        print(f"   {path}  (previous step)")
+        return path
+
+    def _build_snapshot(self, action: str, step: int, count_use: bool = True) -> dict:
+        """Snapshot via build_snapshot(), tagged with this run's dataset and run_id (dataset is None if no schema/data pair was given).
+
+        count_use=False for the baseline a repair leaves behind: it is not a step of the loop, so it is not a use of its
+        action category."""
+        snapshot = build_snapshot(self.page, action, step, self.run_id, self._dataset)
+        snapshot["nth_use"] = self._count_use(snapshot) if count_use else None
+        return snapshot
+
+    def _count_use(self, snapshot: dict) -> int | None:
+        """How many steps of this snapshot's action category (with tab) the run has had up to and including this one:
+        1 for the first. The inference engine mines the first and the later uses apart, and a rule limited to one of
+        them is checked with this number. None for the first snapshot of a run, which has no previous one to pair with."""
+        if self._prev_snapshot is None:
+            return None
+        from tests.mutation_testing.inference.categories import _tabbed_category
+        category = _tabbed_category(self._prev_snapshot, snapshot)
+        self._use_counts[category] = self._use_counts.get(category, 0) + 1
+        return self._use_counts[category]
+
+    def _append_baseline(self, snapshot: dict) -> None:
+        """Write the state a repair left behind to the trace, tagged "baseline": true, under the step number of the action
+        it followed. It is no step of the loop (no use count, never the 'after' of a pair), but the next step is paired with it,
+        so mining sees the state the loop really compared that step with."""
+        self._append_snapshot({**snapshot, "baseline": True})
 
     def _append_snapshot(self, snapshot: dict) -> None:
         """Append one snapshot as a JSON line to tests/output/traces/<dataset>.jsonl (_untagged.jsonl without a dataset).

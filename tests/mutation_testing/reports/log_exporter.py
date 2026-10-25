@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 
 from tests.mutation_testing.common.report_theme import RUN_LOG_DARK
+from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, bug_label_for, invariant_id
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,7 +60,13 @@ def _describe_text_view_action(testid: str, value: str, action_id: str) -> str |
     mode_label = {"schemaEditor": "Schema Editor",
                   "dataEditor": "Data Editor"}.get(mode, mode or "?")
     segments = [s for s in path_str.split(".") if s]
-    leaf, parents = _format_text_path(segments, mode)
+    blank_key = prefix in ("remove-child-text-", "rename-child-text-") and (not path_str or path_str.endswith("."))
+    if blank_key:
+        # An empty path segment is a key named "": '' is the blank key at the top level, 'a.' is the blank key inside 'a'.
+        _, parents = _format_text_path(segments + [""], mode)
+        leaf = "a field with an empty name"
+    else:
+        leaf, parents = _format_text_path(segments, mode)
     where = f' <i>(in {parents})</i>' if parents else ''
     val = f' <code>{value}</code>' if value else ''
 
@@ -94,34 +101,6 @@ def _describe_action(step: "StepResult") -> str:
     if not value and step.kwargs.get("observed_value"):
         value = _esc(step.kwargs["observed_value"])
 
-    # Repair steps have no testid (they are direct undo/redo clicks), so describe them from their kwargs
-    if step.action_id.startswith("repair:"):
-        failures = step.kwargs.get("persisting_failures", [])
-        role = step.kwargs.get("role", "attempt")
-        actions = step.action_id[len("repair:"):]
-        failures_str = ", ".join(f"<code>{f}</code>" for f in failures) or "?"
-        if role == "succeeded":
-            return (f'Auto-repair (<code>{actions}</code>): cleared persisting '
-                    f'failure(s) {failures_str}')
-        if role == "attempt":
-            return (f'Auto-repair attempt (<code>{actions}</code>) for {failures_str} '
-                    f'— checking whether this cleared it')
-        if role in ("mode_switch_back", "mode_switch_forward"):
-            direction = "back to the prior mode" if role == "mode_switch_back" else "forward again"
-            return f'Switched mode ({direction}) around an auto-repair'
-        if role == "clear_text_auto_undo":
-            return f'Auto-undo (<code>{actions}</code>) of the preceding clear-text action'
-        if role == "invalid_schema_recovery":
-            return (f'Recovery (<code>{actions}</code>): undoing toward a valid schema '
-                    f'({_esc(step.kwargs.get("recovery_reason", ""))})')
-        if role == "invalid_schema_recovery_revert":
-            return (f'Recovery did not reach a valid schema - reverted '
-                    f'(<code>{actions}</code>) and stopped forcing recovery for this run')
-        # remaining role: "revert"
-        return (f'Repair attempt did not clear {failures_str} — reverted '
-                f'(<code>{actions}</code>), giving up on further auto-repair for '
-                f'this failure unless it resolves and recurs later')
-
     if testid.startswith("input-string-"):
         prop = testid[len("input-string-"):]
         return f'Typed <code>{value}</code> into <b>{prop}</b> string field'
@@ -143,6 +122,8 @@ def _describe_action(step: "StepResult") -> str:
         return f'Collapsed <b>{prop}</b> node'
     if testid.startswith("remove-property-"):
         prop = testid[len("remove-property-"):]
+        if not prop or prop.endswith("."):
+            return f'Removed a property with an empty name' + (f' <i>(in {prop[:-1]})</i>' if prop else '')
         return f'Removed <b>{prop}</b> property'
     if testid.startswith("rename-property-"):
         prop = testid[len("rename-property-"):]
@@ -236,7 +217,7 @@ def _format_mismatch(mismatch: dict) -> str:
             </div>{reason_html}{gui_html}
             <details>
                 <summary>Current value</summary>
-                <pre>{value_json}</pre>
+                <pre>{_esc(value_json)}</pre>
             </details>
         </div>"""
 
@@ -320,19 +301,19 @@ def _format_violations(details: dict) -> str:
     return asserts + where + tables
 
 
-def _format_failure(failure) -> str:
+def _format_failure(failure, known_bug: str | None = None) -> str:
     mismatches_html = ""
     if "mismatches" in failure.details:
         for m in failure.details["mismatches"]:
             mismatches_html += _format_mismatch(m)
     elif failure.details:
         mismatches_html = _format_compare_diff(failure.details) or _format_violations(failure.details) or (
-            f"<pre>{json.dumps(failure.details, indent=2, default=str)}</pre>")
+            f"<pre>{_esc(json.dumps(failure.details, indent=2, default=str))}</pre>")
 
     evidence_html = ""
     if hasattr(failure, 'evidence') and failure.evidence:
         items = "".join(
-            f'<div class="ev-item">{e}</div>'
+            f'<div class="ev-item">{_esc(str(e))}</div>'
             for e in failure.evidence
         )
         evidence_html = f"""
@@ -343,8 +324,8 @@ def _format_failure(failure) -> str:
 
     return f"""
         <div class="failure">
-            <div class="failure-name">✗ {failure.name}</div>
-            <div class="failure-msg">{failure.message}</div>
+            <div class="failure-name">✗ {_esc(failure.name)}{f' <span class="known-tag">known bug {_esc(bug_label_for(known_bug))}</span>' if known_bug else ""}</div>
+            <div class="failure-msg">{_esc(failure.message)}</div>
             {mismatches_html}
             {evidence_html}
         </div>"""
@@ -419,6 +400,36 @@ def _effect_html(step: "StepResult") -> str:
             f'<div class="evidence-list">{items}</div></details>')
 
 
+def _repairs_html(step: "StepResult") -> str:
+    """The repairs this step triggered (kwargs["repairs"], see repair_engine.repair_block): what was clicked and how it
+    ended, one collapsible block. A replay's "not_needed" repair has no clicks."""
+    blocks = step.kwargs.get("repairs") or []
+    if not blocks:
+        return ""
+    titles = {"failure": "Auto-repair", "clear_text": "Auto-undo of clear-text", "invalid_schema": "Invalid-schema recovery"}
+    out = ""
+    for b in blocks:
+        title = titles.get(b.get("kind"), "Repair")
+        summary = f'{title}: {_esc(str(b.get("outcome", "")))}'
+        if b.get("undos") or b.get("redos"):
+            summary += f' ({b.get("undos", 0)} undo, {b.get("redos", 0)} redo)'
+        rows = ""
+        if b.get("persisting_failures"):
+            rows += ('<div class="ev-item">Persisting failure(s): '
+                     + ", ".join(f"<code>{_esc(str(f))}</code>" for f in b["persisting_failures"]) + "</div>")
+        if b.get("reason"):
+            rows += f'<div class="ev-item">Reason: {_esc(str(b["reason"]))}</div>'
+        for c in b.get("clicks", []):
+            state = "passed" if c.get("passed") else "still failing: " + ", ".join(
+                _esc(str(f).partition(" ")[0]) for f in c.get("failed_invariants", []))
+            rows += f'<div class="ev-item"><code>{_esc(str(c.get("testid", "")))}</code> → {state}</div>'
+        if not b.get("clicks"):
+            rows += '<div class="ev-item">No click was needed.</div>'
+        out += (f'<details class="evidence-wrap"><summary>{summary}</summary>'
+                f'<div class="evidence-list">{rows}</div></details>')
+    return out
+
+
 def _link_to(target: str, log_path: str) -> str:
     """URL of `target` as seen from the log file: relative, so the links keep working when the run folder is renamed
     or moved. Falls back to a file:// URL when no relative path exists (another drive on Windows)."""
@@ -453,8 +464,27 @@ def export_html_log(
     """
     total  = len(history)
     errors = sum(1 for s in history if not s.action_succeeded)
-    fails  = sum(1 for s in history if s.action_succeeded and s.report and not s.report.passed)
-    passes = total - errors - fails
+
+    # Known bugs (runs/known_bugs.py): their failures stay in the log, labelled; a step that fails only on known
+    # bugs is counted apart from the failures. A replay hands over the result per step (StepResult.known_bugs).
+    matcher = KnownBugMatcher()
+    known_by_step: list[dict[str, str]] = []
+    known_only: list[bool] = []
+    for s in history:
+        failing_now = s.action_succeeded and s.report is not None and not s.report.passed
+        if s.known_bugs is not None:
+            known = s.known_bugs
+            other = {invariant_id(r.name) for r in s.report.failures} - set(known) if failing_now else set()
+        elif s.action_succeeded and s.report is not None:
+            checked = [r.name for r in s.report.results if not getattr(r, "skipped", False)]
+            known, other = matcher.observe(s.action_id, [r.name for r in s.report.failures], checked)
+        else:
+            known, other = {}, set()
+        known_by_step.append(known)
+        known_only.append(bool(failing_now and known and not other))
+    known_bug_steps = sum(known_only)
+    fails  = sum(1 for s in history if s.action_succeeded and s.report and not s.report.passed) - known_bug_steps
+    passes = total - errors - fails - known_bug_steps
 
     schema_line = ""
     schema_parts = []
@@ -485,6 +515,36 @@ def export_html_log(
     replay_cmd_html = (f'<div class="replay-cmd"><b>Replay this run again</b><code>{_esc(replay_cmd)}</code>'
                        f'<button type="button" data-text="{_esc(replay_cmd, quote=True)}">Copy replay command</button></div>')
 
+    # Summary boxes and the navigation bar. A box is clickable (jumps to the first such step) only when its count is
+    # not 0; the bar has a group for known bugs, failures and errors, each only when its count is not 0, and no bar at
+    # all when there is nothing to navigate to. The JS below finds the steps by their step-<kind> class.
+    def _box(css: str, label: str, count: int, kind: str, what: str) -> str:
+        if not count:
+            return f'<div class="sbox {css}">{label}: {count}</div>'
+        return (f'<div class="sbox {css} sbox-click" role="button" tabindex="0" onclick="goFirst(\'{kind}\')" '
+                f'onkeydown="if(event.key===\'Enter\')goFirst(\'{kind}\')" title="Click to jump to the first {what}">'
+                f'{label}: {count}</div>')
+
+    summary_boxes_html = "\n    ".join(
+        [f'<div class="sbox sbox-total">Total: {total}</div>',
+         _box("sbox-pass", "Pass", passes, "pass", "passing step")]
+        + ([_box("sbox-known", "Known bugs", known_bug_steps, "known", "known-bug step")] if known_bug_steps else [])
+        + [_box("sbox-fail", "Fail", fails, "fail", "failure"),
+           _box("sbox-error", "Errors", errors, "error", "error")])
+
+    nav_groups = [
+        (f'<span class="nav-group" id="{kind}Group">'
+         f'<button class="nav-btn nav-prev nav-hidden nav-btn-{kind}" aria-label="Previous {label.lower()}" onclick="navigate(\'{kind}\', -1)">&#9664;</button>'
+         f'<span class="nav-title nav-title-{kind}">{label}</span>'
+         f'<span class="nav-label"><input class="nav-input" id="{kind}Input" type="text" inputmode="numeric" autocomplete="off" '
+         f'aria-label="{label} number" value="0" size="2">/{count}</span>'
+         f'<button class="nav-btn nav-next nav-btn-{kind}" aria-label="Next {label.lower()}" onclick="navigate(\'{kind}\', 1)">&#9654;</button>'
+         f'</span>')
+        for kind, label, count in (("known", "Known bug", known_bug_steps), ("fail", "Fail", fails),
+                                   ("error", "Error", errors)) if count]
+    nav_inner = "".join(nav_groups)
+    nav_html = f'<div class="nav-bar" id="navBar">{nav_inner}</div>' if nav_groups else ""
+
     steps_html = ""
     for i, s in enumerate(history):
         if not s.action_succeeded:
@@ -496,6 +556,9 @@ def export_html_log(
         elif s.report.passed:
             badge = '<span class="badge badge-pass">Pass</span>'
             step_class = "step-pass"
+        elif known_only[i]:
+            badge = '<span class="badge badge-known">Known bug</span>'
+            step_class = "step-known"
         else:
             badge = '<span class="badge badge-fail">Fail</span>'
             step_class = "step-fail"
@@ -503,7 +566,7 @@ def export_html_log(
         mode_tag = f'<span class="mode-tag">{s.report.mode}</span>' if s.report else ""
         description = _describe_action(s)
         value_html = _entered_value_html(s)
-        effect_html = _effect_html(s)
+        effect_html = _effect_html(s) + _repairs_html(s)
         inv_line = f'<div class="inv-line">{s.report.summary()}</div>' if s.report else ""
 
         # Evidence for all invariants (passing + failing)
@@ -528,7 +591,7 @@ def export_html_log(
         if s.report and s.report.failures:
             failures_html = '<div class="failures">'
             for f in s.report.failures:
-                failures_html += _format_failure(f)
+                failures_html += _format_failure(f, known_by_step[i].get(invariant_id(f.name)))
             failures_html += "</div>"
 
         # State diff: only for failing steps that carry a snapshot
@@ -550,6 +613,17 @@ def export_html_log(
                     <summary>Screenshot</summary>
                     <img src="{_link_to(abs_path, path)}" class="screenshot"/>
                 </details>'''
+
+        prev_screenshot_html = ""
+        if getattr(s, "prev_screenshot_path", None):
+            prev_abs = os.path.abspath(s.prev_screenshot_path)
+            if os.path.exists(prev_abs):
+                prev_screenshot_html = f'''
+                <details class="screenshot-wrap">
+                    <summary>Screenshot before this step</summary>
+                    <img src="{_link_to(prev_abs, path)}" class="screenshot"/>
+                </details>'''
+            screenshot_html = prev_screenshot_html + screenshot_html
 
         actions_html = ""
         if hasattr(s, 'available_actions') and s.available_actions:
@@ -646,6 +720,7 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 .sbox-pass  {{ background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }}
 .sbox-fail  {{ background: #fce4ec; color: #c62828; border-color: #f8bbd0; }}
 .sbox-error {{ background: #fff3e0; color: #e65100; border-color: #ffe0b2; }}
+.sbox-known {{ background: #e3f2fd; color: #1565c0; border-color: #bbdefb; }}
 
 /* Steps */
 .step {{ background: white; border-radius: 10px; padding: 14px 18px;
@@ -654,6 +729,7 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 .step-pass  {{ border-left-color: #4caf50; }}
 .step-fail  {{ border-left-color: #f44336; }}
 .step-error {{ border-left-color: #ff9800; }}
+.step-known {{ border-left-color: #42a5f5; }}
 .step-skip  {{ border-left-color: #bdbdbd; }}
 
 .step-header {{ display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }}
@@ -665,6 +741,8 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 .badge-fail  {{ background: #fce4ec; color: #c62828; }}
 .badge-error {{ background: #fff3e0; color: #e65100; }}
 .badge-skip  {{ background: #f5f5f5; color: #888; }}
+.badge-known {{ background: #e3f2fd; color: #1565c0; }}
+.known-tag {{ background: #e3f2fd; color: #1565c0; border-radius: 8px; padding: 1px 8px; font-size: 0.8em; font-weight: 600; margin-left: 6px; }}
 .badge-pass-sm  {{ background: #e8f5e9; color: #2e7d32; padding: 1px 6px;
                    border-radius: 6px; font-size: 0.78em; }}
 .badge-fail-sm  {{ background: #fce4ec; color: #c62828; padding: 1px 6px;
@@ -753,8 +831,18 @@ code {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
 }}
 .nav-btn-fail  {{ background: #fce4ec; color: #c62828; }}
 .nav-btn-error {{ background: #fff3e0; color: #e65100; }}
-.nav-btn-fail:disabled  {{ opacity: 0.4; cursor: default; }}
-.nav-btn-error:disabled {{ opacity: 0.4; cursor: default; }}
+.nav-btn-known {{ background: #17263a; color: #7fb2f0; }}
+.nav-group {{ display: flex; align-items: center; gap: 8px; }}
+.nav-group + .nav-group {{ border-left: 1px solid #2c313b; padding-left: 12px; margin-left: 4px; }}
+.nav-btn.nav-hidden {{ visibility: hidden; }}   /* keeps its space, so the bar does not shift */
+.nav-label {{ display: inline-flex; align-items: center; gap: 2px; }}
+.nav-input {{ width: 3.4ch; text-align: center; font: inherit; color: #e8eaf0; background: #14161b;
+             border: 1px solid #2c313b; border-radius: 4px; padding: 2px 0; }}
+.nav-input:focus {{ outline: none; border-color: #8aa4ff; }}
+.nav-title {{ font-weight: 600; }}
+.nav-title-known {{ color: #7fb2f0; }} .nav-title-fail {{ color: #f58a80; }} .nav-title-error {{ color: #f0a85a; }}
+.sbox-click {{ cursor: pointer; user-select: none; }}
+.sbox-click:hover {{ filter: brightness(0.95); border-color: currentColor; }}
 .nav-label {{ color: #888; font-size: 0.8em; min-width: 40px; text-align: center; }}
 .replay-cmd {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; }}
 .replay-cmd code {{ background: #262b35; color: #e8eaf0; padding: 3px 8px; border-radius: 6px; font-size: 0.85em; }}
@@ -776,70 +864,80 @@ code {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
 </div>
 
 <div class="summary">
-    <div class="sbox sbox-total">Total: {total}</div>
-    <div class="sbox sbox-pass">Pass: {passes}</div>
-    <div class="sbox sbox-fail" onclick="scrollToFail()" style="cursor:pointer" title="Click to jump to first failure">Fail: {fails}</div>
-    <div class="sbox sbox-error" onclick="scrollToError()" style="cursor:pointer" title="Click to jump to first error">Errors: {errors}</div>
+    {summary_boxes_html}
 </div>
 
 {steps_html}
 
-<div class="nav-bar" id="navBar">
-    <button class="nav-btn nav-btn-fail" onclick="navigate('fail', -1)">◀ Fail</button>
-    <span class="nav-label" id="failLabel">0/0</span>
-    <button class="nav-btn nav-btn-fail" onclick="navigate('fail', 1)">Fail ▶</button>
-    &nbsp;
-    <button class="nav-btn nav-btn-error" onclick="navigate('error', -1)">◀ Error</button>
-    <span class="nav-label" id="errorLabel">0/0</span>
-    <button class="nav-btn nav-btn-error" onclick="navigate('error', 1)">Error ▶</button>
-</div>
+{nav_html}
 
 <script>
-const state = {{
-    fail:  {{ els: [], idx: -1 }},
-    error: {{ els: [], idx: -1 }},
+// kind -> the step class it navigates and the outline colour of the step it lands on
+const KINDS = {{
+    pass:  {{ cls: '.step-pass',  color: '#4caf50' }},
+    known: {{ cls: '.step-known', color: '#1565c0' }},
+    fail:  {{ cls: '.step-fail',  color: '#f44336' }},
+    error: {{ cls: '.step-error', color: '#ff9800' }},
 }};
+const state = {{}};
+for (const k in KINDS) state[k] = {{ els: [], idx: -1 }};
 
 window.onload = function() {{
-    state.fail.els  = [...document.querySelectorAll('.step-fail')];
-    state.error.els = [...document.querySelectorAll('.step-error')];
-    updateLabel('fail');
-    updateLabel('error');
-
-    // Hide nav bar if nothing to navigate
-    if (!state.fail.els.length && !state.error.els.length) {{
-        document.getElementById('navBar').style.display = 'none';
+    for (const k in KINDS) {{
+        state[k].els = [...document.querySelectorAll(KINDS[k].cls)];
+        updateLabel(k);
+        const inp = document.getElementById(k + 'Input');
+        if (!inp) continue;   // no bar group when the count is 0
+        inp.addEventListener('focus', () => inp.select());
+        inp.addEventListener('blur', () => updateLabel(k));   // drop anything typed but not confirmed
+        inp.addEventListener('keydown', e => {{
+            if (e.key === 'Enter') {{ goTo(k, inp.value); inp.blur(); }}
+            else if (e.key === 'Escape') inp.blur();
+        }});
     }}
 }};
 
-function navigate(type, dir) {{
+function show(type) {{
     const s = state[type];
-    if (!s.els.length) return;
-    s.idx = (s.idx + dir + s.els.length) % s.els.length;
-
-    // Remove previous highlight
-    document.querySelectorAll('.step-highlight').forEach(e => {{
-        e.style.outline = '';
-        e.classList.remove('step-highlight');
-    }});
-
-    // Highlight and scroll
+    // one kind at a time: the other kinds go back to 0/N
+    for (const k in KINDS) if (k !== type && state[k].idx !== -1) {{ state[k].idx = -1; updateLabel(k); }}
+    document.querySelectorAll('.step-highlight').forEach(e => {{ e.style.outline = ''; e.classList.remove('step-highlight'); }});
     const el = s.els[s.idx];
-    el.style.outline = type === 'fail' ? '3px solid #f44336' : '3px solid #ff9800';
+    el.style.outline = '3px solid ' + KINDS[type].color;
     el.classList.add('step-highlight');
     el.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
     updateLabel(type);
 }}
 
-function updateLabel(type) {{
+// Summary box click: the first step of that kind
+function goFirst(type) {{
+    if (!state[type].els.length) return;
+    state[type].idx = 0;
+    show(type);
+}}
+
+// Typed number (1..N): that step of the kind; anything else puts the old number back
+function goTo(type, value) {{
+    const n = parseInt(value, 10);
+    if (n >= 1 && n <= state[type].els.length) {{ state[type].idx = n - 1; show(type); }}
+    else updateLabel(type);
+}}
+
+function navigate(type, dir) {{
     const s = state[type];
-    const id = type === 'fail' ? 'failLabel' : 'errorLabel';
-    const el = document.getElementById(id);
-    if (s.els.length === 0) {{
-        el.textContent = '0/0';
-    }} else {{
-        el.textContent = (s.idx + 1) + '/' + s.els.length;
-    }}
+    if (!s.els.length) return;
+    s.idx = Math.min(Math.max(s.idx + dir, 0), s.els.length - 1);   // no wrap-around: the end arrows are hidden
+    show(type);
+}}
+
+function updateLabel(type) {{
+    const inp = document.getElementById(type + 'Input');
+    if (!inp) return;
+    const s = state[type];
+    inp.value = s.idx + 1;
+    const g = document.getElementById(type + 'Group');
+    g.querySelector('.nav-prev').classList.toggle('nav-hidden', s.idx <= 0);                  // nothing before the first
+    g.querySelector('.nav-next').classList.toggle('nav-hidden', s.idx >= s.els.length - 1);   // nothing after the last
 }}
 </script>
 <script>

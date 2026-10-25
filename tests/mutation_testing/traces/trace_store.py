@@ -176,6 +176,8 @@ def list_runs(traces_dir: str = TRACES_DIR) -> None:
                     snap = json.loads(line)
                 except Exception:
                     continue
+                if snap.get("baseline"):   # the state a repair left behind: no step of its own
+                    continue
                 r = runs.setdefault(str(snap.get("run_id")), {"n": 0, "last": 0, "replayed": False})
                 r["n"] += 1
                 r["last"] = max(r["last"], snap.get("step") or 0)
@@ -258,8 +260,10 @@ def incomplete_run_ids(traces_dir: str = TRACES_DIR, history_dir: str = _RUNS_DI
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Archive or prune the recorded snapshot traces")
-    parser.add_argument("--traces-dir", default=TRACES_DIR)
+    parser = argparse.ArgumentParser(
+        description="Archive or prune the recorded snapshot traces. With none of --list, --log, --drop-before, --drop-runs and "
+                    "--drop-incomplete it moves the traces into a timestamped archive folder.")
+    parser.add_argument("--traces-dir", default=TRACES_DIR, help="Folder with the recorded snapshot traces (default: %(default)s)")
     parser.add_argument("--label", default=None, help="Short note added to the archive folder name")
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen, change nothing")
     parser.add_argument("--list", action="store_true", help="List the runs in each trace file and exit")

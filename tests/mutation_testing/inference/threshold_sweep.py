@@ -160,7 +160,7 @@ def write_markdown(rows: list[dict], path: str, engine: InvariantInferenceEngine
     out: list[str] = []
     w = out.append
     w("# Threshold Sensitivity Sweep\n")
-    total = sum(len(s) for s in engine.snapshots_by_dataset.values())
+    total = sum(1 for s in engine.snapshots_by_dataset.values() for x in s if not x.get("baseline"))
     w(f"Source: `{engine.dir}` -- {len(engine.snapshots_by_dataset)} datasets, {total} snapshots, "
       f"{rows[0]['total_candidates']} candidates.\n")
     w("Each row re-classifies the SAME candidates (same held/total counts per dataset) "
@@ -256,9 +256,12 @@ def main():
                         help="Explicit comma-separated thresholds, overrides --start/--end/--step, "
                              "e.g. 0.7,0.8,0.85,0.9")
     stamp = time.strftime("%Y%m%d_%H%M%S")  # every sweep keeps its own files
-    parser.add_argument("--csv", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.csv")
-    parser.add_argument("--report", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.md")
-    parser.add_argument("--figure", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.png")
+    parser.add_argument("--csv", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.csv",
+                        help="Output CSV (default: %(default)s)")
+    parser.add_argument("--report", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.md",
+                        help="Output Markdown report (default: %(default)s)")
+    parser.add_argument("--figure", default=f"{SWEEP_DIR}/threshold_sweep_{stamp}.png",
+                        help="Output figure, needs matplotlib (default: %(default)s)")
     args = parser.parse_args()
 
     cfg = with_overrides(load_config(args.config, args.profile), min_observations=args.min_obs)

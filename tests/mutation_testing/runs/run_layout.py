@@ -1,5 +1,5 @@
 """Where the files of a run live, how run folders are named, and which history a report should read
-(folder layout: README, Output).
+(runs/<run_id>/ in the output folder).
 
 _STATUS__<tag>.json in the run folder is the status as it counts now (none: not finished). The folder is never renamed.
     clean | failures                                       the run as recorded
@@ -8,7 +8,7 @@ _STATUS__<tag>.json in the run folder is the status as it counts now (none: not 
                                                            step-for-step re-check
     replayed-incomplete                                    some steps were never reached
 
-effective_history: the newest COMPLETE replay, else the original. A replay stopped early or limited with --until
+effective_history: the newest complete replay, else the original. A replay stopped early or limited with --until
 never replaces the original.
 """
 from __future__ import annotations
@@ -131,7 +131,7 @@ def resolve_history_path(path: Path) -> Path | None:
 
 
 def status_of(history: Path) -> str | None:
-    """'clean' | 'failures' | 'incomplete' from the marker next to a history.json; written first if it is missing."""
+    """'clean' | 'failures' | 'known-bugs' | 'incomplete' (or a diverged-... one) from the marker next to a history.json; written first if it is missing."""
     def read() -> str | None:
         return next((k for k, m in MARKERS.items() if (history.parent / m).is_file()), None)
     return read() or (write_run_status(history) and read())
@@ -145,8 +145,15 @@ def is_clean(history: Path) -> bool:
     return effective is not None and status_of(effective) in CLEAN_STATUSES
 
 
+def has_only_known_bugs(history: Path) -> bool:
+    """True if the run behind this history.json, as it stands, failed only on known bugs (status `known-bugs`)."""
+    loc = run_dir_of(history.resolve())
+    effective = effective_history(loc[0]) if loc else None
+    return effective is not None and status_of(effective) == "known-bugs"
+
+
 def mark_run_dir(run_dir: Path) -> Path:
-    """Show a run's current status inside its folder as `_STATUS__<tag>.json` (tag: clean, failures, incomplete,
+    """Show a run's current status inside its folder as `_STATUS__<tag>.json` (tag: clean, failures, known-bugs, incomplete,
     diverged-..., or replayed-... once a complete replay stands in for the run). The folder is never renamed, so a
     link by path or run id stays valid. A folder named <run_id>__<tag> is renamed to <run_id> once, if it can be.
     Never raises: a folder that is open in another program cannot be renamed on Windows."""

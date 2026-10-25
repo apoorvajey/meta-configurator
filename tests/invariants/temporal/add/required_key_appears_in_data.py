@@ -26,8 +26,11 @@ def check(ctx) -> InvariantResult | None:
     if not new_keys:
         return InvariantResult(name, True, "No new required keys - skip")
 
-    curr_data_keys = set(ctx.curr_data.keys()) if isinstance(ctx.curr_data, dict) else set()
-    curr_props = set(ctx.curr_schema.get("properties", {}).keys())  # informational only
+    if not isinstance(ctx.curr_data, dict):
+        return InvariantResult(name, True, "Data root is not an object - skip")
+    curr_data_keys = set(ctx.curr_data.keys())
+    _props = ctx.curr_schema.get("properties")
+    curr_props = set(_props.keys()) if isinstance(_props, dict) else set()  # informational only
 
     failures = []
     for key in new_keys:

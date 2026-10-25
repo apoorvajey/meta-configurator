@@ -17,12 +17,17 @@ Disable with --no-state-snapshots.
 
 Fidelity: replay uses the loop's viewport, zoom and setup, re-applies each step's recorded seed and exact input
 value, mirrors the loop's scroll before failing-step screenshots and its checking rules (no invariant check after a
-failed action, no temporal check after repair steps or undo/redo). The first step where the replay provably leaves
-the original run is reported as "REPLAY DIVERGED". Histories without recorded seeds are replayed best-effort, with
-a warning.
+failed action, no temporal check right after an undo/redo, which a repair leaves behind). The first step where the
+replay provably leaves the original run is reported as "REPLAY DIVERGED". Histories without recorded seeds are
+replayed best-effort, with a warning.
 
-Each replay writes into runs/<run_id>/replays/<replay_id>/ (see README, Output) and never changes the run's own
-history.json. Only a COMPLETE replay (not stopped early, no --until) replaces the original in `report` and sets the
+Repairs: a step that triggered a repair in the original run ("repairs" in its record) is repaired again on replay
+(_rerun_repairs), against the failure replay sees. The recorded clicks are not replayed. If the failure or the invalid
+schema does not occur on replay, the repair is "not_needed"; if it ends in another state than the original's, the
+next step's state check reports the divergence. The replay's own repairs are written to its history.json.
+
+Each replay writes into runs/<run_id>/replays/<replay_id>/ and never changes the run's own
+history.json. Only a complete replay (not stopped early, no --until) replaces the original in `report` and sets the
 run's _STATUS__replayed-* file.
 """
 
@@ -33,6 +38,7 @@ import io
 import json
 import argparse
 import random
+import sys
 import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -47,16 +53,24 @@ from tests.mutation_testing.loop.app_setup import (
     build_snapshot,
     format_effect_lines,
     prepare_app_page,
+    undo_redo_label,
     scroll_to_validation_error,
 )
 from tests.mutation_testing.loop.action_weights import _MODE_SWITCH_TESTID, _UNDO_REDO_TESTIDS
 from tests.mutation_testing.loop.mutation_loop import _resolve_governing_schema
+from tests.mutation_testing.loop.loop_limits import LoopLimits
+from tests.mutation_testing.loop.repair_engine import (
+    INVERSE_KEY, KIND_CLEAR_TEXT, KIND_FAILURE, KIND_INVALID_SCHEMA, RepairEngine, capture_inverse, repair_block,
+)
+from tests.invariants.schema_validity import schema_meta_violations
+from tests.mutation_testing.runs.step_result import StepResult
 from tests.shared.python.test_panel import TestPanel
 from tests.invariants.invariants_core import InvariantChecker, _diff_nested
 from tests.invariants.temporal_invariants import TemporalInvariantChecker
 from tests.mutation_testing.runs.run_layout import (
     REPLAYS,
     RUNS_DIR,
+    has_only_known_bugs,
     is_clean,
     original_history,
     resolve_history_path,
@@ -68,6 +82,7 @@ from tests.mutation_testing.runs.history_io import (
     SCHEMA_CHOICES,  # noqa: F401  (unused while --schema is disabled)
     _cause_fields,
     _derive_mutation_log_path,
+    _facet_hashes,
     export_replay_history,
     find_histories,
     find_latest_history,
@@ -75,14 +90,45 @@ from tests.mutation_testing.runs.history_io import (
     parse_since,
     resolve_schema_for_replay,
 )
+from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, invariant_id
 from tests.mutation_testing.runs.reproducibility import (
     ReplayOutcome,
     _dump_state_snapshot,
-    _is_repair_record,
     _state_hash,
     check_reproducibility,
     reproducibility_status,
 )
+
+class _Tee:
+    """File-like object that writes to several streams (terminal and console.log)."""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, text: str) -> int:
+        for s in self.streams:
+            s.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        for s in self.streams:
+            s.flush()
+
+    def isatty(self) -> bool:
+        return False
+
+
+@contextlib.contextmanager
+def _console_tee(path):
+    """Everything printed inside the block also goes to `path`; stdout is restored afterwards, even on an error."""
+    original = sys.stdout
+    with open(path, "w", encoding="utf-8") as f:
+        sys.stdout = _Tee(original, f)
+        try:
+            yield
+        finally:
+            sys.stdout = original
+
 
 def _replay_value(step: dict):
     """The value to pass to executor.execute() for this record.
@@ -104,8 +150,10 @@ class ReplayRunner:
 
     def __init__(self, page, history: list[dict], interactive: bool = False, pause_at: int | None = None,
                  dataset: str | None = None, run_id: str | None = None,
-                 mirror_screenshot_scroll: bool = True):
+                 mirror_screenshot_scroll: bool = True, limits: LoopLimits | None = None):
         """dataset and run_id are stamped onto replayed snapshots, as the loop does for its own.
+
+        limits: the original run's repair limits (resolved_settings["loop_limits"]); the repairs run again with them.
 
         mirror_screenshot_scroll: the loop scrolls to the first validation-error icon before screenshotting a failing
         step, but only if screenshots were enabled. Pass the original run's resolved_settings.screenshots_enabled so
@@ -120,7 +168,89 @@ class ReplayRunner:
         self.mirror_screenshot_scroll = mirror_screenshot_scroll
         self.executor = InteractionExecutor(page)
         self._prev_snapshot: dict | None = None
+        self._pre_edit_snapshot: dict | None = None   # snapshot from before the edit that _prev_snapshot records (see the loop)
         self.replayed_snapshots: list[dict] = []
+        self.limits = limits or LoopLimits()
+        # The replayed steps in the loop's form, which the repair reads to find the last known-good state
+        self._repair_history: list[StepResult] = []
+
+    def _rerun_repairs(self, step: dict, el: ElementDescriptor, report, action_succeeded: bool,
+                       snapshot_step: int, show: bool) -> list[dict]:
+        """Run again the repairs the original run made on this step, against what replay sees now.
+
+        The recorded clicks are not replayed: the repair is decided again from the live state, as in the loop.
+        - failure repair: only if one of the recorded persisting failures fails now; otherwise "not_needed".
+        - clear-text: the undo always follows a successful clear-text action.
+        - invalid schema: only if the schema is invalid now; otherwise "not_needed".
+        Returns the replay's own repair blocks, one per recorded block, and leaves self._prev_snapshot at the post-repair
+        state, as the loop does. If the repair ends in a different state than the original's, the next step's state
+        check reports the divergence; this only prints a note.
+        """
+        engine = RepairEngine(self.page, lambda: InvariantChecker(self.page, SessionMode.DataEditor).run_all(),
+                              self.limits, self._repair_history,
+                              say=(print if show else (lambda _text: None)))
+        testid = step["testid"]
+        out: list[dict] = []
+        for rec in step.get("repairs") or []:
+            kind = rec.get("kind")
+            block, last_testid = None, testid
+            if kind == KIND_FAILURE:
+                wanted = {invariant_id(n) for n in rec.get("persisting_failures", [])}
+                persisting = {r.name for r in report.failures if invariant_id(r.name) in wanted} if report else set()
+                if action_succeeded and persisting:
+                    info = engine.repair(persisting, testid)
+                    clicks = info["steps"]
+                    extra = {} if info["succeeded"] else {"still_failing": info["still_failing"]}
+                    block = repair_block(KIND_FAILURE, clicks, "succeeded" if info["succeeded"] else "gave_up",
+                                         persisting_failures=sorted(persisting), **extra)
+                    if clicks:
+                        last_testid = clicks[-1]["testid"]
+                    else:
+                        engine.run_checks()   # as the loop: the zero-click case checks once more
+            elif kind == KIND_CLEAR_TEXT:
+                if action_succeeded:
+                    info = engine.undo_clear_text(el.mode)
+                    clicks = info["steps"]
+                    block = repair_block(KIND_CLEAR_TEXT, clicks, "done" if info["succeeded"] else "failed",
+                                         description_prefix=testid)
+                    last_testid = clicks[-1]["testid"]
+            elif kind == KIND_INVALID_SCHEMA:
+                try:
+                    invalid = bool(schema_meta_violations(self.page, TestPanel(self.page, SessionMode.DataEditor).get_schema()))
+                except Exception:
+                    invalid = False
+                if action_succeeded and invalid:
+                    info = engine.recover_invalid_schema(rec.get("reason", ""))
+                    block = repair_block(KIND_INVALID_SCHEMA, info["steps"], "recovered" if info["recovered"] else "gave_up",
+                                         reason=rec.get("reason", ""), mode_switches=info["mode_switches"])
+                    last_testid = info["last_testid"]
+            else:
+                print(f"   Unknown repair kind {kind!r} in the history - skipped")
+                continue
+
+            if block is None:
+                block = {"kind": kind, "method": "undo", "outcome": "not_needed", "clicks": [], "undos": 0, "redos": 0}
+                if kind == KIND_FAILURE:
+                    block["persisting_failures"] = rec.get("persisting_failures", [])
+                print(f"   Repair ({kind}) not needed on replay: the original run's "
+                      + {"failure": "persisting failure", "clear_text": "clear-text action",
+                         "invalid_schema": "invalid schema"}.get(kind, kind)
+                      + " did not occur here. Later steps may differ from the original run.")
+            else:
+                self._prev_snapshot = build_snapshot(self.page, last_testid, snapshot_step, self.run_id, self.dataset)
+                self.replayed_snapshots.append({**self._prev_snapshot, "baseline": True})   # as the loop writes it to the trace
+                block["state_hash_after"] = _state_hash(self._prev_snapshot)
+                block["facet_hashes"] = _facet_hashes(self._prev_snapshot)
+                if show:
+                    print(f"   Repair ({kind}) run again: {block['outcome']} ({block['undos']} undo, {block['redos']} redo, {block.get('reversals', 0)} reversal)")
+                want = rec.get("state_hash_after")
+                if want and want != block["state_hash_after"]:
+                    print(f"   Note: the state after the {kind} repair differs from the original run "
+                          f"(original: {rec.get('outcome')}, {rec.get('undos', 0)} undo, {rec.get('redos', 0)} redo; "
+                          f"replay: {block['outcome']}, {block['undos']} undo, {block['redos']} redo). "
+                          f"Steps after it are compared with the original run's states.")
+            out.append(block)
+        return out
 
     def _element_for_step(self, step: dict) -> ElementDescriptor:
         """Rebuild the ElementDescriptor from the record's el_* fields, or infer it from the testid.
@@ -201,6 +331,8 @@ class ReplayRunner:
         replay_history = []
         self.replay_history = replay_history  # read by replay_compare after the run
         failing_steps = 0
+        known_bug_steps = 0   # steps that failed only on known bugs: not counted in failing_steps, not printed
+        known_matcher = KnownBugMatcher()
         state_snapshots_saved = 0
         last_signature: dict[str, tuple[str, str]] = {}
         first_seen_step: dict[str, int] = {}
@@ -211,6 +343,7 @@ class ReplayRunner:
         quit_early = False
         resumed_auto = False  # set by [a] at the manual prompt
         steps_completed = 0
+        repairs_rerun = repairs_not_needed = 0
 
         for display_i, (orig_idx, step) in enumerate(indexed_steps):
             # Set before any `continue`/`break`, so it also counts a step skipped for having no testid
@@ -221,7 +354,6 @@ class ReplayRunner:
             desc = step["description"]
             orig_succeeded = step["action_succeeded"]
             passed = step["passed"]
-            is_repair = _is_repair_record(step)
 
             # State before this step, kept because self._prev_snapshot is overwritten below
             step_before_snapshot = self._prev_snapshot
@@ -255,8 +387,7 @@ class ReplayRunner:
             element_mode = SessionMode.SchemaEditor if el.mode == "schemaEditor" else SessionMode.DataEditor
             doc_before = None
             replay_effect = None
-            if (not testid.startswith(("expand-", "collapse-"))
-                    and testid not in _UNDO_REDO_TESTIDS and testid != _MODE_SWITCH_TESTID):
+            if not testid.startswith(("expand-", "collapse-")) and testid != _MODE_SWITCH_TESTID:
                 try:
                     doc_before = TestPanel(self.page, element_mode).get_data()
                 except Exception:
@@ -265,6 +396,10 @@ class ReplayRunner:
             # Execute
             action_succeeded = True
             action_error = None
+            try:
+                inverse = capture_inverse(self.page, testid)   # text from before a Text View edit, as in the loop
+            except Exception:
+                inverse = None
             try:
                 # Resolve the schema before seeding, as the loop does
                 governing_schema = _resolve_governing_schema(self.page, el.mode)
@@ -287,10 +422,12 @@ class ReplayRunner:
                 try:
                     diffs = _diff_nested(doc_before, TestPanel(self.page, element_mode).get_data())
                     replay_effect = [
-                        {"path": p, "before": _short(a), "after": _short(b)} for p, a, b in diffs[:3]
+                        {"path": p, "before": _short(a), "after": _short(b)}
+                        for p, a, b in diffs[:5 if testid in _UNDO_REDO_TESTIDS else 3]
                     ] or None
                     if show:
-                        print("\n".join(format_effect_lines(diffs)))
+                        print("\n".join(format_effect_lines(
+                            diffs, limit=5 if testid in _UNDO_REDO_TESTIDS else 3, label=undo_redo_label(testid))))
                 except Exception:
                     pass
 
@@ -340,45 +477,77 @@ class ReplayRunner:
                     )
                     self.replayed_snapshots.append(curr_snapshot)
                     expected_hash = step.get("state_hash")
-                    if expected_hash and diverged_at is None and _state_hash(curr_snapshot) != expected_hash:
+                    expected_facets = step.get("facet_hashes")
+                    if expected_facets:
+                        now_facets = _facet_hashes(curr_snapshot)
+                        state_differs = any(now_facets.get(k) != v for k, v in expected_facets.items()
+                                            if k != "se_schema")
+                    else:
+                        state_differs = bool(expected_hash) and _state_hash(curr_snapshot) != expected_hash
+                    if diverged_at is None and state_differs:
                         diverged_at = display_i + 1
                         print(f"\n   REPLAY DIVERGED at step {display_i + 1} (orig index {orig_idx}, "
                               f"testid={testid}): state differs from the original run. "
                               f"Everything after this is not a faithful replay.")
 
                     prev_action = (self._prev_snapshot or {}).get("action", "")
-                    if is_repair:
-                        if show:
-                            print("   Temporal check skipped — repair/auto-undo step "
-                                  "(the original run never checks these)")
-                    elif prev_action in _UNDO_REDO_TESTIDS:
+                    if prev_action in _UNDO_REDO_TESTIDS:
                         if show:
                             print(f"   Temporal check suppressed — previous action was '{prev_action}'")
                     elif self._prev_snapshot is not None and report is not None:
                         temporal_report = TemporalInvariantChecker(
-                            prev=self._prev_snapshot, curr=curr_snapshot, action=testid).run_all()
+                            prev=self._prev_snapshot, curr=curr_snapshot, action=testid,
+                            pre_edit=self._pre_edit_snapshot).run_all()
                         if temporal_report.results:
                             report.results.extend(temporal_report.results)
+                    self._pre_edit_snapshot = self._prev_snapshot
                     self._prev_snapshot = curr_snapshot
                 except Exception as e:
                     print(f"   Snapshot/temporal check error at step {display_i + 1}: {e}")
+                    self._pre_edit_snapshot = self._prev_snapshot
                     self._prev_snapshot = None
             else:
                 # As in the loop: no snapshot after a failed step, so the next step skips its temporal check
+                self._pre_edit_snapshot = self._prev_snapshot
                 self._prev_snapshot = None
+
+            # The repairs this step triggered in the original run, run again against what replay sees. The step goes
+            # into the repair history first: the walk-back looks for the last known-good state in it, as in the loop.
+            self._repair_history.append(StepResult(
+                action_id=f"dynamic:{testid}", description=desc,
+                kwargs={"testid": testid, "el_mode": el.mode, INVERSE_KEY: inverse}, action_succeeded=action_succeeded,
+                action_error=action_error, report=report, snapshot=curr_snapshot))
+            replayed_repairs: list[dict] = []
+            if step.get("repairs"):
+                replayed_repairs = self._rerun_repairs(step, el, report, action_succeeded,
+                                                       step.get("step") or orig_idx + 1, show)
+                for b in replayed_repairs:
+                    if b["outcome"] == "not_needed":
+                        repairs_not_needed += 1
+                    else:
+                        repairs_rerun += 1
 
             # Cause-tracking record, written to the replay history (the report is final here)
             if collect_cause_records is not None:
                 cause = _cause_fields(report, curr_snapshot)
+                cause["repairs"] = replayed_repairs or None   # the replay's own repairs replace the original's in its history
                 cause["replay_passed"] = None if report is None else report.passed
                 cause["replay_faithful"] = diverged_at is None or display_i + 1 < diverged_at
                 collect_cause_records[orig_idx] = cause
 
             # Reporting and pausing
             changed = True
+            known: dict[str, str] = {}
             if report is not None:
+                known, other = known_matcher.observe(
+                    step.get("action_id", ""), [r.name for r in report.failures],
+                    [r.name for r in report.results if not getattr(r, "skipped", False)])
+                known_only = not report.passed and not other
                 if not report.passed:
-                    failing_steps += 1
+                    if known_only:
+                        known_bug_steps += 1
+                    else:
+                        failing_steps += 1
 
                     # Keyed on orig_idx, the numbering the report uses
                     if save_state_snapshots:
@@ -392,9 +561,11 @@ class ReplayRunner:
                     report.print()
                     if shot_path:
                         print(f"   Screenshot: {shot_path}")
-                elif analyze_failures and not report.passed:
+                elif analyze_failures and not report.passed and not known_only:
                     changed = False
                     for r in report.failures:
+                        if r.name.partition(" ")[0] in known:
+                            continue   # known bug in a step that also fails something else
                         sig = (r.message, repr(r.details))
                         if last_signature.get(r.name) != sig:
                             changed = True
@@ -411,7 +582,7 @@ class ReplayRunner:
                         if shot_path:
                             print(f"   Screenshot: {shot_path}")
 
-                if not report.passed and pause_on_failure and changed:
+                if not report.passed and pause_on_failure and changed and not known_only:
                     print("\n    Invariant failure — browser is paused.")
                     print("   Inspect the app, then [Enter] to continue or [q] to quit.")
                     try:
@@ -427,13 +598,14 @@ class ReplayRunner:
                         pass
 
             replay_history.append(StepResult(
-                action_id=f"replay:{testid}", description=desc,
+                action_id=f"replay:{testid}", description=desc, known_bugs=known,
                 # The log escapes "value", so it must be a str; value_repr keeps the typed value
                 kwargs={"testid": testid,
                         "value": "" if value is None else str(value),
                         "value_repr": repr(value) if value is not None else None,
                         "observed_value": step.get("observed_value"),
-                        "observed_effect": replay_effect},
+                        "observed_effect": replay_effect,
+                        "repairs": replayed_repairs or None},
                 action_succeeded=action_succeeded, action_error=action_error, report=report,
                 screenshot_path=shot_path,
                 # The log diffs this against the previous entry's snapshot for failing steps
@@ -487,6 +659,11 @@ class ReplayRunner:
                 span = f"step {first}" if first == last else f"steps {first}–{last}"
                 print(f"  {name}: {count} occurrence(s), {span}")
 
+        if repairs_rerun or repairs_not_needed:
+            print(f"\nRepairs the original run made: {repairs_rerun + repairs_not_needed}; run again on replay: "
+                  f"{repairs_rerun}; not needed on replay (the failure or invalid schema did not occur): "
+                  f"{repairs_not_needed}. Steps after a repair that ended in a different state show up as a divergence.")
+
         if save_state_snapshots and state_snapshots_saved:
             print(f"\nState snapshots for {state_snapshots_saved} failing step(s) → "
                   f"{Path(state_snapshot_dir)}")
@@ -501,9 +678,10 @@ class ReplayRunner:
 
         return ReplayOutcome(
             steps_run=total,
-            failing_steps=failing_steps, diverged_at=diverged_at,
+            failing_steps=failing_steps, known_bug_steps=known_bug_steps, diverged_at=diverged_at,
             state_snapshots_saved=state_snapshots_saved,
             quit_early=quit_early, steps_completed=steps_completed,
+            repairs_rerun=repairs_rerun, repairs_not_needed=repairs_not_needed,
         )
 
     def _infer_interaction(self, testid: str) -> str:
@@ -550,6 +728,10 @@ def main():
                         help="What to do with a run that is already clean (original or its replay has no failures). "
                              "ask: prompt before replaying it (default for one replay). skip: leave it out. "
                              "include: replay it anyway. In batch mode (--since/--folder) the default is skip.")
+    parser.add_argument("--known-bug-runs", choices=("ask", "skip", "include"), default=None,
+                        help="What to do with a run that only contains known bugs (no other failures). "
+                             "ask: prompt before replaying it (default for one replay). skip: leave it out. "
+                             "include: replay it anyway (default in batch mode, --since/--folder).")
     parser.add_argument("--no-state-snapshots", action="store_true",
                         help="Do not write before/after app state of failing steps to the replay's states/ folder.")
     parser.add_argument("--since", metavar="TIME",
@@ -625,6 +807,21 @@ def replay_one(args):
                 print("Skipped.")
                 return
 
+    if has_only_known_bugs(history_path):   # not clean, not failures: ask unless --known-bug-runs says otherwise
+        mode = getattr(args, "known_bug_runs", None) or "ask"
+        folder = history_path.resolve().parent.name
+        if mode == "skip":
+            print(f"{folder} only contains known bugs - skipped (use --known-bug-runs include to replay it anyway).")
+            return
+        if mode == "ask":
+            try:
+                answer = input(f"{folder}: Run only contains known bugs. Continue? [y/N] ").strip().lower()
+            except EOFError:
+                answer = ""
+            if answer not in ("y", "yes"):
+                print("Skipped.")
+                return
+
     try:
         history, meta = load_history(history_path)
     except (OSError, json.JSONDecodeError) as e:
@@ -686,11 +883,11 @@ def replay_one(args):
     log_path = str(replay_dir / "replay_log.html")
     print(f"   Replay session → {replay_dir}")
 
-    with sync_playwright() as pw:
+    with sync_playwright() as pw, _console_tee(replay_dir / "console.log"):
         # Same viewport, zoom and setup order as the loop (prepare_app_page)
-        browser = pw.chromium.launch(headless=bool(getattr(args, "headless", False)))
-        page = browser.new_page()
-        page.set_viewport_size(VIEWPORT)
+        headless = bool(getattr(args, "headless", False))
+        browser = pw.chromium.launch(headless=headless, args=[] if headless else ["--start-maximized"])
+        page = browser.new_page(viewport=VIEWPORT) if headless else browser.new_page(no_viewport=True)
         prepare_app_page(page, schema_option_name, data_file_name)
 
         # The loop runs a baseline check first, which hovers over invalid rows; repeat it for the same page state
@@ -699,7 +896,9 @@ def replay_one(args):
 
         runner = ReplayRunner(page, history, interactive=args.interactive, pause_at=effective_pause_at,
                               dataset=dataset, run_id=orig_run_id,
-                              mirror_screenshot_scroll=orig_screenshots)
+                              mirror_screenshot_scroll=orig_screenshots,
+                              limits=LoopLimits(**{k: v for k, v in (resolved_settings.get("loop_limits") or {}).items()
+                                                   if k in LoopLimits.__dataclass_fields__}))
 
         cause_records: dict[int, dict] = {}  # always collected: it is the replay's own history
         common_snapshot_kwargs = dict(
@@ -783,7 +982,11 @@ def replay_one(args):
             else:
                 print(f"Replay diverged from the original run at step {outcome.diverged_at} — "
                       f"results after that step are not a faithful reproduction.")
-            if outcome.failing_steps == 0:
+            if outcome.known_bug_steps:
+                print(f"Known-bug steps: {outcome.known_bug_steps} (not counted as failures)")
+            if outcome.failing_steps == 0 and outcome.known_bug_steps:
+                print(f"No invariant failures apart from known bugs in the {outcome.steps_run} steps.")
+            elif outcome.failing_steps == 0:
                 print(f"All {outcome.steps_run} steps passed — no invariant failures.")
             else:
                 print(f"{outcome.failing_steps}/{outcome.steps_run} step(s) failed — see analysis above.")
@@ -816,13 +1019,24 @@ def run_batch(args) -> None:
             print("Nothing to replay: all runs are clean.")
             return
 
+    known_skipped = []
+    if args.known_bug_runs == "skip":   # in batch mode the default is include
+        known_skipped = [p for p in paths if has_only_known_bugs(p)]
+        paths = [p for p in paths if p not in known_skipped]
+        if known_skipped:
+            print(f"Skipping {len(known_skipped)} run(s) that only contain known bugs.")
+        if not paths:
+            print("Nothing to replay: all runs are clean or only contain known bugs.")
+            return
+
     print(f"Batch replay: {len(paths)} history file(s) from {root.resolve()}"
           + (f", since {since:%Y-%m-%d %H:%M:%S}" if since else ""))
 
     results = []
     for i, path in enumerate(paths, 1):
         print(f"\n{'#' * 60}\n# [{i}/{len(paths)}] {path}\n{'#' * 60}")
-        run_args = argparse.Namespace(**{**vars(args), "history": str(path), "latest": False, "clean_runs": "include"})
+        run_args = argparse.Namespace(**{**vars(args), "history": str(path), "latest": False, "clean_runs": "include",
+                                                 "known_bug_runs": "include"})
         try:
             results.append((path, replay_one(run_args), None))
         except KeyboardInterrupt:
@@ -839,6 +1053,8 @@ def run_batch(args) -> None:
             status = f"error — {err}"
         elif outcome is None:
             status = "skipped (could not load or resolve schema — see above)"
+        elif outcome.failing_steps == 0 and outcome.known_bug_steps:
+            status = f"known bugs only ({outcome.known_bug_steps}/{outcome.steps_run} steps)"
         elif outcome.failing_steps == 0:
             status = f"clean ({outcome.steps_run} steps)"
         else:

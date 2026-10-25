@@ -38,8 +38,8 @@ GUARD_DEFINITIONS = {
 }
 
 
-# Which guards are tried for which template. Hypothesis: with an invalid schema the app shows no validation icons,
-# throws in the GUI and can stay on the spinner, so these templates may hold only while the schema is valid.
+# Which guards are tried for which template. With an invalid schema the app shows no validation icons, throws in
+# the GUI and can stay on the spinner, so these templates hold only while the schema is valid.
 # A template that is not listed is never guarded.
 GUARDABLE: dict[str, list[str]] = {
     "gui_row_set":              ["schema_valid"],

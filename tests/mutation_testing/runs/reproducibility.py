@@ -7,11 +7,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-def _is_repair_record(step: dict) -> bool:
-    """Repair clicks, mode switches around a repair and clear-text auto-undos use the "repair:" prefix and carry no seed or input."""
-    return (step.get("action_id") or "").startswith("repair:")
-
-
 @dataclass
 class ReproducibilityCheck:
     """Whether a history.json carries everything replay needs to reproduce the run.
@@ -25,13 +20,13 @@ class ReproducibilityCheck:
 
 
 def check_reproducibility(steps: list[dict]) -> ReproducibilityCheck:
-    """A log is reproducible if every action step (a testid, not a "repair:" step) has an "input_value" key and a
+    """A log is reproducible if every action step (a testid) has an "input_value" key and a
     non-null "step_seed". The key's presence is what counts, since its value may be None (the executor generated it).
     """
     action_steps = 0
     missing: list[int] = []
     for i, s in enumerate(steps):
-        if not s.get("testid") or _is_repair_record(s):
+        if not s.get("testid"):
             continue
         action_steps += 1
         if "input_value" not in s or s.get("step_seed") is None:
@@ -70,11 +65,14 @@ class ReplayOutcome:
     quit_early and steps_completed to tell a finished replay from one stopped early with 'q'.
     """
     steps_run: int
-    failing_steps: int = 0                # steps where any invariant failed
+    failing_steps: int = 0                # steps where an invariant failed that is not a known bug
+    known_bug_steps: int = 0              # steps that failed only on known bugs (runs/known_bugs.py)
     diverged_at: int | None = None        # first step where replay provably left the original run
     state_snapshots_saved: int = 0        # failing steps whose before/after state was written to disk
     quit_early: bool = False              # the user pressed 'q' before the end
     steps_completed: int = 0              # steps that actually ran (== steps_run unless the replay was stopped early)
+    repairs_rerun: int = 0                # repairs the original run made that replay made again (clicks may differ)
+    repairs_not_needed: int = 0           # repairs the original run made that replay did not need
 
     @property
     def stopped_early(self) -> bool:

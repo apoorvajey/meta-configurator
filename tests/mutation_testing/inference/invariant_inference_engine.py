@@ -15,6 +15,10 @@ Undo/redo round trips are not a template: _round_trip_pairs() feeds (state befor
 immediate counterpart) through the ordinary stability/change_count templates, under the categories
 "undo_then_redo@<tab>" / "redo_then_undo@<tab>".
 
+Snapshots are paired only when no failed interaction lies between them: a failed interaction records no snapshot, so
+consecutive snapshots of a run must have step numbers one apart (categories._steps_adjacent). This is the pairing the
+loop uses, which skips the temporal check after a failed interaction. The same rule applies to the special pairs.
+
 Each dataset is run through the templates independently. A candidate is PROMOTABLE only if every dataset has enough
 observations and at least promotion_threshold support for the same direction (inference_config.json); a dataset with
 too few observations makes it INSUFFICIENT_EVIDENCE. Agreement across datasets filters out coincidences of one random
@@ -34,6 +38,9 @@ import argparse
 import hashlib
 import html
 import json
+import shutil
+import sys
+import time
 
 # The decisions: the newest file in tests/mutation_testing/config/rule_reviews/ (see review_store.py).
 from collections import Counter, defaultdict
@@ -57,7 +64,10 @@ from tests.mutation_testing.inference.constants import (
 )
 from tests.mutation_testing.inference.guards import GUARDABLE, GUARDS
 from tests.mutation_testing.inference.templates import RULES
-from tests.mutation_testing.inference.categories import _active_tab, _round_trip_pairs, _tabbed_category, _undo_pairs
+from tests.mutation_testing.inference.categories import (
+    _active_tab, _base_category, _is_baseline, _round_trip_pairs, _steps_adjacent, _tabbed_category,
+    _undo_pairs,
+)
 from tests.mutation_testing.inference.common import _enumerate_schema_keyword_paths
 from tests.mutation_testing.inference.manual_coverage import evaluate as evaluate_manual_coverage
 from tests.mutation_testing.inference.descriptions import _params_label, describe_rule, rule_statement
@@ -66,10 +76,16 @@ from tests.mutation_testing.inference.templates.edit_distance import FACET_FIELD
 from tests.mutation_testing.inference.templates.gui_control_by_type import observed_rows as observed_control_rows
 from tests.mutation_testing.inference.templates.type_stability import TARGET_FIELDS as TYPE_STABILITY_TARGETS
 from tests.mutation_testing.inference.memo import memoizing
+from tests.mutation_testing.inference.learned_bug import check_wanted, learned_bug_checks, log_learned_bugs
 from tests.mutation_testing.inference.review_store import REVIEW_DIR, latest_review_file, load_review
 
 
 # Numeric parameters live in inference_config.json (see inference_config.py).
+
+
+# A first-use / later-use candidate is kept only if its support differs from the whole category's by at least this much
+# (or, for change_count and edit_distance, if its k differs); see InvariantInferenceEngine._prune_strata
+STRATUM_MIN_CONTRAST = 0.3
 
 
 @dataclass
@@ -228,20 +244,30 @@ class InvariantInferenceEngine:
         for dataset_index, (dataset, snapshots) in enumerate(self.snapshots_by_dataset.items(), 1):
             self.findings = []
 
-            # Pair consecutive snapshots of the same run only.
+            # Pair consecutive snapshots of the same run only, one step apart: a failed interaction records no snapshot,
+            # so a bigger step jump means one lay between them and the loop skipped its temporal check there.
             clean_pairs = [
                 (p, c) for p, c in zip(snapshots[:-1], snapshots[1:])
                 if p.get("run_id") is not None
                    and p.get("run_id") == c.get("run_id")
-                   and c.get("step", 0) > p.get("step", -1)
+                   and not _is_baseline(c)   # a repair's baseline is no step; the step after it is paired with it as 'before'
+                   and _steps_adjacent(p, c)
             ]
 
+            # Every category is also mined for its first and for its later uses in a run ('cat#first', 'cat#later'),
+            # so behaviour that only the first use shows (initialisation, defaults) can be told from the steady state.
+            # The loop records the use number as snapshot['nth_use']; a trace without it gets no first/later split.
             by_cat: dict[str, list] = defaultdict(list)
             for p, c in clean_pairs:
-                by_cat[_tabbed_category(p, c)].append((p, c))
+                cat = _tabbed_category(p, c)
+                by_cat[cat].append((p, c))
+                n = c.get("nth_use")
+                if n:
+                    by_cat[f"{cat}#{'first' if n == 1 else 'later'}"].append((p, c))
 
             for cat, cat_pairs in by_cat.items():
-                self._category_sizes[cat][dataset] = len(cat_pairs)
+                if "#" not in cat:
+                    self._category_sizes[cat][dataset] = len(cat_pairs)
 
             for cat_index, (cat, cat_pairs) in enumerate(by_cat.items(), 1):
                 if on_progress:
@@ -313,9 +339,52 @@ class InvariantInferenceEngine:
                 f.dataset = dataset
             all_findings.extend(self.findings)
 
-        self.findings = all_findings
+        self.findings = self._prune_strata(all_findings)
         self._compute_promotions()
         return self.findings
+
+    def _prune_strata(self, findings: list[Finding]) -> list[Finding]:
+        """Keep a first-use / later-use candidate only if it tells something the whole category does not: its support
+        (pooled over the datasets) differs from the whole category's by at least STRATUM_MIN_CONTRAST, or, for
+        change_count and edit_distance, its k differs from the k of the whole category. Everything else repeats the
+        plain rule. A candidate is kept or dropped in all datasets together."""
+        def identity(f: Finding, category: str) -> tuple:
+            return (f.template, category, json.dumps(f.params, sort_keys=True))
+
+        pooled: dict[tuple, list[int]] = defaultdict(lambda: [0, 0])
+        k_by_dataset: dict[tuple, int | None] = {}   # (identity, dataset) -> the k mined there
+        for f in findings:
+            key = identity(f, f.category)
+            pooled[key][0] += f.held
+            pooled[key][1] += f.total
+            k_by_dataset[(key, f.dataset)] = f.expected
+
+        keep: set[tuple] = set()
+        for f in findings:
+            base = _base_category(f.category)
+            if base == f.category:
+                continue
+            key, plain_key = identity(f, f.category), identity(f, base)
+            if plain_key not in pooled or not pooled[key][1] or not pooled[plain_key][1]:
+                continue
+            support = pooled[key][0] / pooled[key][1]
+            plain_support = pooled[plain_key][0] / pooled[plain_key][1]
+            plain_k = k_by_dataset.get((plain_key, f.dataset))
+            other_k = f.expected is not None and plain_k is not None and plain_k != f.expected
+            if abs(support - plain_support) >= STRATUM_MIN_CONTRAST or other_k:
+                keep.add(key)
+
+        # Show the contrast from both sides: a kept first-use candidate keeps its later-use twin and the other way round
+        twins = {(t, _base_category(c) + "#" + ("later" if c.endswith("#first") else "first"), params)
+                 for (t, c, params) in keep}
+        keep |= twins
+
+        kept = [f for f in findings
+                if _base_category(f.category) == f.category or identity(f, f.category) in keep]
+        dropped = len(findings) - len(kept)
+        if dropped:
+            print(f"[Engine] First/later-use split: dropped {dropped} finding(s) that repeat the whole category")
+        return kept
 
     def _run_rule(self, template: str, cat: str, pairs: list, params: dict,
                   min_obs: int, record_params: dict | None = None,
@@ -602,7 +671,7 @@ class InvariantInferenceEngine:
         """Can this candidate be accepted in the review, whatever its confidence?"""
         # "other" groups unrelated actions, so a rule over it says nothing about any one of them; an unknown tab cannot be matched.
         return (not p.category.startswith("other@")
-                and not p.category.endswith("@unknown")
+                and not _base_category(p.category).endswith("@unknown")
                 # change_count and edit_distance need one k that every dataset agrees on
                 and not (p.template in ("change_count", "edit_distance") and p.expected is None)
                 # an any-action ('*') rule already checks it after every step (see _covered)
@@ -628,9 +697,13 @@ class InvariantInferenceEngine:
     def write_rules(self, path: str = INFERRED_RULES_PATH) -> int:
         """Write inferred_rules.json, which TemporalInvariantChecker evaluates."""
         reviewed = load_review(REVIEW_DIR)
-        rules = [{**p.rule, "promotion": "automatic" if p.verdict == "PROMOTABLE" else "manual", "verdict": p.verdict}
+        rules = [{**p.rule, "verdict": p.verdict,
+                  "promotion": _promotion_label(p.verdict, p.rule["min_support"], self.cfg.promotion_threshold)}
                  for p in self.promotions
                  if self._reviewable(p) and reviewed.get(p.rule["id"], {}).get("status") == "accepted"]
+        checks = learned_bug_checks([p.rule for p in self.promotions if self._reviewable(p)], reviewed)
+        rules += checks
+        log_learned_bugs(checks, reviewed)
         rules = _keep_accepted(path, rules, reviewed)
         return _write_rules_file(path, rules, {
             "source": str(self.dir),
@@ -669,7 +742,7 @@ class InvariantInferenceEngine:
             by_dataset[f.dataset].append(f)
         for dataset in sorted(by_dataset):
             fs = by_dataset[dataset]
-            print(f"\n### Dataset: {dataset}  ({len(self.snapshots_by_dataset.get(dataset, []))} snapshots) ###")
+            print(f"\n### Dataset: {dataset}  ({sum(1 for s in self.snapshots_by_dataset.get(dataset, []) if not _is_baseline(s))} snapshots) ###")
             for f in fs:
                 if f.verdict == "INCONSISTENT":
                     print(f"    [{f.template}] {f.category}: {_params_label(f.template, f.params)}  ({f.confidence})")
@@ -782,13 +855,13 @@ class InvariantInferenceEngine:
 
         out: list[str] = []
         w = out.append
-        total = sum(len(s) for s in self.snapshots_by_dataset.values())
+        total = sum(1 for s in self.snapshots_by_dataset.values() for x in s if not _is_baseline(x))
         w("# Invariant Inference Report\n")
         w(f"Source: `{self.dir}` - {len(self.snapshots_by_dataset)} datasets, {total} snapshots\n")
         w("| Dataset | Snapshots |")
         w("|---|---|")
         for ds, snaps in sorted(self.snapshots_by_dataset.items()):
-            w(f"| {self._short_ds(ds)} | {len(snaps)} |")
+            w(f"| {self._short_ds(ds)} | {sum(1 for x in snaps if not _is_baseline(x))} |")
         w("")
         w("## At a glance\n")
         w(f"- **{len(promotable)} candidate rules hold** in every dataset (≥{T:.0%} in each), as "
@@ -889,7 +962,7 @@ class InvariantInferenceEngine:
             "threshold": self.cfg.promotion_threshold,
             "min_obs": self.cfg.min_observations_for_promotion,
             "rules_file": INFERRED_RULES_PATH,
-            "datasets": [{"name": self._short_ds(ds), "snapshots": len(s)}
+            "datasets": [{"name": self._short_ds(ds), "snapshots": sum(1 for x in s if not _is_baseline(x))}
                          for ds, s in sorted(self.snapshots_by_dataset.items())],
             "manual_coverage": {"entries": manual["entries"], "summary": manual["summary"]},
             "candidates": candidates,
@@ -897,6 +970,20 @@ class InvariantInferenceEngine:
 
 _VERDICT_OF_GROUP = {"holds": "PROMOTABLE", "contradictory": "CONTRADICTORY_ACROSS_DATASETS",
                      "insufficient": "INSUFFICIENT_EVIDENCE", "investigate": "BELOW_THRESHOLD", "below": "BELOW_THRESHOLD"}
+
+
+def _promotion_label(verdict: str, min_support: float, threshold: float) -> str:
+    """How an accepted rule got into inferred_rules.json.
+    automatic              PROMOTABLE in this mining.
+    insufficient_evidence  not promotable only because some dataset has too few observations (INSUFFICIENT_EVIDENCE) while
+                           every dataset that was observed clears the threshold: the rule was promotable on a larger corpus.
+    manual                 accepted below the threshold (BELOW_THRESHOLD, CONTRADICTORY_ACROSS_DATASETS, or too few
+                           observations and the observed ones are below the threshold too)."""
+    if verdict == "PROMOTABLE":
+        return "automatic"
+    if verdict == "INSUFFICIENT_EVIDENCE" and min_support >= threshold:
+        return "insufficient_evidence"
+    return "manual"
 
 
 def _keep_accepted(path: str, rules: list[dict], reviewed: dict) -> list[dict]:
@@ -907,7 +994,8 @@ def _keep_accepted(path: str, rules: list[dict], reviewed: dict) -> list[dict]:
     except (OSError, ValueError):
         return rules
     have = {r["id"] for r in rules}
-    kept = [r for r in old if r.get("id") not in have and reviewed.get(r.get("id"), {}).get("status") == "accepted"]
+    kept = [r for r in old if r.get("id") not in have
+            and (reviewed.get(r.get("id"), {}).get("status") == "accepted" or check_wanted(r.get("negates", ""), reviewed))]
     if kept:
         print(f"[Engine] kept {len(kept)} accepted rule(s) that this mining did not reproduce")
     return rules + kept
@@ -939,7 +1027,7 @@ def _write_rules_file(path: str, rules: list[dict], header: dict) -> int:
 
 
 def export_from_candidates(rules_path: str, candidates_path: str | None, archive_dir: str) -> int:
-    """Rewrite inferred_rules.json from a saved candidates.json and the decisions in rule_review.json, without mining.
+    """Rewrite inferred_rules.json from a saved candidates.json and the newest review in config/rule_reviews/, without mining.
     Uses the newest run folder when candidates_path is not given. The decisions must belong to that run: the review page
     reads the same candidates.json, so use the run you reviewed."""
     if candidates_path:
@@ -954,10 +1042,15 @@ def export_from_candidates(rules_path: str, candidates_path: str | None, archive
     payload = json.loads(cand_file.read_text(encoding="utf-8"))
     reviewed = load_review(REVIEW_DIR)
     by_id = {c["rule"]["id"]: c for c in payload["candidates"]}
-    rules = [{**c["rule"], "promotion": "automatic" if c["group"] == "holds" else "manual",
-              "verdict": _VERDICT_OF_GROUP.get(c["group"], "BELOW_THRESHOLD")}
+    threshold = payload.get("threshold", 1.0)
+    rules = [{**c["rule"], "verdict": _VERDICT_OF_GROUP.get(c["group"], "BELOW_THRESHOLD"),
+              "promotion": _promotion_label(_VERDICT_OF_GROUP.get(c["group"], "BELOW_THRESHOLD"),
+                                            c["rule"]["min_support"], threshold)}
              for c in by_id.values()
              if c.get("reviewable", c.get("exported")) and reviewed.get(c["rule"]["id"], {}).get("status") == "accepted"]
+    checks = learned_bug_checks([c["rule"] for c in by_id.values() if c.get("reviewable", c.get("exported"))], reviewed)
+    rules += checks
+    log_learned_bugs(checks, reviewed)
     rules = _keep_accepted(rules_path, rules, reviewed)
     print(f"[Engine] candidates from {cand_file}")
     return _write_rules_file(rules_path, rules, {
@@ -966,7 +1059,77 @@ def export_from_candidates(rules_path: str, candidates_path: str | None, archive
     })
 
 
+def _format_duration(seconds: float) -> str:
+    """'45 s', '1 min 19 s' or '1 h 02 min'."""
+    seconds = int(round(seconds))
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min {seconds % 60:02d} s"
+    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
+
+
+class _MiningProgress:
+    """Progress line for engine.run(): on a terminal one line is redrawn in place, otherwise one line per dataset.
+    Anything else printed meanwhile (the engine's own messages) first clears the line, so the two never mix.
+    Use as a context manager; pass .update to engine.run(on_progress=...)."""
+    WIDTH = 20
+
+    def __init__(self) -> None:
+        self._tty = sys.stdout.isatty()
+        self._shown = 0
+        self._last_dataset = None
+        self._stdout = None
+
+    def __enter__(self):
+        if self._tty:
+            self._stdout = sys.stdout
+            sys.stdout = self
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self._stdout is not None:
+            self._clear()
+            sys.stdout = self._stdout
+
+    # file-like, so it can stand in for sys.stdout while the line is shown
+    def write(self, text: str) -> int:
+        self._clear()
+        return self._stdout.write(text)
+
+    def flush(self) -> None:
+        self._stdout.flush()
+
+    def isatty(self) -> bool:
+        return True
+
+    def __getattr__(self, name):
+        return getattr(self._stdout, name)
+
+    def _clear(self) -> None:
+        if self._shown:
+            self._stdout.write("\r" + " " * self._shown + "\r")
+            self._shown = 0
+
+    def update(self, dataset: str, dataset_index: int, dataset_count: int, category_index: int, category_count: int) -> None:
+        if not self._tty:
+            if dataset != self._last_dataset:
+                print(f"[Engine] mining dataset {dataset_index}/{dataset_count}: {dataset}")
+                self._last_dataset = dataset
+            return
+        fraction = ((dataset_index - 1) + category_index / max(category_count, 1)) / max(dataset_count, 1)
+        filled = min(self.WIDTH, int(self.WIDTH * fraction))
+        text = (f"[Engine] mining [{'█' * filled}{'░' * (self.WIDTH - filled)}] {fraction:.0%}  "
+                f"dataset {dataset_index}/{dataset_count}, category {category_index}/{category_count}")
+        text = text[:max(20, shutil.get_terminal_size((100, 20)).columns - 1)]
+        self._clear()
+        self._stdout.write(text)
+        self._stdout.flush()
+        self._shown = len(text)
+
+
 def main():
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description="Invariant inference engine for MetaConfigurator")
     parser.add_argument("--snapshots-dir", default=SNAPSHOTS_DIR,
                         help="Directory of per-dataset {dataset}.jsonl files")
@@ -1005,12 +1168,14 @@ def main():
     engine = InvariantInferenceEngine(args.snapshots_dir, config=cfg)
     requested = [d.strip() for d in args.datasets.split(",")] if args.datasets else None
     engine.load_all(requested)
-    engine.run()
+    mining_started = time.perf_counter()
+    with _MiningProgress() as progress:
+        engine.run(on_progress=progress.update)
+    mining_seconds = time.perf_counter() - mining_started
     engine.print_report(verbose=args.verbose)
     engine.write_rules(args.rules)
     engine.write_readable_report(args.report)
 
-    import shutil
     from datetime import datetime
     run_dir = Path(args.archive_dir) / datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1028,6 +1193,9 @@ def main():
         descs = engine.generate_nl_descriptions()
         Path(args.output_descriptions).write_text("\n".join(descs), encoding="utf-8")
         print(f"[Engine] {len(descs)} rule descriptions → {args.output_descriptions}")
+
+    print(f"[Engine] Inference took {_format_duration(time.perf_counter() - started)} "
+          f"(mining {_format_duration(mining_seconds)})")
 
 
 if __name__ == "__main__":

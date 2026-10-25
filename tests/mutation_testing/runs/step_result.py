@@ -18,6 +18,8 @@ class StepResult:
     available_actions: list | None = None
     timestamp: float = field(default_factory=time.time)
     snapshot: dict | None = None
+    prev_screenshot_path: str | None = None   # failures-only mode: the page before this step, saved when it failed
+    known_bugs: dict[str, str] | None = None  # {invariant id: bug id} of this step's known-bug failures; None = not worked out (the log then derives it)
 
     @property
     def invariants_passed(self) -> bool:

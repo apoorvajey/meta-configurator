@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import faulthandler
 import time
 import random
+from dataclasses import asdict
 from pathlib import Path
 from playwright.sync_api import Page, sync_playwright
 from tests.mutation_testing.runs.run_layout import RUNS_DIR, mark_run_dir
@@ -21,6 +23,7 @@ from tests.invariants.temporal_invariants import TemporalInvariantChecker
 from tests.mutation_testing.loop.action_choice import ActionChoiceMixin
 from tests.mutation_testing.loop.recording import RecordingMixin
 from tests.mutation_testing.loop.repair import RepairMixin
+from tests.mutation_testing.loop.repair_engine import INVERSE_KEY, capture_inverse
 from tests.mutation_testing.loop.reporting import ReportingMixin
 from tests.mutation_testing.loop.app_setup import (
     SCHEMA_DATA_PAIRS,
@@ -33,33 +36,31 @@ from tests.mutation_testing.loop.app_setup import (
     prepare_app_page,
 )
 from tests.mutation_testing.runs.step_result import StepResult
+from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, invariant_id
 from tests.mutation_testing.loop import console as run_console
-from tests.mutation_testing.loop.console import RunConsole, marker, show, surfaced
+from tests.mutation_testing.loop.console import RunConsole, log_only, marker, show, surfaced
 from tests.mutation_testing.loop.action_weights import (
     _MODE_SWITCH_TESTID,
     _UNDO_REDO_TESTIDS,
-    _active_weights_filename,
+    get_active_weights_filename,
     _mode_label,
 )
 from tests.mutation_testing.loop.action_sampling import (
+    LocalityConfig,
     _focus_key_for_element,
     _update_focus,
     _weighted_sample,
+    expand_first,
+    followup_element,
 )
+from tests.mutation_testing.loop.loop_limits import LoopLimits
 
 
 class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixin):
 
-    # Invalid-schema budget: the first MAX_LINGERING_INVALID_EPISODES valid->invalid transitions per run
-    # may persist for up to MAX_STEPS_IN_INVALID_SCHEMA further steps before being undone; later ones are
-    # undone right after the step that caused them. MAX_RECOVERY_UNDOS caps the undos of one recovery.
-    MAX_LINGERING_INVALID_EPISODES = 0
-    MAX_STEPS_IN_INVALID_SCHEMA = 3
-    MAX_RECOVERY_UNDOS = 6
-
-    # A run that keeps failing the same invariant step after step only repeats one finding. It is abandoned after this
-    # many consecutive failing steps that share a failing invariant (0 = never abandon). Not applied in interactive runs.
-    MAX_STUCK_STEPS = 5
+    # The repair, invalid-schema and stuck-run limits (max_undo_attempts, unchanged_undo_limit, max_stuck_steps,
+    # max_lingering_invalid_episodes, max_steps_in_invalid_schema, max_recovery_undos) are in self._limits, set per run
+    # from the "loop_limits" block of run_config.json; see loop_limits.LoopLimits for what each one does.
 
     # Quiet console (see loop/console.py): a progress line every this many steps
     QUIET_PROGRESS_EVERY = 10
@@ -72,8 +73,13 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         self._skip_next: bool = False
         self._prev_snapshot: dict | None = None
         self._recent_action_testids: list[str] = []  # last two, for undo/redo chain weighting
+        # Snapshot from before the edit that self._prev_snapshot records: the state an undo right after that edit must
+        # restore (inferred undo_inverse rules)
+        self._pre_edit_snapshot: dict | None = None
         self._prev_failure_names: set[str] = set()  # for detecting persisting failures
         self._repair_already_attempted: set[str] = set()  # failures repair gave up on
+        self._no_repair_noted: set[str] = set()           # do_not_repair known bugs already announced on the console
+        self._failures_from_mode_switch: set[str] = set()  # failures that first appeared on a mode switch: never repaired
         # Invariants evaluated (not skipped) in the last report; "not failing" is not "passing"
         # (INV-D6 is not evaluated in Schema mode).
         self._prev_checked_names: set[str] = set()
@@ -83,7 +89,7 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         self._steps_in_invalid: int = 0
         self._recovery_disabled: bool = False
 
-        # Stuck-run bookkeeping (see MAX_STUCK_STEPS)
+        # Stuck-run bookkeeping (see LoopLimits.max_stuck_steps)
         self._stuck_steps: int = 0
         self._stuck_names: set[str] = set()
         self.stopped_early: str | None = None   # why the run ended before num_steps, if it did
@@ -94,20 +100,38 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         self._failure_first_step: dict[str, int] = {}
         self._failure_last_step: dict[str, int] = {}
 
+        # Known bugs (runs/known_bugs.py): their failures are logged but not printed as failures. A step is
+        # "known-bug only" when it has failures of known bugs and none of anything else.
+        self._known_bugs = KnownBugMatcher()
+        self._steps_with_known: set[int] = set()
+        self._steps_with_other: set[int] = set()
+
         # Locality-bias focus: Mode, View and parsed path (a list of str/int segments) of the area worked in
-        # recently; reset once focus_age reaches _LOCALITY_DECAY_STEPS without reinforcement.
+        # recently; reset once focus_age reaches locality.decay_steps without reinforcement.
         self._focus_mode: str | None = None
         self._focus_view: str | None = None
         self._focus_path: list | None = None
         self._focus_age: int = 0
+        self._locality: LocalityConfig = LocalityConfig()   # set per run by run_random(locality=...)
+        self._limits: LoopLimits = LoopLimits()             # set per run by run_random(limits=...)
 
         # Create-then-fill: after a GUI "add property" succeeds, (mode_label, path of the new leaf). Consumed by
         # the next _weighted_sample call only, to edit that leaf next.
         self._pending_create_target: tuple[str, list] | None = None
 
+        # Steps per action category so far in this run (see RecordingMixin._count_use)
+        self._use_counts: dict[str, int] = {}
+
+        # Expand-then-add: when the sampled action is hidden in a collapsed node, this step expands the node and the
+        # action's testid is kept here for the next step (see expand_first / followup_element).
+        self._followup_testid: str | None = None
+
         # Screenshot settings of the current run, read by _capture_screenshot()
         self._screenshots_enabled: bool = False
         self._screenshots_failures_only: bool = False
+        # Failures-only mode: screenshots of the last two logged steps, kept in memory (see _capture_screenshot)
+        self._last_shot: bytes | None = None
+        self._shot_before: bytes | None = None
         self._screenshots_dir: str = "screenshots"
 
 
@@ -121,6 +145,8 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
             run_id: str | None = None,
             schema_option_name: str | None = None,
             data_file: str | None = None,
+            locality: LocalityConfig | None = None,
+            limits: LoopLimits | None = None,
     ):
         self.run_id = run_id or time.strftime("%Y%m%d_%H%M%S")
         if schema_option_name and data_file:
@@ -139,6 +165,8 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
             screenshots_dir = screenshots_dir or os.path.join(RUNS_DIR, self.run_id, "screenshots")
             print(f"   Screenshots for this run → {screenshots_dir}")
 
+        self._locality = locality or LocalityConfig()
+        self._limits = limits or LoopLimits()
         self._screenshots_enabled = screenshots
         from tests.mutation_testing.loop.profile_config import resolve_screenshots_failures_only
         self._screenshots_failures_only = resolve_screenshots_failures_only()
@@ -151,10 +179,12 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         try:
             for i in range(n):
                 if run_console.is_quiet() and i and i % self.QUIET_PROGRESS_EVERY == 0:
-                    failing = sum(1 for s in self.history if s.report is not None and not s.report.passed)
+                    failing = max(0, sum(1 for s in self.history if s.report is not None and not s.report.passed)
+                                  - self.known_bug_only_steps())
                     show(f"   ... step {i}/{n} ({failing} failing so far) ...")
                 print(f"\n--- Step {i+1}/{n} ---")
                 marker(f"STEP {i+1}/{n}")
+                self._arm_hang_watchdog()
 
                 if self._should_skip():
                     print("   Skipped by user")
@@ -170,9 +200,14 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                     focus_mode=self._focus_mode, focus_view=self._focus_view,
                     focus_path=self._focus_path, focus_age=self._focus_age,
                     pending_create=self._pending_create_target,
+                    locality=self._locality,
                 )
                 # One-shot: cleared whether or not _weighted_sample found a match
                 self._pending_create_target = None
+
+                # Planned follow-up (expand-then-add): run it if it is now offered, else keep the sampled action
+                followup, self._followup_testid = self._followup_testid, None
+                el = followup_element(elements, followup) or el
 
                 # Let the user override the choice
                 if interactive:
@@ -180,6 +215,10 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                     if override is None:
                         continue
                     el = override
+
+                # A virtual element (its button hides in a collapsed node): this step expands the node and the action
+                # itself is the next step, so each step is logged and checked on its own.
+                el, self._followup_testid = expand_first(el, elements)
 
                 print(f"\n   ▶  {el.human_label}")
                 marker(f"ACTION {el.human_label}")
@@ -198,6 +237,12 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 value = gen.for_element(el)
                 if value is not None:
                     print(f"   value: {repr(value)}")
+
+                # Inverse of a Text View edit (the text from before it), for the reverse-action repair; None for other actions
+                try:
+                    inverse = capture_inverse(self.page, el.testid)
+                except Exception:
+                    inverse = None
 
                 action_succeeded = True
                 action_error     = None
@@ -255,7 +300,7 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 report = None
                 if action_succeeded:
                     report = self.checker.run_all()
-                    self._print_report(report, i + 1, n, el.human_label)
+                    self._print_report(report, i + 1, n, el.human_label, f"dynamic:{el.testid}")
                 else:
                     print("   Skipping invariant check (interaction failed)")
 
@@ -265,8 +310,13 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                         filename=f"step_{i + 1:02d}_{_safe_filename_part(el.testid)}.png",
                         invariants_failed=bool(report and not report.passed),
                     )
+                prev_screenshot_path = None
+                if screenshot_path and report and not report.passed:
+                    prev_screenshot_path = self._save_pre_step_screenshot(
+                        filename=f"step_{i + 1:02d}_before_{_safe_filename_part(el.testid)}.png")
 
-                if pause_on_failure and action_succeeded and report and not report.passed:
+                # a step whose only failures are known bugs does not pause the run
+                if pause_on_failure and action_succeeded and report and not report.passed and (i + 1) in self._steps_with_other:
                     print("\n     Invariant failure — browser is paused.")
                     print("   Inspect the app, then [Enter] to continue or [q] to quit.")
                     try:
@@ -306,11 +356,13 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                         "step_seed": step_seed,
                         "observed_effect": observed_effect,
                         "observed_value": observed_effect[0]["after"] if observed_effect else None,
+                        INVERSE_KEY: inverse,
                     },
                     action_succeeded=action_succeeded,
                     action_error=action_error,
                     report=report,
                     screenshot_path=screenshot_path,
+                    prev_screenshot_path=prev_screenshot_path,
                     available_actions=[
                         (e.testid, e.human_label, e.interaction)
                         for e in sorted(elements, key=lambda x: x.category)
@@ -326,7 +378,7 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 if action_succeeded:
                     self._focus_mode, self._focus_view, self._focus_path, self._focus_age = _update_focus(
                         self._focus_mode, self._focus_view, self._focus_path, self._focus_age,
-                        _focus_key_for_element(el),
+                        _focus_key_for_element(el), self._locality,
                     )
 
                 # Save the state snapshot and run the temporal checks
@@ -344,56 +396,24 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                             prev=self._prev_snapshot,
                             curr=result.snapshot,
                             action=el.testid,
+                            pre_edit=self._pre_edit_snapshot,
                         ).run_all()
                         if temporal_report.results:
-                            self._print_report(temporal_report, i + 1, n, el.human_label)
+                            self._print_report(temporal_report, i + 1, n, el.human_label, f"dynamic:{el.testid}")
                             # Merge into the main report for the HTML log
                             if report is not None:
                                 report.results.extend(temporal_report.results)
 
                 # None after a failed action, so the next step skips its temporal check (replay mirrors this)
+                self._pre_edit_snapshot = self._prev_snapshot
                 self._prev_snapshot = result.snapshot
 
                 # clear-text empties the whole document and starves later steps of anything to target, so it
-                # gets an unconditional one-shot repair: check once, then always undo. The "repair:" prefix keeps
-                # [clear-text step, undo step] together as one repair block.
-                # Known gap: if clear-text was a no-op on an already empty document, the undo reverts the
-                # previous action instead.
+                # gets an unconditional one-shot repair: check once, then always undo. The undo is recorded on the
+                # clear-text step (kwargs["repairs"]), not as a step of its own.
                 if action_succeeded and el.testid.startswith("clear-text-"):
-                    undo_testid = "schema_undo" if el.mode == "schemaEditor" else "undo"
                     print(f"\n   Auto-undoing '{el.testid}' (clear-text is always reverted after its check)")
-                    self._click_testid_direct(undo_testid)
-                    self._recent_action_testids.append(undo_testid)
-                    self._recent_action_testids = self._recent_action_testids[-2:]
-
-                    undo_report = self.checker.run_all()
-                    undo_snapshot = self._build_snapshot(undo_testid, i + 1)
-                    self._append_snapshot(undo_snapshot)
-                    undo_screenshot_path = self._capture_screenshot(
-                        filename=f"step_{i + 1:02d}_autoundo_{_safe_filename_part(undo_testid)}.png",
-                        invariants_failed=not undo_report.passed,
-                    )
-                    undo_result = StepResult(
-                        action_id=f"repair:{undo_testid}",
-                        description=f"auto-undo of {el.testid} (unconditional, not failure-gated)",
-                        kwargs={"testid": undo_testid, "value": "",
-                                "role": "clear_text_auto_undo",
-                                "succeeded": undo_report.passed},
-                        action_succeeded=True,
-                        action_error=None,
-                        report=undo_report,
-                        screenshot_path=undo_screenshot_path,
-                        snapshot=undo_snapshot,
-                    )
-                    self.history.append(undo_result)
-
-                    # Same bookkeeping as the end of _check_and_repair_persisting_failures, which this step
-                    # bypasses: the next step compares against the post-undo state.
-                    self._prev_snapshot = undo_snapshot
-                    self._repair_already_attempted &= {r.name for r in undo_report.failures}
-                    self._prev_failure_names = {r.name for r in undo_report.failures}
-                    self._prev_checked_names = {r.name for r in undo_report.results
-                                                if not getattr(r, "skipped", False)}
+                    undo_report = self._auto_undo_clear_text(el, result, i + 1)
                     report = undo_report
 
                     print("   restored cleanly" if undo_report.passed
@@ -420,15 +440,30 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         except StopIteration:
             show(f"\n   Loop stopped early at step {len(self.history)}/{n}")
 
+        faulthandler.cancel_dump_traceback_later()
         self._print_failure_summary(n)
         self._save_snapshots()
 
+    def _arm_hang_watchdog(self, seconds: int = 120) -> None:
+        """Diagnostic: if one step takes longer than `seconds`, dump every thread's stack to hang_traceback.log in the run folder."""
+        try:
+            if getattr(self, "_hang_file", None) is None:
+                run_dir = os.path.join(RUNS_DIR, self.run_id)
+                os.makedirs(run_dir, exist_ok=True)
+                self._hang_file = open(os.path.join(run_dir, "hang_traceback.log"), "w")
+            faulthandler.cancel_dump_traceback_later()
+            faulthandler.dump_traceback_later(seconds, repeat=False, file=self._hang_file)
+        except Exception:
+            pass
+
     def _run_is_stuck(self, report) -> bool:
         """Count consecutive failing steps that share a failing invariant with the step before; True once that reaches
-        MAX_STUCK_STEPS. A step whose action failed (no report) neither counts nor resets."""
+        limits.max_stuck_steps. A step whose action failed (no report) neither counts nor resets."""
         if report is None:
             return False
         names = {r.name for r in report.failures}
+        skipped = self._known_bugs.no_repair_ids(names)   # known bugs marked do_not_repair do not count as "stuck"
+        names = {n for n in names if invariant_id(n) not in skipped}
         if not names:
             self._stuck_steps = 0
         elif names & self._stuck_names:
@@ -436,16 +471,33 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         else:
             self._stuck_steps = 1
         self._stuck_names = names
-        return self.MAX_STUCK_STEPS > 0 and self._stuck_steps >= self.MAX_STUCK_STEPS
+        return self._limits.max_stuck_steps > 0 and self._stuck_steps >= self._limits.max_stuck_steps
 
-    def _print_report(self, report, step_no: int, total: int, label: str) -> None:
+    def _print_report(self, report, step_no: int, total: int, label: str, action_id: str = "") -> None:
         """Print an invariant report. Quiet console: nothing for a passing report; a failing one is printed only when
-        a failure is new or changed (same rule as a quiet replay), under a header naming the step and action."""
+        a failure is new or changed (same rule as a quiet replay), under a header naming the step and action.
+        A report whose failures are all known bugs is treated like a passing one: the full report reaches the log files
+        only; a verbose console (interactive, watch) gets one "[known bug]" line instead of a failure block."""
+        checked = [r.name for r in report.results if not getattr(r, "skipped", False)]
+        known, other = self._known_bugs.observe(action_id, [r.name for r in report.failures], checked)
+        if known:
+            self._steps_with_known.add(step_no)
+        if other:
+            self._steps_with_other.add(step_no)
+        if known and not other:
+            with log_only():
+                report.print()   # the log files only, never the terminal
+            if not run_console.is_quiet():   # verbose: say so in one line instead of showing a failure
+                print("  [known bug] " + ", ".join(f"{inv} ({bug})" for inv, bug in sorted(known.items()))
+                      + " - not counted as a failure (details in console.log)")
+            return
         if not run_console.is_quiet():
             report.print()
             return
         changed = False
         for r in report.failures:
+            if r.name.partition(" ")[0] in known:
+                continue   # a known bug in a step that also fails something else: counted apart, not in the summary
             signature = (r.message, repr(r.details))
             if self._failure_signature.get(r.name) != signature:
                 changed = True
@@ -454,7 +506,7 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
             self._failure_first_step.setdefault(r.name, step_no)
             self._failure_last_step[r.name] = step_no
         if not report.passed:
-            marker(f"FAILS {len(report.failures)}")
+            marker(f"FAILS {len([r for r in report.failures if r.name.partition(' ')[0] not in known])}")
         if report.passed or not changed:
             report.print()   # quiet console: this reaches only the log files
             return
@@ -463,17 +515,24 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         with surfaced():
             report.print()
 
+    def known_bug_only_steps(self) -> int:
+        """Steps whose only failures were known bugs."""
+        return len(self._steps_with_known - self._steps_with_other)
+
     def _print_failure_summary(self, planned_steps: int) -> None:
         """End of run, quiet console only (print_summary() covers the verbose one): totals and the failures with their
         repeats collapsed."""
         if not run_console.is_quiet():
             return
         failing = sum(1 for s in self.history if s.action_succeeded and s.report and not s.report.passed)
+        failing -= self.known_bug_only_steps()
         action_errors = sum(1 for s in self.history if not s.action_succeeded)
         show(f"\n{'=' * 60}")
-        steps_run = sum(1 for s in self.history if not s.action_id.startswith("repair:"))
+        steps_run = len(self.history)
         show(f"Run finished: {steps_run}/{planned_steps} steps, {failing} with invariant failures, "
              f"{action_errors} action error(s)")
+        if self.known_bug_only_steps():
+            show(f"Known-bug steps: {self.known_bug_only_steps()} (not counted as failures)")
         if self._failure_count:
             show("Failure summary (repeats collapsed above):")
             for name, count in self._failure_count.items():
@@ -503,6 +562,8 @@ def run_demo():
         load_run_config,
         apply_configured_profile,
         apply_configured_valid_probability,
+        resolve_locality_config,
+        resolve_loop_limits,
         resolve_schema_choice,
         resolve_run_mode,
         resolve_num_steps,
@@ -516,6 +577,11 @@ def run_demo():
 
     # run_mode from the config if valid, otherwise ask at the terminal
     configured_mode = resolve_run_mode(run_config)
+    if os.environ.get("MT_BATCH") == "1":
+        # A batch run has nobody at the keyboard: whatever the config says, it runs hands-free
+        if configured_mode != "background":
+            print(f"[batch] run_mode '{configured_mode or 'ask'}' ignored in a batch run - using 'background'")
+        configured_mode = "background"
     if configured_mode is not None:
         choice = {"background": "1", "watch_failures": "2", "interactive": "3"}[configured_mode]
         print(f"[config] run_mode fixed to '{configured_mode}' via run_config.json — skipping prompt")
@@ -544,9 +610,8 @@ def run_demo():
          f"({'verbose' if console.verbose else 'quiet'} console; full output: {run_log_path})")
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=False)
-        page    = browser.new_page()
-        page.set_viewport_size(VIEWPORT)
+        browser = pw.chromium.launch(headless=False, args=["--start-maximized"])
+        page = browser.new_page(no_viewport=True)
 
         # Shared with the replay runner so both set the app up identically
         prepare_app_page(page, schema_option_name, data_file.name)
@@ -572,12 +637,17 @@ def run_demo():
             print(f"     {CATEGORY_LABELS.get(cat, cat):<25} {count}")
         profile_name = apply_configured_profile(run_config)
         apply_configured_valid_probability(run_config)
+        locality = resolve_locality_config(run_config)
+        limits = resolve_loop_limits(run_config)
         if run_console.is_quiet():
             show(f"   action-weights profile: {profile_name}")
 
+        from tests.mutation_testing.inference.rule_activity import reset_rule_activity
+        reset_rule_activity()
         loop.run_random(n=n_steps, interactive=interactive, pause_on_failure=pause_on_failure,
                         screenshots=screenshots_enabled,
-                        run_id=run_id, schema_option_name=schema_option_name, data_file=data_file.name)
+                        run_id=run_id, schema_option_name=schema_option_name, data_file=data_file.name,
+                        locality=locality, limits=limits)
         loop.print_summary()
 
         from tests.mutation_testing.reports.log_exporter import export_html_log
@@ -597,9 +667,11 @@ def run_demo():
             "n_steps": n_steps,
             "screenshots_enabled": screenshots_enabled,
             "screenshots_failures_only": resolve_screenshots_failures_only(run_config),
-            "weights_profile_file": _active_weights_filename,
+            "weights_profile_file": get_active_weights_filename(),
             "valid_value_probability": get_valid_probability("gui"),
             "text_view_valid_value_probability": get_valid_probability("text_view"),
+            "locality_bias": asdict(locality),
+            "loop_limits": asdict(limits),
             "stopped_early": loop.stopped_early,
         }
 
@@ -610,6 +682,8 @@ def run_demo():
                             data_file=data_file.name,
                             run_config=run_config,
                             resolved_settings=resolved_settings)
+        from tests.mutation_testing.inference.rule_activity import write_rule_activity
+        write_rule_activity(history_dir)
         from tests.mutation_testing.runs.run_status import write_run_status
         write_run_status(os.path.join(history_dir, "history.json"))
 
@@ -624,4 +698,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
+    if any(a in ("-h", "--help") for a in os.sys.argv[1:]):   # this script has no options: do not start a run for --help
+        print("Starts one mutation-loop run (settings: tests/mutation_testing/config/run_config.json). "
+              "Use: python -m tests.cli run --help")
+        raise SystemExit(0)
     run_demo()

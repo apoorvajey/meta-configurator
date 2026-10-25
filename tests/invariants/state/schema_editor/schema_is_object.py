@@ -11,7 +11,7 @@ def check(ctx) -> InvariantResult:
     Checked on its own because INV-S1, S2 and S3 assume a dict.
 
     A root-level change-type action in the Schema Editor Text View can collapse the schema to a bare
-    scalar. NEW-07 is the temporal counterpart.
+    scalar. TEMP-ANY-01 is the temporal counterpart.
     """
     name = "INV-S0 schema state is an object"
     schema = ctx.tp_data.get_schema()

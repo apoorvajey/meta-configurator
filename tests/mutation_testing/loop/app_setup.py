@@ -11,6 +11,7 @@ from tests.invariants.app_errors import (
     attach_console_log,
     events_since_last_snapshot,
     is_app_schema_rejection,
+    take_midstep,
 )
 from tests.invariants.schema_validity import schema_meta_violations
 from tests.shared.python.utils import (
@@ -77,6 +78,10 @@ def setup_app_for_schema(page: Page, schema_option_name: str, data_file_name: st
 
     with page.expect_file_chooser() as fc_info:
         page.locator("[data-icon='folder-open']").click()
+        try:   # newer builds show a menu first; older ones open the file picker straight away
+            page.get_by_text("Open JSON/YAML Data").click(timeout=1500)
+        except Exception:
+            pass
     fc_info.value.set_files(str(DATA_DIR / data_file_name))
     page.wait_for_timeout(1000)
     print("✓ Data file loaded")
@@ -129,15 +134,26 @@ def _read_or_none(read):
         return None
 
 
-def format_effect_lines(diffs, limit: int = 3) -> list[str]:
+def format_effect_lines(diffs, limit: int = 3, label: str = "changed") -> list[str]:
     """Log lines for what a step changed in the edited document: one "path: before -> after" line per change
-    (first `limit`), a count of the rest, or a line saying nothing changed. `diffs` is _diff_nested(before, after)."""
+    (first `limit`), a count of the rest, or a line saying nothing changed. `diffs` is _diff_nested(before, after).
+    `label` introduces each line ("changed"; "undo reverted" / "redo re-applied" for an undo or redo, where "before" is
+    what was taken away and "after" what came back)."""
     if not diffs:
-        return ["   changed: nothing (document identical before and after)"]
-    lines = [f"   changed: {p}: {_short(a, 50)} → {_short(b, 50)}" for p, a, b in diffs[:limit]]
+        return [f"   {label}: nothing (document identical before and after)"]
+    lines = [f"   {label}: {p}: {_short(a, 50)} → {_short(b, 50)}" for p, a, b in diffs[:limit]]
     if len(diffs) > limit:
         lines.append(f"   … and {len(diffs) - limit} more change(s)")
     return lines
+
+
+def undo_redo_label(testid: str) -> str:
+    """The `label` for format_effect_lines of a step or repair click: what an undo or redo did, else "changed"."""
+    if testid.endswith("undo"):
+        return "undo reverted"
+    if testid.endswith("redo"):
+        return "redo re-applied"
+    return "changed"
 
 
 def build_snapshot(page: Page, action: str, step: int,
@@ -150,7 +166,10 @@ def build_snapshot(page: Page, action: str, step: int,
                                       refuses to compile (schema_validity.py); the loop's oracle
       schema_violation_count          number of violations behind schema_valid_meta
       app_logged_invalid              the app itself wrote "schema is invalid" or "can't resolve reference" to the console during this step; the app's oracle,
-                                      kept apart from schema_valid_meta so a disagreement stays visible
+                                      kept apart from schema_valid_meta so a disagreement stays visible. For a two-stage action
+                                      (add-item-required) only what the app wrote after the second stage, i.e. about the final schema
+      app_logged_invalid_midstep      the same for what the app wrote about the intermediate state of a two-stage action; None for other steps
+      schema_valid_meta_midstep       the meta-schema verdict on that intermediate state; None for other steps
       console_errors_since_last_step  console errors and uncaught exceptions since the previous snapshot
       first_error_message             the first of them (first line, cut)
       spinner_present                 the GUI shows a loading spinner when the snapshot is taken
@@ -178,6 +197,12 @@ def build_snapshot(page: Page, action: str, step: int,
     mode = _get_current_active_mode(page)
     events = events_since_last_snapshot(page)
     console_errors = None if events is None else events["error"]
+    midstep = take_midstep(page)
+    if console_errors is not None and midstep is not None:
+        midstep_errors = console_errors[:midstep["error_count"]]
+        final_errors = console_errors[midstep["error_count"]:]
+    else:
+        midstep_errors, final_errors = None, console_errors
     violations = schema_meta_violations(page, de_schema)
     return {
         "de_data": de_data,
@@ -191,8 +216,11 @@ def build_snapshot(page: Page, action: str, step: int,
         "active_mode": mode,
         "schema_valid_meta": None if violations is None else not violations,
         "schema_violation_count": None if violations is None else len(violations),
-        "app_logged_invalid": (None if console_errors is None
-                               else any(is_app_schema_rejection(m) for m in console_errors)),
+        "app_logged_invalid": (None if final_errors is None
+                               else any(is_app_schema_rejection(m) for m in final_errors)),
+        "app_logged_invalid_midstep": (None if midstep_errors is None
+                                       else any(is_app_schema_rejection(m) for m in midstep_errors)),
+        "schema_valid_meta_midstep": None if midstep is None else midstep["schema_valid_meta"],
         "console_errors_since_last_step": None if console_errors is None else len(console_errors),
         "first_error_message": console_errors[0] if console_errors else None,
         "de_current_path": _read_or_none(lambda: _tp_de.get_current_path(expect_non_root=False)),

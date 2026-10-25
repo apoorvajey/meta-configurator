@@ -110,6 +110,30 @@ def surfaced():
             yield
 
 
+class _LogOnly:
+    """File-like object whose writes reach the log files only, for redirect_stdout()."""
+
+    def __init__(self, console: "RunConsole"):
+        self._console = console
+
+    def write(self, text: str) -> int:
+        self._console.emit(text, to_terminal=False)
+        return len(text)
+
+    def flush(self) -> None:
+        self._console.flush()
+
+
+@contextlib.contextmanager
+def log_only():
+    """Everything printed inside the block reaches the log files only, even in verbose mode."""
+    if _active is None:
+        yield
+    else:
+        with contextlib.redirect_stdout(_LogOnly(_active)):
+            yield
+
+
 def marker(text: str) -> None:
     """A machine-readable line for the batch runner: terminal only, and only if the batch asked for it."""
     if os.environ.get(STEP_MARKERS_ENV) != "1":

@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import random
 from typing import Any
+from tests.invariants.app_errors import mark_midstep
+from tests.invariants.schema_validity import schema_meta_violations
 from tests.mutation_testing.discovery.element import ElementDescriptor
 from tests.mutation_testing.discovery.values import roll_valid
+from tests.shared.python.test_panel import TestPanel
+from tests.shared.python.utils import SessionMode
 
 
 _FORMAT_OPTIONS = ["json", "yaml"]  # the app registers only these as live formats
@@ -68,6 +72,18 @@ class GuiActionsMixin:
         self._last_rename = new_name
         print(f"   renamed '{path}' → '{new_name}'")
 
+    def _mark_midstep(self) -> None:
+        """Between the two stages of add-item-required (blank entry added, entry not yet filled): record the meta-schema
+        verdict on the schema as it is now and mark the console, so that what the app logged about this intermediate
+        state (e.g. a duplicate blank in 'required') is kept apart from the final state. See app_errors.mark_midstep."""
+        try:
+            schema = TestPanel(self.page, SessionMode.DataEditor).get_schema()
+            violations = schema_meta_violations(self.page, schema)
+            valid = None if violations is None else not violations
+        except Exception:
+            valid = None
+        mark_midstep(self.page, valid)
+
     def _click_add_item_required(self) -> None:
         self.page.evaluate("""
             () => {
@@ -93,13 +109,14 @@ class GuiActionsMixin:
         """))
 
         self.page.get_by_test_id("add-item-required").first.click()
-        self.page.wait_for_timeout(600)
+        self.page.wait_for_timeout(3000)
 
         after: list[dict] = self.page.evaluate("""
             () => [...document.querySelectorAll('[data-testid*="required["]')]
                 .map(el => ({testid: el.getAttribute('data-testid'), value: el.value}))
         """)
         print(f"   [add-item-required] inputs found: {after}")
+        self._mark_midstep()
 
         new_entries = [i for i in after if i["testid"] not in before_testids]
         target = new_entries[0] if new_entries else next(
@@ -119,7 +136,7 @@ class GuiActionsMixin:
             inp.click()
             inp.fill(name)
             inp.press("Tab")
-            self.page.wait_for_timeout(400)
+            self.page.wait_for_timeout(1500)
         else:
             print("   [add-item-required] no new required[N] input found — "
                   "click may have silently failed")
@@ -131,6 +148,11 @@ class GuiActionsMixin:
 
         if el.testid.startswith("add-property-") and el.testid != "add-property-":
             self._click_add_property(el, forced_name=value)
+            return
+        if el.testid.startswith("remove-property-"):
+            path = el.testid[len("remove-property-"):]
+            self.page.get_by_test_id(f"property-data-{path}").locator('button[aria-label="Remove"]').first.click()
+            self.page.wait_for_timeout(300)
             return
         if el.testid.startswith("rename-property-"):
             self._rename_property(el, forced_name=value)

@@ -1,9 +1,9 @@
 """Edit distance between two JSON values, in the spirit of JEDI (Hütter et al., SIGMOD 2022, https://arxiv.org/abs/2201.08099).
 
-NOT the authors' algorithm. JEDI is the minimum number of node inserts, deletes and renames over all mappings that keep
-the document structure; its algorithm (QuickJEDI) is not reimplemented here. This module computes a TOP-DOWN variant, in which
+Not the authors' algorithm. JEDI is the minimum number of node inserts, deletes and renames over all mappings that keep
+the document structure; its algorithm (QuickJEDI) is not reimplemented here. This module computes a top-down variant, in which
 a node can only be matched to a node at the same position of the tree (the roots are matched, the children of matched nodes are
-matched, and so on). Every top-down mapping is an allowed JEDI mapping, so the result is an UPPER BOUND on the JEDI distance;
+matched, and so on). Every top-down mapping is an allowed JEDI mapping, so the result is an upper bound on the JEDI distance;
 the two agree on the edits this project cares about (one value changed, a key added, removed or renamed, an item appended).
 
 Tree model: an object is a node with one child per key; the key node carries the key and has the value as its only child.

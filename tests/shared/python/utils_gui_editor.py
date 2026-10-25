@@ -176,9 +176,9 @@ def read_required_star_visible(page: Page, property_path: list) -> bool:
     """Non-asserting: True if the required star is visible."""
     try:
         path_str = path_to_string(property_path)
-        star = page.get_by_test_id(
+        stars = page.get_by_test_id(
             f"property-metadata-{path_str}"
         ).get_by_test_id("required-star")
-        return star.is_visible(timeout=2000)
+        return any(stars.nth(i).is_visible() for i in range(stars.count()))
     except Exception:
         return False

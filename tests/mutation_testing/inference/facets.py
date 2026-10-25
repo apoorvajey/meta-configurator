@@ -34,7 +34,7 @@ FACETS: dict[str, Callable[[dict], dict | None]] = {
     "schema.properties": lambda s: _safe_dict(_safe_dict(s.get("de_schema")).get("properties")),
     "schema.required":   lambda s: {str(k): None for k in _safe_list(_safe_dict(s.get("de_schema")).get("required"))},
     "schema.defs":       lambda s: _safe_defs(_safe_dict(s.get("de_schema"))),
-    "data":              lambda s: _safe_dict(s.get("de_data")),
+    "data":              lambda s: (lambda v: v if isinstance(v, dict) else {"<root>": v} if isinstance(v, list) else {})(s.get("de_data")),
     "schema.valid":      _schema_valid_facet,
 }
 

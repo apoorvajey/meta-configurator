@@ -35,5 +35,5 @@ def _snapshot_dir(run: Run, cfg: dict) -> Path:
     folder = run.path.parent / "states"   # tests/output/runs/<run_id>/states, or tests/output/runs/<run_id>/replays/<replay_id>/states
     if folder.is_dir():
         return folder
-    root = cfg.get("state_snapshots", {}).get("root", "replay_snapshots")   # older layout
+    root = cfg.get("state_snapshots", {}).get("root", "replay_snapshots")
     return Path(root) / run.run_id

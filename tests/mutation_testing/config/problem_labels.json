@@ -1,0 +1,16 @@
+{
+  "labels": {
+    "P-84407b": {
+      "label": "tool-resolved",
+      "note": "",
+      "title": "Adding a required item does not reach the data",
+      "labelled_at": "2026-10-24 16:45"
+    },
+    "P-bfaee8": {
+      "label": "tool-resolved",
+      "note": "",
+      "title": "The Data Editor's Text View content is in the format its format selector shows",
+      "labelled_at": "2026-10-24 16:45"
+    }
+  }
+}

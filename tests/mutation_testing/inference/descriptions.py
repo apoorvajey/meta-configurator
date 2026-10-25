@@ -101,7 +101,10 @@ def describe_rule(rule: dict) -> dict[str, str]:
     """Full description of a rule: trigger, when it applies, what it asserts and what each name refers to."""
     t, cat, p = rule["template"], rule["category"], rule["params"]
     pos = rule["direction"] == "positive"
-    base, _, tab = cat.partition("@")
+    plain_cat, _, stratum = cat.partition("#")
+    base, _, tab = plain_cat.partition("@")
+    use_text = {"first": "; only the FIRST such step of a run",
+                "later": "; only the second and later such steps of a run"}.get(stratum, "")
 
     if cat == "*":
         trigger = "every step, whatever the action and tab"
@@ -110,7 +113,7 @@ def describe_rule(rule: dict) -> dict[str, str]:
                                                    "any": "either editor"}.get(tab, f"tab '{tab}'")
         trigger = (f"steps whose action is in category '{base}' ({ACTION_CATEGORY_DESCRIPTIONS.get(base, base)}), "
                    f"performed while {tab_text} was active - the tab showing in the snapshot BEFORE the step; "
-                   f"Text View actions use the editor named in the action")
+                   f"Text View actions use the editor named in the action{use_text}")
 
     facets: list[str] = []
     definitions = None
@@ -182,7 +185,7 @@ def describe_rule(rule: dict) -> dict[str, str]:
         asserts = (f"the {p['store']} after the undo deep-equals the {p['store']} before the edit" if pos
                    else f"the {p['store']} after the undo differs from the {p['store']} before the edit")
         definitions = (f"{p['store']} = {store}. Checked on (snapshot before the edit, snapshot after the undo); the edit "
-                       f"is named in the 'undone' field of a counter-example. The loop does not check this rule per step.")
+                       f"is named in the 'undone' field of a counter-example. The loop checks it on an undo that directly follows such an edit.")
     elif t == "gui_row_set":
         applies = ("the Data Editor's GUI has rows after the step" + (" and had none that were stale before it" if p.get("transition") else ""))
         asserts = ("every GUI row is a path in the data or a path the schema declares" if pos

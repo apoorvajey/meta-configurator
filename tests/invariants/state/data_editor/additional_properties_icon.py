@@ -11,9 +11,9 @@ def check(ctx) -> InvariantResult:
     """An AJV additionalProperties violation shown in the Text View must also appear as a validation-error-icon,
     with a matching tooltip, on the GUI View row.
 
-    Suspected desync: the generic widget for keys with no schema node may not share isInvalid() with
-    schema-bound fields such as StringProperty.vue (covered by INV-D6). The violating key comes from comparing
-    get_data() with get_schema() (_find_additional_properties_violations).
+    The generic widget for keys with no schema node does not necessarily share isInvalid() with schema-bound
+    fields such as StringProperty.vue (covered by INV-D6). The violating key comes from comparing get_data() with
+    get_schema() (_find_additional_properties_violations).
     """
     name = "INV-GUI-ERR-01 GUI validation icon matches Text View additionalProperties error"
 

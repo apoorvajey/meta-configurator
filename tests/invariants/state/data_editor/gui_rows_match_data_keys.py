@@ -2,6 +2,7 @@
 from __future__ import annotations
 from tests.shared.python.utils_gui_editor import read_top_level_property_keys
 from tests.invariants.invariants_core import InvariantResult
+from tests.invariants.schema_validity import schema_meta_violations
 
 ID = "INV-D4"
 NAME = "_inv_d4_gui_rows_exist_for_data_keys"
@@ -9,6 +10,14 @@ NAME = "_inv_d4_gui_rows_exist_for_data_keys"
 _ROW_WAIT_MS = 3000   # how long a data key may lack a GUI row before it counts as missing
 _ROW_POLL_MS = 250
 _BLANK_PREFIX = "GUI is blank"   # issue_report.py groups on this prefix (triage_config.json: issue_report.blank_gui_prefix)
+
+
+def _schema_is_invalid(ctx) -> bool:
+    """True if the edited schema is invalid against the meta-schema. False if it is valid or cannot be determined."""
+    try:
+        return bool(schema_meta_violations(ctx.page, ctx.tp.get_schema()))
+    except Exception:
+        return False
 
 
 def check(ctx) -> InvariantResult:
@@ -21,6 +30,9 @@ def check(ctx) -> InvariantResult:
        ignored. This catches a stale row that keeps its content after the data moved on, e.g. when undo
        removes a key.
 
+    Skipped while the schema is invalid: the GUI cannot load an invalid schema, so a blank or incomplete GUI is
+    expected there (same rule as INV-D6).
+
     See checkPropertyExistence() in panelGuiEditor.spec.ts. Selector: property-data-{key}.
     """
 
@@ -30,6 +42,11 @@ def check(ctx) -> InvariantResult:
     if not isinstance(data, dict):
         return InvariantResult(name, True,
                                "Data is not an object - skip")
+
+    if _schema_is_invalid(ctx):
+        return InvariantResult(name, True,
+                               "SKIPPED: schema is invalid - the GUI cannot load it by design",
+                               skipped=True)
 
     data_keys = set(data.keys())
     # The GUI View renders after the Text View is parsed, so a just-added key may not have a row yet.
@@ -42,7 +59,10 @@ def check(ctx) -> InvariantResult:
             break
         ctx.page.wait_for_timeout(_ROW_POLL_MS)
         waited_ms += _ROW_POLL_MS
-    orphan_candidates = gui_keys - data_keys
+    schema = ctx.tp.get_schema()
+    schema_keys = set((schema.get("properties") or {}).keys()) if isinstance(schema, dict) else set()
+    # A key the schema declares (e.g. a renamed required key) legitimately has a GUI row even if data lacks it.
+    orphan_candidates = gui_keys - data_keys - schema_keys
     orphan_rows = sorted(k for k in orphan_candidates if ctx._gui_row_has_value(k))
     passed = not missing_rows and not orphan_rows
     # Every data key lacks a row: the GUI shows none of the data at all.

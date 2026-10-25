@@ -60,13 +60,19 @@ class TemporalInvariantChecker:
         report = TemporalInvariantChecker(prev=prev_snap, curr=curr_snap, action=el.testid).run_all()
     """
 
-    def __init__(self, prev: dict, curr: dict, action: str):
+    def __init__(self, prev: dict, curr: dict, action: str, pre_edit: dict | None = None):
         self.prev   = prev or {}
         self.curr   = curr or {}
         self.action = action
+        # Snapshot from before the edit that prev records; only the undo_inverse rules use it (see evaluate_inferred_rules)
+        self.pre_edit = pre_edit
 
-        self.prev_data   = self.prev.get("de_data", {}) or {}
-        self.curr_data   = self.curr.get("de_data", {}) or {}
+        self.prev_data = self.prev.get("de_data", {})
+        self.curr_data = self.curr.get("de_data", {})
+        if self.prev_data is None:
+            self.prev_data = {}
+        if self.curr_data is None:
+            self.curr_data = {}
         self.prev_schema = self.prev.get("de_schema", {}) or {}
         self.curr_schema = self.curr.get("de_schema", {}) or {}
         if not isinstance(self.prev_schema, dict):
@@ -76,8 +82,10 @@ class TemporalInvariantChecker:
 
         self.prev_data_keys = set(self.prev_data.keys()) if isinstance(self.prev_data, dict) else set()
         self.curr_data_keys = set(self.curr_data.keys()) if isinstance(self.curr_data, dict) else set()
-        self.prev_prop_keys = set(self.prev_schema.get("properties", {}).keys())
-        self.curr_prop_keys = set(self.curr_schema.get("properties", {}).keys())
+        # "properties" can be something else than an object while the schema is being edited (e.g. a list)
+        prev_props, curr_props = self.prev_schema.get("properties"), self.curr_schema.get("properties")
+        self.prev_prop_keys = set(prev_props.keys()) if isinstance(prev_props, dict) else set()
+        self.curr_prop_keys = set(curr_props.keys()) if isinstance(curr_props, dict) else set()
 
         self.prev_step = self.prev.get("step", 0)
 
@@ -100,7 +108,7 @@ class TemporalInvariantChecker:
         try:
             from tests.mutation_testing.inference.inferred_rules import evaluate_inferred_rules
             if self.prev:
-                report.results.extend(evaluate_inferred_rules(self.prev, self.curr, self.action))
+                report.results.extend(evaluate_inferred_rules(self.prev, self.curr, self.action, pre_edit=self.pre_edit))
         except Exception as e:
             report.results.append(InvariantResult(
                 name="INFERRED rules",
@@ -169,4 +177,3 @@ def list_temporal_invariants() -> list[TemporalInvariantPlugin]:
 
 
 load_temporal_plugins()   # must stay the last statement: the plugins import names defined above
-

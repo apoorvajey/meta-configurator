@@ -20,7 +20,7 @@
           "mode_switch": {"weight": 2, "enabled": true},
           "format_selector": {"weight": 2, "enabled": false},
           "undo_redo_base": {"weight": 2, "enabled": true},
-          "undo_redo_boosted": {"weight": 5, "enabled": true},
+          "undo_redo_boosted": {"weight": 10, "enabled": true},
           "default": {"weight": 1, "enabled": true}
         }
       },
@@ -61,7 +61,7 @@
           "mode_switch": {"weight": 2, "enabled": true},
           "format_selector": {"weight": 2, "enabled": false},
           "undo_redo_base": {"weight": 2, "enabled": true},
-          "undo_redo_boosted": {"weight": 5, "enabled": true},
+          "undo_redo_boosted": {"weight": 10, "enabled": true},
           "default": {"weight": 1, "enabled": true}
         }
       },

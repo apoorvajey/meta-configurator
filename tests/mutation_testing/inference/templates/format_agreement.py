@@ -14,6 +14,8 @@ def detect_text_format(raw: str | None) -> str | None:
         return None
     try:
         value = json.loads(raw)
+        if not value:  # {} and [] are identical in JSON and YAML, so they can't be judged
+            return None
         return "json" if isinstance(value, (dict, list)) else None
     except ValueError:
         pass

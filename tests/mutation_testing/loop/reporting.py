@@ -13,12 +13,15 @@ class ReportingMixin:
         invariant_failures = sum(
             1 for s in self.history
             if s.action_succeeded and s.report and not s.report.passed
-        )
+        ) - getattr(self, "known_bug_only_steps", lambda: 0)()
         print(f"\n{'=' * 60}")
         print("Mutation loop summary")
         print(f"  Steps executed : {total}")
         print(f"  Action errors  : {action_failures}")
         print(f"  Invariant fails: {invariant_failures}")
+        known_only = getattr(self, "known_bug_only_steps", lambda: 0)()
+        if known_only:
+            print(f"  Known-bug steps: {known_only} (not counted as failures)")
 
         no_toggle_count = getattr(getattr(self, "_executor", None), "_silent_no_toggle_count", 0)
         if no_toggle_count:

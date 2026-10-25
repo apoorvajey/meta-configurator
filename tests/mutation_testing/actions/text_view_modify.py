@@ -17,6 +17,7 @@ from tests.mutation_testing.discovery.schema_resolution import (
     _resolve_governing_schema,
     _resolve_prop_schema_dict,
 )
+from tests.mutation_testing.actions.text_view_remove import _child_path_to_list
 
 
 class TextViewModifyMixin:
@@ -268,7 +269,7 @@ class TextViewModifyMixin:
             print(f"   [rename-child-text] current format is '{current_format}', not json — skipping")
             return
 
-        path = testid_path_string_to_list(path_str)
+        path = _child_path_to_list(path_str)
         if not path or not isinstance(path[-1], str):
             print(f"   [rename-child-text] path '{path_str}' doesn't end in a string key — skipping")
             return

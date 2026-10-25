@@ -81,11 +81,13 @@ def _replay_results(runs_dir: str) -> dict[str, dict]:
 
 
 def _state(r: dict) -> str:
-    """unfinished (no history.json), clean, or failures - judged by the replay result when there is one."""
+    """unfinished (no history.json), clean, known-bugs or failures - judged by the replay result when there is one."""
     if r.get("failing_now") is None:
         return "unfinished"
     if r.get("replay_result"):
         return "clean" if r["failing_now"] == 0 else "failures"
+    if r.get("status") == "known-bugs":
+        return "known-bugs"
     return "clean" if r.get("status") in CLEAN_STATUSES else "failures"
 
 
@@ -100,6 +102,8 @@ def collect(traces_dir: str, runs_dir: str = RUNS_DIR) -> dict:
                 try:
                     snap = json.loads(line)
                 except Exception:
+                    continue
+                if snap.get("baseline"):   # the state a repair left behind: no step of its own
                     continue
                 rid = str(snap.get("run_id"))
                 r = runs.setdefault(rid, {"snapshots": 0, "last_step": 0, "replayed": False, "cats": Counter()})
@@ -201,8 +205,9 @@ def render(data: dict, traces_dir: str, runs_dir: str = RUNS_DIR) -> str:
 
     states = Counter(_state(r) for _, _, r in all_runs)
     n_unfinished, n_clean, n_other = states["unfinished"], states["clean"], states["failures"]
+    n_known = states["known-bugs"]
     out.append(f"<p class=sub style='margin-top:6px'><b>{len(all_runs)} runs:</b> {n_other} with failures or incomplete, "
-               f"{n_clean} clean, {n_unfinished} unfinished (no history.json). "
+               f"{n_clean} clean, {n_known} with only known bugs, {n_unfinished} unfinished (no history.json). "
                "A replayed run counts by its replay result.</p>")
     if n_unfinished:
         drop = "python -m tests.cli archive --drop-incomplete"
@@ -278,7 +283,7 @@ def render(data: dict, traces_dir: str, runs_dir: str = RUNS_DIR) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="HTML report of the snapshot corpus")
-    ap.add_argument("--traces-dir", default=TRACES_DIR)
+    ap.add_argument("--traces-dir", default=TRACES_DIR, help="Folder with the recorded snapshot traces (default: %(default)s)")
     ap.add_argument("--runs-dir", default=RUNS_DIR,
                     help="Folder with the runs: histories, logs and replays (tests/output/runs/<run_id>/)")
     ap.add_argument("--out", default=None,

@@ -106,3 +106,28 @@ def console_errors_since_last_snapshot(page) -> list[str] | None:
     """Only the console errors and uncaught exceptions of events_since_last_snapshot() (all kinds are cut by the call)."""
     events = events_since_last_snapshot(page)
     return None if events is None else events["error"]
+
+
+# Two-stage actions (add-item-required: click adds a blank entry, then the test fills it) pass through an intermediate
+# state that the app validates and logs about, but that is gone when the step's snapshot is taken. The action marks the
+# boundary between its stages; build_snapshot() then attributes the console errors before the mark to the intermediate
+# state and the ones after it to the final state.
+_MIDSTEP: dict[int, dict] = {}   # id(page) -> {"error_count": errors of this step before the mark, "schema_valid_meta": bool | None}
+
+
+def mark_midstep(page, schema_valid_meta: bool | None) -> None:
+    """Called between the stages of a two-stage action, once the app has had time to log about the intermediate state.
+
+    schema_valid_meta is the meta-schema verdict on the schema as it is right now (None if it could not be determined).
+    Does nothing if the page is not being recorded.
+    """
+    key = id(page)
+    if key not in _CONSOLE:
+        return
+    _MIDSTEP[key] = {"error_count": len(_CONSOLE[key]["error"]) - _CONSOLE_CURSOR[key]["error"],
+                     "schema_valid_meta": schema_valid_meta}
+
+
+def take_midstep(page) -> dict | None:
+    """The mark set during this step (and forget it), or None if the step had none."""
+    return _MIDSTEP.pop(id(page), None)

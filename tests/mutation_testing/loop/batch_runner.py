@@ -20,12 +20,14 @@ everything (same as MT_VERBOSE=1 or "verbose": true in run_config.json).
 from __future__ import annotations
 
 import argparse
+import collections
 import ctypes
 import json
 import os
 import platform
 import random
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -50,6 +52,10 @@ FAILED_CHECK_RE = re.compile(r"\d+/\d+ FAILED ✗")
 # Machine-readable lines the child writes when MT_STEP_MARKERS=1 (see loop/console.py). Never shown or logged.
 MARKER_RE = re.compile(r"^@@(STEP|ACTION|FAILS) ?(.*)$")
 STEP_MARKER_RE = re.compile(r"(\d+)/(\d+)")
+# The loop's "... step 10/60 (n failing so far) ..." line; the progress bar replaces it
+PROGRESS_LINE_RE = re.compile(r"^\s*\.\.\. step \d+/\d+")
+BAR_WIDTH = 20
+CRASH_TAIL_LINES = 15   # lines of a failed run's output shown on the terminal when the bar hides the rest
 
 
 def _listed_options(config: dict, key: str) -> list[str]:
@@ -103,6 +109,7 @@ def _child_env(verbose: bool = False) -> dict:
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     env["MT_STEP_MARKERS"] = "1"
+    env["MT_BATCH"] = "1"
     if verbose:
         env["MT_VERBOSE"] = "1"
     return env
@@ -123,11 +130,14 @@ def _write_run_config(path: Path, config: dict) -> None:
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
-def _set_config_schema(path: Path, schema_name: str, base_config: dict, profile: str | None = None) -> None:
-    """Write base_config back with "schema" set to schema_name, and "action_weights_profile" set to profile
-    if one is given. All other keys are left as they were."""
+def _set_config_schema(path: Path, schema_name: str, base_config: dict, profile: str | None = None,
+                       num_steps: int | None = None) -> None:
+    """Write base_config back with "schema" set to schema_name, "action_weights_profile" set to profile and
+    "num_steps" set to num_steps if given. All other keys are left as they were."""
     patched = dict(base_config)
     patched["schema"] = schema_name
+    if num_steps is not None:
+        patched["num_steps"] = num_steps
     if profile is not None:
         patched["action_weights_profile"] = profile
     _write_run_config(path, patched)
@@ -238,12 +248,36 @@ class _StreamStats:
                 for k, (step, t0) in enumerate(starts)}
 
 
+def _bar_text(label: str, stats: "_StreamStats") -> str:
+    """'[run 3/20] [████░░░░] 31/60  ·  2 failed check(s)', cut to the terminal width so it never wraps."""
+    step, total = stats._step, stats.steps_total
+    if not step or not total:
+        return ""
+    filled = min(BAR_WIDTH, round(BAR_WIDTH * step / total))
+    text = (f"  [{label}] [{'█' * filled}{'░' * (BAR_WIDTH - filled)}] {step}/{total}"
+            f"  ·  {stats.failed_checks} failed check(s)")
+    return text[:max(20, shutil.get_terminal_size((100, 20)).columns - 1)]
+
+
+def _kill_tree(proc) -> None:
+    """Kill the child and everything it started (Chromium); proc.kill() alone leaves the browser running on Windows."""
+    if platform.system() == "Windows":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=30)
+            return
+        except Exception:
+            pass
+    proc.kill()
+
+
 def _run_and_stream(cmd: list, env: dict, stdin_text: str, timeout: int,
                      run_label: str, stats: "_StreamStats | None" = None,
-                     log_file=None) -> tuple[str, float]:
+                     log_file=None, bar: bool = False) -> tuple[str, float]:
     """Run `cmd`, streaming its output to the console. Output is read in a background thread
     so the timeout is enforced even when the child prints nothing. `stats` collects what the batch needs from the
-    output; `log_file` (open for writing) receives every line.
+    output; `log_file` (open for writing) receives every line. `bar` shows a progress bar on the last terminal line,
+    redrawn on every step; it needs `stats`. With the bar on, the run's own output is not printed (the log files
+    have it all); only if the run ends with an error or a timeout are its last lines shown.
     """
     import queue
     import threading
@@ -282,10 +316,27 @@ def _run_and_stream(cmd: list, env: dict, stdin_text: str, timeout: int,
     deadline = run_start + timeout
     short_label = run_label.split(" [", 1)[0]   # "run 1/3": the dataset is shown once, in the starting line
     status = "unknown"
+    bar = bar and stats is not None
+    bar_len = 0
+    tail: collections.deque = collections.deque(maxlen=CRASH_TAIL_LINES)
+
+    def clear_bar() -> None:
+        nonlocal bar_len
+        if bar_len:
+            print("\r" + " " * bar_len + "\r", end="", flush=True)
+            bar_len = 0
+
+    def draw_bar() -> None:
+        nonlocal bar_len
+        text = _bar_text(short_label, stats)
+        if text:
+            print("\r" + text.ljust(bar_len), end="", flush=True)
+            bar_len = len(text)
+
     while True:
         remaining = deadline - time.time()
         if remaining <= 0:
-            proc.kill()
+            _kill_tree(proc)
             proc.wait()
             status = "timeout"
             break
@@ -296,16 +347,27 @@ def _run_and_stream(cmd: list, env: dict, stdin_text: str, timeout: int,
         if line is None:
             break
         if stats is not None and stats.feed(line, time.time()):
+            if bar:
+                draw_bar()
             continue   # a marker line: only for the summary
-        if line.strip():
+        if bar:
+            if line.strip():
+                tail.append(line)
+        elif line.strip():
             print(f"  [{short_label}] {line}", end="")
         if log_file is not None:
             log_file.write(f"[{run_label}] {line}")
             log_file.flush()
+    clear_bar()
 
     if status != "timeout":
         returncode = proc.wait()
         status = "ok" if returncode == 0 else f"exit_code_{returncode}"
+
+    if bar and status != "ok":
+        print(f"  [{short_label}] last {len(tail)} line(s) of output:")
+        for line in tail:
+            print(f"  [{short_label}]   {line}", end="")
 
     elapsed = time.time() - run_start
     return status, elapsed
@@ -329,6 +391,8 @@ def main():
                          help="Comma-separated action_weights_profile names. The profile changes once per lap "
                               "(after every dataset has run once), so a dataset is not tied to one profile. "
                               "Default: the profile in run_config.json for every run")
+    parser.add_argument("--steps", type=int, default=None,
+                         help="Number of mutation steps in every run (default: \"num_steps\" in run_config.json)")
     parser.add_argument("--run-config", type=str, default=None,
                          help="Explicit path to run_config.json (skips the two-candidate guess)")
     parser.add_argument("--archive-first", action="store_true",
@@ -342,6 +406,8 @@ def main():
     args = parser.parse_args()
     if args.max_minutes is not None and args.max_minutes <= 0:
         parser.error("--max-minutes must be greater than 0")
+    if args.steps is not None and args.steps <= 0:
+        parser.error("--steps must be greater than 0")
     if args.runs is None:
         args.runs = RUNS_CAP_WITH_TIME_BUDGET if args.max_minutes else DEFAULT_RUNS
 
@@ -433,11 +499,17 @@ def _read_history_steps(run_id: str | None) -> list[dict] | None:
         path = folder / "history.json" if folder else None
         if path is None or not path.is_file():
             return None
+        from tests.mutation_testing.runs.repair_view import expand_repairs
         data = json.loads(path.read_text(encoding="utf-8"))
-        return data["steps"] if isinstance(data, dict) else data
+        return expand_repairs(data["steps"] if isinstance(data, dict) else data)   # repair clicks count as steps here
     except Exception as e:  # the summary must never break the batch
         print(f"[summary] could not read the history of {run_id}: {e!r}")
         return None
+
+
+# run_status.py status -> the batch summary's result word
+_RESULT_OF_STATUS = {"clean": "CLEAN", "known-bugs": "KNOWN BUGS", "failures": "FAILURES", "diverged-failures": "FAILURES",
+                     "diverged-clean": "CLEAN", "incomplete": "INCOMPLETE"}
 
 
 def _summarise_run(run_num: int, dataset: str, profile: str | None, status: str, elapsed: float,
@@ -455,20 +527,16 @@ def _summarise_run(run_num: int, dataset: str, profile: str | None, status: str,
     }
     steps = _read_history_steps(stats.run_id)
     if steps is not None:
-        # The history has one record per loop step plus one per repair/recovery click. Count loop steps (what
-        # num_steps means) and the clicks separately; a loop step fails if it or one of its clicks failed.
-        failing = [s for s in steps if s.get("passed") is False and s.get("action_succeeded") is not False]
-        per_invariant = Counter()
-        failing_by_step: dict = {}
-        for s in failing:
-            failing_by_step.setdefault(s.get("step"), set()).update(_invariant_id(e) for e in (s.get("failed_invariants") or []))
-        for names in failing_by_step.values():
-            per_invariant.update(names)
-        repair_clicks = sum(1 for s in steps if str(s.get("action_id", "")).startswith("repair:"))
-        info.update(steps_recorded=len({s.get("step") for s in steps}), repair_clicks=repair_clicks,
-                    failing_steps=len(failing_by_step),
-                    invariants_failed=dict(sorted(per_invariant.items())),
-                    failed_actions=sum(1 for s in steps if s.get("action_succeeded") is False),
+        # The history has one record per loop step plus one per repair/recovery click. The verdict comes from the same
+        # function that writes the run's status file (run_status.summarise_steps): only the loop's own steps decide it,
+        # known bugs are counted apart, and repair clicks that left a rule failing are reported but never fail the run.
+        from tests.mutation_testing.runs.run_status import summarise_steps
+        verdict = summarise_steps(steps)
+        info.update(steps_recorded=verdict["loop_steps"], repair_clicks=verdict["repair_clicks"],
+                    failing_steps=verdict["failing_steps"], known_bug_steps=verdict["known_bug_steps"],
+                    repair_failing_clicks=verdict["repair_failing_clicks"],
+                    invariants_failed=dict(sorted(verdict["_failing_by_invariant"].items())),
+                    failed_actions=verdict["failed_actions"], run_status=verdict["status"],
                     schema_invalid_episodes=sum(1 for s in steps if s.get("schema_became_invalid")))
     else:
         info["failed_checks_seen_in_console"] = stats.failed_checks
@@ -477,7 +545,7 @@ def _summarise_run(run_num: int, dataset: str, profile: str | None, status: str,
     elif steps is None:
         info["result"] = "CRASHED" if status != "ok" else "NO HISTORY"
     else:
-        info["result"] = "FAILURES" if info["failing_steps"] else "CLEAN"
+        info["result"] = _RESULT_OF_STATUS.get(info["run_status"], "FAILURES")
     return info
 
 
@@ -488,7 +556,7 @@ def _list_invariants(counts: dict) -> str:
 def _summary_text(data: dict) -> str:
     runs = data["runs"]
     counts = Counter(r["result"] for r in runs)
-    totals = ", ".join(f"{counts[k]} {k.lower()}" for k in ("CLEAN", "FAILURES", "TIMEOUT", "CRASHED", "NO HISTORY") if counts[k])
+    totals = ", ".join(f"{counts[k]} {k.lower()}" for k in ("CLEAN", "KNOWN BUGS", "FAILURES", "INCOMPLETE", "TIMEOUT", "CRASHED", "NO HISTORY") if counts[k])
     lines = [f"Batch {data['batch_id']}: {len(runs)} of {data['runs_planned']} run(s) done in {data['total_seconds']} s "
              f"(timeout {data['timeout_seconds']} s per run)",
              f"Result: {totals or 'no run has finished yet'}"]
@@ -510,7 +578,8 @@ def _summary_text(data: dict) -> str:
                      f"step {r['steps_reached']}{planned}{avg}")
         lines.append(f"    run folder: {r['run_id'] or 'unknown'}")
         if "failing_steps" in r:
-            lines.append(f"    failing steps: {r['failing_steps']} of {r['steps_recorded']} (+{r['repair_clicks']} repair clicks)  |  invariants failed: "
+            lines.append(f"    failing steps: {r['failing_steps']} of {r['steps_recorded']} (+{r['repair_clicks']} repair clicks, "
+                         f"{r['repair_failing_clicks']} of them left a rule failing)  |  known-bug steps: {r['known_bug_steps']}  |  invariants failed: "
                          f"{_list_invariants(r['invariants_failed'])}  |  failed actions: {r['failed_actions']}  |  "
                          f"invalid-schema episodes: {r['schema_invalid_episodes']}")
         else:
@@ -550,7 +619,7 @@ def _run_batch(args, results, batch_start, batch_id,
                 break
             dataset = dataset_cycle[i - 1]
             profile = args.profile_cycle[i - 1]
-            _set_config_schema(run_config_path, dataset, original_config, profile)
+            _set_config_schema(run_config_path, dataset, original_config, profile, args.steps)
 
             profile_tag = f" ({profile})" if profile else ""
             run_label = f"run {i}/{_runs_label(args)} [{dataset}]{profile_tag}"
@@ -567,6 +636,7 @@ def _run_batch(args, results, batch_start, batch_id,
                     run_label=run_label,
                     stats=stats,
                     log_file=log_file,
+                    bar=not args.verbose and sys.stdout.isatty(),   # a redirected or verbose console keeps plain lines
                 )
             except Exception as e:
                 elapsed = time.time() - batch_start
@@ -574,17 +644,25 @@ def _run_batch(args, results, batch_start, batch_id,
                 status = f"exception_{type(e).__name__}"
 
             results.append((i, dataset, status, elapsed))
-            finished_line = (f"[{datetime.now().strftime('%H:%M:%S')}] {run_label} finished: "
-                             f"{status}  ({elapsed:.0f}s)")
-            print(finished_line)
-            log_file.write(finished_line + "\n")
-            log_file.flush()
-
+            info = None
             try:
-                summaries.append(_summarise_run(i, dataset, profile, status, elapsed, stats))
+                info = _summarise_run(i, dataset, profile, status, elapsed, stats)
+                summaries.append(info)
                 summary_path = _write_batch_summary(batch_id, args, summaries, time.time() - batch_start)
             except Exception as e:  # the summary must never stop the batch
                 print(f"[summary] could not write the batch summary: {e!r}")
+
+            # Which invariants failed, so the run worth opening is visible without the failure blocks
+            outcome = ""
+            if info is not None:
+                outcome = f"  -> {info['result']}"
+                if info.get("invariants_failed"):
+                    outcome += f" ({_list_invariants(info['invariants_failed'])})"
+            finished_line = (f"[{datetime.now().strftime('%H:%M:%S')}] {run_label} finished: "
+                             f"{status}  ({elapsed:.0f}s){outcome}")
+            print(finished_line)
+            log_file.write(finished_line + "\n")
+            log_file.flush()
 
         total_elapsed = time.time() - batch_start
 
@@ -617,7 +695,7 @@ def _run_batch(args, results, batch_start, batch_id,
             say("Per-run output: tests/output/runs/<run folder>/console.log")
             say("")
             say(_summary_text(data).split("\n\n")[0])
-            if not any(s["result"] in ("CLEAN", "FAILURES") for s in summaries):
+            if not any(s["result"] in ("CLEAN", "KNOWN BUGS", "FAILURES", "INCOMPLETE") for s in summaries):
                 say("No run finished and wrote a history.json, so the report has nothing to show.")
 
 

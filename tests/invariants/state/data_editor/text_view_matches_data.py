@@ -14,6 +14,8 @@ def _text_is_json_null(ctx) -> bool:
     raw = read_text_editor_raw(ctx.page, ctx.mode)
     if raw is None:
         return False
+    if not raw.strip():  # blank YAML document = null
+        return True
     try:
         return json.loads(raw) is None
     except ValueError:
@@ -24,7 +26,7 @@ def check(ctx) -> InvariantResult:
     """The Text View content must parse to exactly the internal data. An unparseable Text View is always
     a failure. Only json and yaml are selectable formats.
 
-    Selector: [id^="code-editor-dataEditor"]. See panelTextEditor.spec.ts and test_basic.py.
+    Selector: [id^="code-editor-dataEditor"]. See panelTextEditor.spec.ts.
     """
     name = "INV-D1 Text View reflects internal data"
 

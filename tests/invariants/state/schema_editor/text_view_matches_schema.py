@@ -1,6 +1,6 @@
 """INV-S1."""
 from __future__ import annotations
-from tests.shared.python.utils_code_editor import read_text_editor_content
+from tests.shared.python.utils_code_editor import read_text_editor_content, read_text_editor_raw
 from tests.invariants.invariants_core import InvariantResult, _diagnose_unparseable_text
 
 ID = "INV-S1"
@@ -18,7 +18,8 @@ def check(ctx) -> InvariantResult:
     ground_truth = ctx.tp_data.get_schema()
     text_data = read_text_editor_content(ctx.page, ctx.mode)
 
-    if text_data is None:
+    raw = read_text_editor_raw(ctx.page, ctx.mode)
+    if text_data is None and not (raw is not None and not raw.strip()):  # blank YAML = null
         diagnosis, details = _diagnose_unparseable_text(ctx.page, ctx.mode, ground_truth=ground_truth)
         return InvariantResult(name, False,
                                f"Schema Text View could not be parsed - {diagnosis}",

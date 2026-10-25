@@ -53,6 +53,9 @@ body{background:#14161b;color:#e8eaf0}
 .badge-fail,.badge-fail-sm{background:#33181c;color:#f58a80}
 .badge-error{background:#33250f;color:#f0a85a}
 .badge-skip{background:#262b35;color:#98a2b3}
+.badge-known,.known-tag{background:#17263a;color:#7fb2f0}
+.sbox-known{background:#17263a;color:#7fb2f0;border-color:#27415f}
+.step-known{border-left-color:#3b7dc4}
 .mode-tag{background:#1f2a45;color:#8aa4ff}
 .inv-line,.failure-msg{color:#98a2b3}
 .ev-item{border-left-color:#3a4150;color:#c9ced8;background:#181b21}

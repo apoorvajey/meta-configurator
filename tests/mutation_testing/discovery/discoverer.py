@@ -80,25 +80,25 @@ class DOMDiscoverer:
                             const isInputItself = el.tagName === 'INPUT' && (el.type === 'text' || !el.type);
                             return isInputItself || el.querySelector('[role="combobox"], [role="spinbutton"], .p-selectbutton, [role="textbox"], input[type="text"], input:not([type])') !== null;
                         }
-                        // Skip rename/remove/add with empty path suffix
-                        if ((testid === 'rename-property-') ||
-                            (testid === 'remove-property-') ||
-                            (testid === 'add-property-')) return false;
+                        // Skip rename with empty path suffix (add-property- gets its parent path in the map below)
+                        if (testid === 'rename-property-') return false;
                         return true;
                     })
                     .map(el => {
                         let testid = el.getAttribute('data-testid');
                         if (testid === 'add-property-') {
                             const parentPath = resolveAddPropertyLabel(el);
+                            if (!parentPath) return null;   // parent unknown: a click could not tell the buttons apart
                             testid = 'add-property-' + parentPath;
                         }
                         return {
-                            testid: el.getAttribute('data-testid'),  // ← use getAttribute directly, not the variable
+                            testid: testid,   // for add-property- this carries the parent path that _click_add_property needs
                             tag:    el.tagName.toLowerCase(),
                             role:   el.getAttribute('role') || '',
                             value:  el.value || el.innerText?.slice(0, 40) || '',
                         };
-                    });
+                    })
+                    .filter(x => x !== null);
             }
         """)
 
@@ -145,6 +145,16 @@ class DOMDiscoverer:
             }
         """)
 
+        remove_property_raw: list[dict] = self.page.evaluate("""
+            () => [...document.querySelectorAll('[data-testid^="property-data-"]')]
+                .filter(el => el.offsetParent !== null)
+                .filter(el => el.querySelector('button[aria-label="Remove"]'))
+                .map(el => ({
+                    testid: 'remove-property-' + el.getAttribute('data-testid').slice('property-data-'.length),
+                    tag: 'button', role: '', value: '',
+                }))
+        """)
+
         (
             edit_text_raw,
             add_child_text_raw,
@@ -159,7 +169,7 @@ class DOMDiscoverer:
         current_mode = _get_current_active_mode(self.page)
 
         result: list[ElementDescriptor] = []
-        for r in (raw + expand_raw + undo_redo_raw + edit_text_raw + add_child_text_raw
+        for r in (raw + expand_raw + undo_redo_raw + remove_property_raw + edit_text_raw + add_child_text_raw
                   + change_type_text_raw + remove_child_text_raw + rename_child_text_raw
                   + add_array_item_text_raw + remove_array_item_text_raw + clear_text_raw):
             interaction = _classify(r["testid"])
@@ -170,7 +180,7 @@ class DOMDiscoverer:
                 tag=r["tag"],
                 role=r["role"],
                 interaction=interaction,
-                label=r["value"] if r["testid"].startswith("edit-text-") else r["testid"],
+                label=r.get("value") or r["testid"],
                 js_click=js_click_for_testid(r["testid"]),
                 mode=_infer_element_mode(r["testid"], current_mode),
             ))
@@ -185,6 +195,18 @@ class DOMDiscoverer:
                     continue
                 seen.add(el.testid)
             deduped.append(el)
+
+        # add-item-required sits inside the 'required' node of the Schema Editor. While that node is collapsed the
+        # button is not in the page, so it is offered as a virtual element that names the expand step it needs first.
+        testids = {el.testid for el in deduped}
+        if current_mode == "schemaEditor" and "expand-required" in testids and "add-item-required" not in testids:
+            deduped.append(ElementDescriptor(
+                testid="add-item-required", tag="button", role="",
+                interaction=_classify("add-item-required") or "click",
+                label="add-item-required",
+                mode=_infer_element_mode("add-item-required", current_mode),
+                needs_expand="expand-required",
+            ))
         return deduped
 
     def _discover_text_view_actions(self, is_json_format) -> tuple[list[dict], ...]:

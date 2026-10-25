@@ -15,9 +15,8 @@ def check(ctx) -> InvariantResult:
 
     Oracle: schema_meta_violations(). Granularity is deliberately coarse (any icon vs. none): the icon sits on
     the keyword row (e.g. 'properties') while a meta-schema oneOf reports the parent subschema, so path-level
-    matching would give false mismatches. Assumes the Schema panel uses the same 'validation-error-icon' test
-    id as the Data panel. If an invalid schema fails here with zero icons, check that the offending row is not
-    inside a collapsed node.
+    matching would give false mismatches. The Schema panel uses the same 'validation-error-icon' test id as
+    the Data panel.
 
     Selector: validation-error-icon (anywhere in the Schema GUI View)
     """

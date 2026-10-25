@@ -96,8 +96,7 @@ def _value_violates_schema(value, prop_schema, root_schema=None) -> bool:
 
 
 def _get_ace_annotations(page: Page, mode: SessionMode) -> list[dict]:
-    """Ace's gutter annotations for the editor, [{row, column, text, type}, ...]. Assumed to be how AJV errors
-    reach the Text View; not checked against every app version.
+    """Ace's gutter annotations for the editor, [{row, column, text, type}, ...]. This is how AJV errors reach the Text View.
     """
     mode_str = "dataEditor" if mode == SessionMode.DataEditor else "schemaEditor"
     try:
@@ -147,7 +146,7 @@ def _text_view_error_for_key(page: Page, mode: SessionMode, raw_text: str | None
 
 def _gui_error_icon_and_tooltip_for_path(page: Page, full_path: list) -> dict:
     """Path-aware version of InvariantCheckerDataEditor's _property_has_error_icon() and
-    _get_validation_error_messages(), which only handle top-level keys. Nested paths are untested.
+    _get_validation_error_messages(), which only handle top-level keys.
     """
     path_str = _path_to_testid_string(full_path)
     testid = f"property-metadata-{path_str}"

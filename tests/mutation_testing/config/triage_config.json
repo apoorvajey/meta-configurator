@@ -48,52 +48,93 @@
   },
   "known_bugs": [
     {
-      "id": "BUG-05",
+      "id": "BUG-04",
       "summary": "After a schema containing a null where a sub-schema is expected (e.g. additionalProperties: null, set by changing its type) is cleared and restored with undo/redo, the Schema GUI stays stuck on a loading spinner (the app logs 'Cannot read properties of null')",
-      "invariants": [
-        "INV-G2"
-      ]
+      "invariants": ["INV-G2"],
+      "name": "GUI stuck on a loading spinner",
+      "where": "both"
     },
     {
-      "id": "BUG-06",
+      "id": "BUG-05",
       "summary": "A keyword with an invalid value (e.g. maxProperties: -1) on a schema node without 'type' is not flagged in the hosted version; the development branch flags it",
       "invariants": ["INV-S4"],
-      "when_action_kinds": ["edit"]
+      "when_action_kinds": ["edit"],
+      "name": "Mismatch in validation icons",
+      "where": "schema"
     },
     {
       "id": "BUG-01",
-      "summary": "Undo reverts the data format in the Data Text View, but the format selector still shows the previous format",
+      "summary": "Data Text View content is valid YAML but the format selector shows 'json'",
       "invariants": ["INV-D1", "INF-A28E3AE0"],
-      "when_action_kinds": ["undo", "redo", "switch"]
-    },
-    {
-      "id": "BUG-02",
-      "summary": "Undo leaves an orphaned row across Text View and GUI View",
-      "invariants": [
-        "INV-D4"
-      ],
-      "when_action_kinds": ["undo", "redo"]
-    },
-    {
-      "id": "INV-GUI-ERR-01 finding",
-      "summary": "The 'any'-typed fallback widget does not show the validation-error icon",
-      "invariants": [
-        "INV-GUI-ERR-01"
-      ]
+      "when_action_kinds": ["redo", "switch", "undo"],
+      "where": "data",
+      "name": "Data Text View format does not match selected format",
+      "group": "format selector out of sync"
     },
     {
       "id": "BUG-03",
-      "summary": "Schema Text View content is valid YAML but the format selector shows 'json' (stale Ace undo history desyncs the format label)",
-      "invariants": [
-        "INV-S1"
-      ]
+      "summary": "Schema Text View content is valid YAML but the format selector shows 'json'",
+      "invariants": ["INV-S1", "INF-B559BE98", "INF-13916E7A"],
+      "only_with": {"INF-13916E7A": ["INV-S1", "INF-B559BE98"]},
+      "when_action_kinds": ["switch", "undo"],
+      "name": "Schema Text View format does not match selected format",
+      "where": "schema",
+      "group": "format selector out of sync"
+    },
+    {
+      "id": "BUG-06",
+      "summary": "Uncaught TypeError 'Cannot read properties of undefined (reading 'dimensions')' thrown by the app during a step",
+      "invariants": ["INV-G1"],
+      "do_not_repair": true,
+      "name": "App exception when switching to Schema mode",
+      "where": "both"
+    },
+    {
+      "id": "BUG-08",
+      "summary": "After switching from Schema mode back to Data mode without editing, the Text View shows 0 markers and 0 gutter icons while 2-3 schema violations are still in the data.",
+      "invariants": ["INV-D7"],
+      "name": "Text View markers lost after switching Schema → Data",
+      "when_action_kinds": ["switch"],
+      "where": "data",
+      "comment": "Repro: data that violates the schema (e.g. an extra top-level key) shows red markers; switch to Schema mode and back to Data mode without editing. Expected: same markers as before. Actual: none until the next edit; the GUI View keeps its red triangles. Runs: 20261021_175138 (Autonomous Vehicle) steps 3, 5, 10, 21; 20261020_231523 (Strenda) steps 47-48 after schema_undo then switch (unconfirmed variant). INV-D7 is in NO_REPAIR_INVARIANTS in repair.py.",
+      "added_at": "2026-10-23 21:31"
+    },
+    {
+      "id": "BUG-09",
+      "summary": "With additionalProperties: false at the top level, every extra key gets a 'must NOT have additional properties' marker except the blank key \"\".",
+      "invariants": ["INV-D7"],
+      "name": "Blank key skipped by additionalProperties marker",
+      "where": "data",
+      "comment": "Repro: add \"\" and other extra keys to the data. {\"\": {}, \"x\": 1} gives 1 marker, {\"x\": 1, \"y\": 1} gives 2, {\"\": {}} alone gives 0. A key in required but not in properties still gets the marker, so only the blank key is skipped. Run 20261021_175138 steps 6, 11, 13-18: INV-D7 reported 'additionalProperties predicted, NO marker'.",
+      "added_at": "2026-10-23 21:31"
+    },
+    {
+      "id": "BUG-10",
+      "summary": "Replacing an object with a string in the Text View makes the GUI show one row per character, and clicking the delete icon on one of those rows throws a TypeError.",
+      "invariants": ["INF-2AB96604"],
+      "name": "String value at object node creates per-character GUI rows",
+      "when_action_kinds": ["change_type"],
+      "where": "data",
+      "comment": "Repro (Strenda): add an item to Experiments, replace experiments[1] ({}) with a string such as \"BPiOebcB\" in the Text View, expand Item 2 in the GUI View, click the delete icon on row 0-7. Expected: like 12345 or [] - warning, keeps ': object' and its four schema rows. Actual: extra rows 0-7 typed any; deleting row 1 shows 'Unknown Error occurred' and TypeError: Cannot delete property '1' of [object String]. Run 20261020_231523 steps 3-5. Reproduced by hand on metaconfigurator.org (index-981d8f4a.js); only strings affected. The delete error is app-handled, so INV-G1 does not catch it.",
+      "added_at": "2026-10-23 21:31"
+    }
+  ],
+  "fixed_bugs": [],
+  "not_a_bug": [
+    {
+      "id": "BUG-02",
+      "summary": "Undo leaves an orphaned row across Text View and GUI View",
+      "invariants": ["INV-D4"],
+      "when_action_kinds": ["undo", "redo"],
+      "closed_at": "2026-10-22 17:30",
+      "note": "After renaming a required key, the old key stays in the data as an optional row and the new key is required. INV-D4 now ignores rows for keys the schema declares."
     }
   ],
   "caveats": {
     "undo_redo_across_panels": "This sequence uses Undo/Redo and touches both panels. Undo stacks are per panel (Data and Schema), so first check that the Undo was pressed in the same panel as the edit; otherwise the failure may not be an app bug."
   },
   "screenshots": {
-    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder (tests/output/runs/<run_id>/screenshots) and, for runs recorded before the runs/ layout, in <root>/<run_id>.",
+    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder (tests/output/runs/<run_id>/screenshots).",
     "enabled": true,
     "root": "mutation_screenshots",
     "filename_regex": "^step_(?P<n>\\d+)_(?P<name>.*)$",
@@ -104,7 +145,7 @@
     "jpeg_quality": 75
   },
   "state_snapshots": {
-    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run (tests/output/runs/<run_id>/states) and by replay_runner for a replay (tests/output/runs/<run_id>/replays/<replay_id>/states). A card shows the diff when the states folder next to the history is found. Runs recorded before the runs/ layout are looked up in <root>/<run_id>. Otherwise it suggests: python -m tests.mutation_testing.replay.replay_runner --history <history.json>",
+    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run (tests/output/runs/<run_id>/states) and by replay_runner for a replay (tests/output/runs/<run_id>/replays/<replay_id>/states). A card shows the diff when the states folder next to the history is found. Otherwise it suggests: python -m tests.mutation_testing.replay.replay_runner --history <history.json>",
     "root": "replay_snapshots",
     "_root_note": "Files are <root>/<run_id>/step_<N>_before.json and step_<N>_after.json, where N is the 0-based position in the history's 'steps' list."
   },
@@ -180,7 +221,7 @@
     "_comment": "Settings for causal_analysis.py (the 'Where it likely started' section).",
     "max_lookback_when_no_clean_step": 10,
     "transition_rule_prefixes": ["INF-", "TEMP-"],
-    "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead. Add NEW- here if NEW-xx rules behave the same way.",
+    "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead.",
     "rule_reads": {
       "_comment": "Which state facets each rule reads, so the report only suspects actions that changed one of them. Facets: de_data, de_schema, se_schema, se_data, de_text, se_text. For rules not listed, any state change makes an action a suspect.",
       "INV-D1": ["de_data", "de_text"],
@@ -225,7 +266,7 @@
     }
   },
   "run_logs": {
-    "_comment": "The mutation loop's own log: tests/output/runs/<run_id>/mutation_log.html, found next to the history. The root below is only the older layout (mutation_logs/<run_id>/mutation_log.html, plural).",
+    "_comment": "The mutation loop's own log: tests/output/runs/<run_id>/mutation_log.html, found next to the history.",
     "root": "mutation_logs",
     "max_files": 5
   }

@@ -41,8 +41,7 @@ def _capture_ace_extras(page: Page, mode_str: str) -> dict:
     annotation_errors / annotation_warnings / first_annotation   the markers Ace shows in the gutter
     cursor                                                       [row, column]
     undo_depth / redo_depth                                      length of Ace's own undo / redo stack (None if the stack is
-                                                                 not found). Not verified: whether the app's undo button
-                                                                 uses this history or a separate one
+                                                                 not found)
     line_count                                                   number of lines in the editor
     """
     try:
@@ -91,7 +90,7 @@ def capture_gui_facts(page: Page) -> dict:
                 if (!result[path]) result[path] = {};
                 result[path].icon_shown = el.querySelector('[data-testid="validation-error-icon"]') !== null;
                 const star = el.querySelector('[data-testid="required-star"]');
-                result[path].required_star_shown = !!(star && star.textContent.trim().length > 0);
+                result[path].required_star_shown = !!result[path].required_star_shown || !!(star && star.textContent.trim().length > 0);
             });
             document.querySelectorAll('[data-testid^="property-data-"]').forEach(el => {
                 const path = el.getAttribute('data-testid').replace('property-data-', '');

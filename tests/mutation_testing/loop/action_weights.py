@@ -33,6 +33,11 @@ def set_action_weights_profile(profile: str | None = None) -> None:
     print(f"[weights] active profile file: {_active_weights_filename}")
 
 
+def get_active_weights_filename() -> str:
+    """The weights file in use now. Read this at record time; importing the variable would keep the import-time default."""
+    return _active_weights_filename
+
+
 # Fallback weights, Mode > View > Action type. Each level's weight is shared among the children present
 # in the current step, so a level with more branches does not get more total probability.
 _DEFAULT_HIERARCHICAL_WEIGHTS: dict = {
@@ -54,7 +59,7 @@ _DEFAULT_HIERARCHICAL_WEIGHTS: dict = {
                     "mode_switch":            {"weight": 2, "enabled": True},
                     "format_selector":        {"weight": 2, "enabled": True},
                     "undo_redo_base":         {"weight": 2, "enabled": True},
-                    "undo_redo_boosted":      {"weight": 5, "enabled": True},
+                    "undo_redo_boosted":      {"weight": 10, "enabled": True},
                     "default":                {"weight": 1, "enabled": True},
                 },
             },
@@ -92,7 +97,7 @@ _DEFAULT_HIERARCHICAL_WEIGHTS: dict = {
                     "mode_switch":            {"weight": 2, "enabled": True},
                     "format_selector":        {"weight": 2, "enabled": True},
                     "undo_redo_base":         {"weight": 2, "enabled": True},
-                    "undo_redo_boosted":      {"weight": 5, "enabled": True},
+                    "undo_redo_boosted":      {"weight": 10, "enabled": True},
                     "default":                {"weight": 1, "enabled": True},
                 },
             },

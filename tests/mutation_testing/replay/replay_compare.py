@@ -45,7 +45,7 @@ def _replay(runner, outcome) -> dict:
         if report is not None and not report.passed:
             for i in _ids(r.name for r in report.failures):
                 counts[i] += 1
-    return {"steps": outcome.steps_run, "failing_steps": outcome.failing_steps, "failures": dict(counts),
+    return {"steps": outcome.steps_run, "failing_steps": outcome.failing_steps + getattr(outcome, "known_bug_steps", 0), "failures": dict(counts),
             "snapshots": len(getattr(runner, "replayed_snapshots", []) or [])}
 
 

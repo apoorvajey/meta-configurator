@@ -126,9 +126,10 @@ def load_history(path: str | Path) -> tuple[list[dict], dict]:
 _FACET_KEYS = ("de_data", "de_schema", "se_schema", "se_data", "de_text", "se_text")
 
 # Extra per-step fields the mutation loop records (what an action actually changed, schema validity
-# transitions, why a recovery click happened). Written to history.json only when present.
+# transitions, the repairs this step triggered). Written to history.json only when present.
+# "repairs" is a list of repair blocks (repair_engine.repair_block); replay reruns them instead of clicking their clicks.
 _EXTRA_STEP_FIELDS = ("observed_value", "observed_effect", "schema_valid_after",
-                      "schema_became_invalid", "schema_meta_violations", "recovery_reason")
+                      "schema_became_invalid", "schema_meta_violations", "repairs")
 _FACET_HASH_CHARS = 10
 _MAX_EVIDENCE_PATHS = 20
 _MAX_EVIDENCE_MESSAGE_CHARS = 300
@@ -266,7 +267,7 @@ def export_history(history: list, path: str = "history.json",
                    resolved_settings: dict | None = None,
                    save_state_snapshots: bool = True,
                    state_snapshot_dir: str | Path | None = None) -> None:
-    """Export a MutationLoop history to JSON; "role" marks repair steps. Replay fields:
+    """Export a MutationLoop history to JSON; a step that triggered a repair carries it as "repairs". Replay fields:
     - step_seed: re-applied right before execute();
     - input_value: the exact value passed to execute(); replay uses it instead of the stringified "value";
     - el_interaction, el_tag, el_role: the discovered element's fields (el_view is for diagnostics only);
@@ -297,7 +298,6 @@ def export_history(history: list, path: str = "history.json",
             "mode": s.report.mode if s.report else "",
             "action_succeeded": s.action_succeeded,
             "passed": s.invariants_passed,
-            "role": s.kwargs.get("role"),
             "el_mode": s.kwargs.get("el_mode"),
             "el_interaction": s.kwargs.get("el_interaction"),
             "el_tag": s.kwargs.get("el_tag"),

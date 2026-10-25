@@ -7,6 +7,17 @@ from tests.shared.python.test_panel import TestPanel
 from tests.mutation_testing.discovery.paths import _value_at_path, testid_path_string_to_list
 
 
+def _child_path_to_list(path_str: str) -> list:
+    """Like testid_path_string_to_list, for the path of a key that is being acted on: an empty segment is a key
+    named "". '' is the key "" of the root object, 'a.' is the key "" inside 'a'. testid_path_string_to_list returns
+    [] for '' (the root), which has no key to act on."""
+    text = path_str if path_str.startswith("[") else "." + path_str
+    path = []
+    for key_token, index_token in re.findall(r"\.([^.\[]*)|\[(\d+)\]", text):
+        path.append(int(index_token) if index_token else key_token)
+    return path
+
+
 class TextViewRemoveMixin:
     """Remove a child property or an array item in the Text View."""
 
@@ -115,7 +126,7 @@ class TextViewRemoveMixin:
             print(f"   [remove-child-text] current format is '{current_format}', not json — skipping")
             return
 
-        path = testid_path_string_to_list(path_str)
+        path = _child_path_to_list(path_str)
         if not path or not isinstance(path[-1], str):
             print(f"   [remove-child-text] path '{path_str}' doesn't end in a string key — skipping")
             return

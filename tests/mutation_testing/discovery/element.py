@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from tests.mutation_testing.discovery.paths import humanize_path
+from tests.mutation_testing.discovery.paths import humanize_path, testid_path_string_to_list, path_to_testid_string, _humanize_segment
 
 
 CATEGORY_LABELS = {
@@ -17,7 +17,7 @@ CATEGORY_LABELS = {
     "8_format":                 "Switch file format (JSON/YAML)",
     "10_text_edit_value":       "Change a value (by typing)",
     "11_text_add_child":        "Add a new field (by typing)",
-    "12_text_change_type":      "Change what kind of thing this is (by typing)",
+    "12_text_change_type":      "Change a field's type (by typing)",
     "13_text_remove_child":     "Delete a field (by typing)",
     "14_text_rename_child":     "Rename a field (by typing)",
     "15_text_add_array_item":   "Add a list item (by typing)",
@@ -37,11 +37,14 @@ class ElementDescriptor:
     css_selector: str | None = None
     js_click: str | None = None
     mode: str = ""  # "dataEditor" | "schemaEditor" - see _infer_element_mode()
+    # A virtual element: its button is hidden inside a collapsed node. The value is the testid of the expand step
+    # that has to run first (see expand_first() in loop/action_sampling.py).
+    needs_expand: str | None = None
 
     @property
     def view(self) -> str:
         """The 'view' bucket of this action, for the Mode > View > Action hierarchy. 'Schema Diagram' is never returned
-        (its actions are not discovered yet); it exists in the weights config only as a placeholder.
+        because no actions are discovered there.
         """
         _text_view_prefixes = (
             "edit-text-", "add-child-text-", "change-type-text-",
@@ -109,6 +112,77 @@ class ElementDescriptor:
             return "boolean"
         return None
 
+    # Prefixes whose testid is "<prefix><mode>:<path>[:<new property>]"; the path is the field acted on, except for
+    # the add-* actions, where it is the container the new thing goes into.
+    _TEXT_PREFIXES = (
+        "edit-text-", "add-child-text-", "change-type-text-", "remove-child-text-",
+        "rename-child-text-", "add-array-item-text-", "remove-array-item-text-",
+    )
+    _GUI_ADD_PREFIXES = ("add-item-", "add-property-")
+    _GUI_FIELD_PREFIXES = ("input-string-", "input-number-", "input-boolean-", "input-select-",
+                           "expand-", "collapse-", "rename-property-", "remove-property-")
+
+    @property
+    def section(self) -> str:
+        """Which editor the action works in, for grouping in the menu."""
+        mode = self.mode
+        for prefix in self._TEXT_PREFIXES + ("clear-text-",):
+            if self.testid.startswith(prefix):
+                mode = self.testid[len(prefix):].partition(":")[0]
+        if mode == "dataEditor":
+            return "Data section"
+        if mode == "schemaEditor":
+            return "Schema section"
+        return "Both sections"
+
+    @property
+    def location(self) -> str:
+        """Where in the document the action happens (readable path of the parent), for grouping in the menu."""
+        t = self.testid
+        for prefix in self._TEXT_PREFIXES:
+            if t.startswith(prefix):
+                path_str = t[len(prefix):].partition(":")[2].partition(":")[0]
+                if prefix == "add-child-text-":
+                    return humanize_path(path_str)         # the container the field is added to
+                return self._parent_location(path_str)
+        for prefix in self._GUI_ADD_PREFIXES:
+            if t.startswith(prefix):
+                return humanize_path(t[len(prefix):])
+        for prefix in self._GUI_FIELD_PREFIXES:
+            if t.startswith(prefix):
+                return self._parent_location(t[len(prefix):])
+        return "General"
+
+    @staticmethod
+    def _parent_location(path_str: str) -> str:
+        return humanize_path(path_to_testid_string(testid_path_string_to_list(path_str)[:-1]))
+
+    @property
+    def choice_label(self) -> str:
+        """Short label for use under a heading that already names the section and location."""
+        t = self.testid
+        noise = self.label.startswith(t.split(":")[0]) or self.label == t   # label is just the raw testid
+        current = "" if noise or not self.label else f" — currently {self.label}"
+        for prefix in self._TEXT_PREFIXES:
+            if not t.startswith(prefix):
+                continue
+            rest = t[len(prefix):].partition(":")[2]
+            path_str, _, prop = rest.partition(":")
+            last = testid_path_string_to_list(path_str)[-1:]
+            if last:
+                field = _humanize_segment(last[0])
+            elif prefix in ("remove-child-text-", "rename-child-text-"):
+                field = "the field with the empty name"
+            else:
+                field = "the top level"
+            if prefix == "add-child-text-":
+                return 'Add a new field (not in the schema)' if prop == "*" else f'Add "{prop}"' if prop else "Add a new field"
+            verb = {"edit-text-": "Change", "change-type-text-": "Change the type of",
+                    "remove-child-text-": "Delete", "rename-child-text-": "Rename",
+                    "add-array-item-text-": "Add a new item to", "remove-array-item-text-": "Delete"}[prefix]
+            return f'{verb} "{field}"{current}'
+        return self.human_label
+
     @property
     def human_label(self) -> str:
         if self.testid.startswith("input-string-"):
@@ -141,6 +215,8 @@ class ElementDescriptor:
             return f'Rename "{humanize_path(prop)}"'
         if self.testid.startswith("remove-property-"):
             prop = self.testid[len("remove-property-"):]
+            if not prop:
+                return 'Delete the field with the empty name'
             return f'Delete "{humanize_path(prop)}"'
         if self.testid == "mode-active-false":
             return "Switch between Data and Schema"
@@ -175,12 +251,13 @@ class ElementDescriptor:
             mode_and_path = self.testid[len("change-type-text-"):]
             mode_str, _, path_str = mode_and_path.partition(":")
             mode_label = "in the Data section" if mode_str == "dataEditor" else "in the Schema section"
-            return f'Change what kind of thing "{humanize_path(path_str)}" is {mode_label} — it\'s currently {self.label}'
+            return f'Change the type of "{humanize_path(path_str)}" {mode_label} — it\'s currently {self.label}'
         if self.testid.startswith("remove-child-text-"):
             mode_and_path = self.testid[len("remove-child-text-"):]
             mode_str, _, path_str = mode_and_path.partition(":")
             mode_label = "in the Data section" if mode_str == "dataEditor" else "in the Schema section"
-            return f'Delete "{humanize_path(path_str)}" {mode_label} — it\'s currently {self.label}'
+            target = humanize_path(path_str) if path_str else "the field with the empty name"
+            return f'Delete "{target}" {mode_label} — it\'s currently {self.label}'
         if self.testid.startswith("rename-child-text-"):
             mode_and_path = self.testid[len("rename-child-text-"):]
             mode_str, _, path_str = mode_and_path.partition(":")

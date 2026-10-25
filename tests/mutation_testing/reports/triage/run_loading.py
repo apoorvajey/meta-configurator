@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from tests.mutation_testing.runs.repair_view import expand_repairs
 from tests.mutation_testing.runs.run_layout import keep_effective, run_dir_of, run_id_of
 
 
@@ -96,7 +97,7 @@ def load_run(path: Path, cfg: dict) -> Run:
     steps = data.get("steps", []) if isinstance(data, dict) else data
     if not isinstance(steps, list):
         raise ValueError(f"expected a list of steps, got {type(steps).__name__}")
-    steps = [s if isinstance(s, dict) else {} for s in steps]
+    steps = expand_repairs([s if isinstance(s, dict) else {} for s in steps])   # a repair is a step of its own in the reports
     resolved = meta.get("resolved_settings", {}) or {}
     run_id = str(resolved.get("run_id") or path.parent.name)
     loc = run_dir_of(path)
@@ -125,7 +126,7 @@ def _rel(path: Path) -> str:
 def find_run_logs(run: Run, cfg: dict) -> list[Path]:
     """Files of the mutation loop's own log for this run (e.g. mutation_log/<run id>/...)."""
     rl = cfg["run_logs"]
-    roots = [Path(rl["root"]), run.path.parent.parent.parent / rl["root"]]   # older layout: mutation_logs/<run_id>/
+    roots = [Path(rl["root"]), run.path.parent.parent.parent / rl["root"]]
     # tests/output/runs/<run_id>/: mutation_log.html next to the history (a replay's own replay_log.html first)
     folders = [run.path.parent]
     loc = run_dir_of(run.path)

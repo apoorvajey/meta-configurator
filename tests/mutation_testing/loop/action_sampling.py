@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+from dataclasses import dataclass
 from tests.mutation_testing.discovery.element import ElementDescriptor
 from tests.mutation_testing.discovery.paths import testid_path_string_to_list
 from tests.mutation_testing.loop.action_weights import (
@@ -17,10 +18,14 @@ from tests.mutation_testing.loop.action_weights import (
 # Locality bias: the Mode, View and element picks favour the area the loop worked in recently, like a
 # user who stays in one part of the document for a few actions. The action type is not biased, since the
 # kind of action is not spatial.
-_LOCALITY_DECAY_STEPS = 4              # steps without reinforcement until the focus expires
-_LOCALITY_MODE_VIEW_MULTIPLIER = 4.0   # max multiplier on the focus Mode/View weight (at age 0)
-_LOCALITY_ELEMENT_MULTIPLIER = 6.0     # max multiplier per shared path segment at the element pick
-_LOCALITY_MIN_SHARED_DEPTH = 1         # shared leading segments needed to count as "nearby"
+# The parameters are set by the "locality_bias" block of run_config.json (see profile_config.resolve_locality_config);
+# the field defaults below are the fallback when that block is missing or invalid.
+@dataclass(frozen=True)
+class LocalityConfig:
+    decay_steps: int = 4                 # steps without reinforcement until the focus expires
+    mode_view_multiplier: float = 4.0    # max multiplier on the focus Mode/View weight (at age 0)
+    element_multiplier: float = 6.0      # max multiplier per shared path segment at the element pick
+    min_shared_depth: int = 1            # shared leading segments needed to count as "nearby"
 
 
 # Text View testids are "{prefix}{mode}:{path}" (add-child-text adds ":{prop_name}"); GUI View testids
@@ -78,14 +83,14 @@ def _subtree_proximity(path_a: list, path_b: list) -> int:
 
 def _locality_strength(age: int, decay_steps: int) -> float:
     """Linear fade from 1.0 (just touched) to 0.0 (age >= decay_steps)."""
-    if age >= decay_steps:
+    if decay_steps <= 0 or age >= decay_steps:
         return 0.0
     return 1.0 - (age / decay_steps)
 
 
 def _update_focus(
     current_mode: str | None, current_view: str | None, current_path: list | None, current_age: int,
-    touched_key: tuple[str, str, list] | None,
+    touched_key: tuple[str, str, list] | None, locality: LocalityConfig,
 ) -> tuple[str | None, str | None, list | None, int]:
     """Locality-focus transition, called once per successful step with that step's focus key.
 
@@ -99,9 +104,9 @@ def _update_focus(
         if (current_path is not None
                 and touched_mode == current_mode
                 and touched_view == current_view
-                and _subtree_proximity(current_path, touched_path) >= _LOCALITY_MIN_SHARED_DEPTH):
+                and _subtree_proximity(current_path, touched_path) >= locality.min_shared_depth):
             return touched_mode, touched_view, touched_path, 0
-        if current_path is None or current_age >= _LOCALITY_DECAY_STEPS:
+        if current_path is None or current_age >= locality.decay_steps:
             return touched_mode, touched_view, touched_path, 0
 
     if current_path is not None:
@@ -109,11 +114,29 @@ def _update_focus(
     return current_mode, current_view, current_path, current_age
 
 
+def followup_element(elements: list[ElementDescriptor], testid: str | None) -> ElementDescriptor | None:
+    """The element to run as a planned follow-up step: the discovered, directly clickable element with this testid,
+    or None (the loop then samples normally)."""
+    if not testid:
+        return None
+    return next((e for e in elements if e.testid == testid and not e.needs_expand), None)
+
+
+def expand_first(el: ElementDescriptor, elements: list[ElementDescriptor]) -> tuple[ElementDescriptor, str | None]:
+    """(element to run now, testid to run on the next step). A virtual element (needs_expand) is replaced by the
+    expand step it needs, and its own testid becomes the follow-up; any other element is returned unchanged."""
+    if not el.needs_expand:
+        return el, None
+    expand = next((e for e in elements if e.testid == el.needs_expand), None)
+    return (expand, el.testid) if expand is not None else (el, None)
+
+
 def _weighted_sample(
     elements: list[ElementDescriptor], recent_testids: list[str] | None = None,
     focus_mode: str | None = None, focus_view: str | None = None,
     focus_path: list | None = None, focus_age: int = 0,
     pending_create: tuple[str, list] | None = None,
+    locality: LocalityConfig | None = None,
 ) -> ElementDescriptor:
     """Pick the next element: Mode, then View, then action type, then an element within that action type.
 
@@ -177,9 +200,10 @@ def _weighted_sample(
     if not mode_weights:
         return random.choice(elements)
 
-    locality_strength = _locality_strength(focus_age, _LOCALITY_DECAY_STEPS)
+    locality = locality or LocalityConfig()
+    locality_strength = _locality_strength(focus_age, locality.decay_steps)
     if locality_strength > 0 and focus_mode in mode_weights:
-        mode_weights[focus_mode] *= 1.0 + (_LOCALITY_MODE_VIEW_MULTIPLIER - 1.0) * locality_strength
+        mode_weights[focus_mode] *= 1.0 + (locality.mode_view_multiplier - 1.0) * locality_strength
 
     chosen_mode = random.choices(list(mode_weights.keys()), weights=list(mode_weights.values()), k=1)[0]
 
@@ -201,7 +225,7 @@ def _weighted_sample(
 
     # Only favour the focus View within the focus Mode ("Text View" differs between the two editors)
     if locality_strength > 0 and chosen_mode == focus_mode and focus_view in view_weights:
-        view_weights[focus_view] *= 1.0 + (_LOCALITY_MODE_VIEW_MULTIPLIER - 1.0) * locality_strength
+        view_weights[focus_view] *= 1.0 + (locality.mode_view_multiplier - 1.0) * locality_strength
 
     chosen_view = random.choices(list(view_weights.keys()), weights=list(view_weights.values()), k=1)[0]
 
@@ -231,8 +255,8 @@ def _weighted_sample(
         for c in candidates:
             c_key = _focus_key_for_element(c)
             depth = _subtree_proximity(focus_path, c_key[2]) if c_key is not None else 0
-            if depth >= _LOCALITY_MIN_SHARED_DEPTH:
-                weights.append(1.0 + (_LOCALITY_ELEMENT_MULTIPLIER - 1.0) * locality_strength * depth)
+            if depth >= locality.min_shared_depth:
+                weights.append(1.0 + (locality.element_multiplier - 1.0) * locality_strength * depth)
             else:
                 weights.append(1.0)
         return random.choices(candidates, weights=weights, k=1)[0]

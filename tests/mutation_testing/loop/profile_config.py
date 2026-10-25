@@ -1,5 +1,5 @@
 """Resolve config/run_config.json into the settings of a mutation-loop run: action-weights profile, schema/data pair,
-step count, screenshots, run mode and console verbosity. Each resolver falls back to a default and prints why on a
+step count, locality bias, loop limits, screenshots, run mode and console verbosity. Each resolver falls back to a default and prints why on a
 missing file, malformed JSON or a missing or unrecognised value, so a config typo never crashes a run. The accepted
 values are documented in the "_*" keys of run_config.json.
 """
@@ -11,7 +11,9 @@ import random
 import sys
 from pathlib import Path
 
+from tests.mutation_testing.loop.action_sampling import LocalityConfig
 from tests.mutation_testing.loop.action_weights import set_action_weights_profile
+from tests.mutation_testing.loop.loop_limits import LoopLimits
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config" / "run_config.json"
 
@@ -108,24 +110,35 @@ def resolve_num_steps(config: dict | None = None, default: int = 100) -> int:
     return n
 
 
-def resolve_screenshots(config: dict | None = None, default: bool = True) -> bool:
-    """Reads "screenshots". Falls back to `default` on a missing/non-boolean value."""
+SCREENSHOT_MODES = ("every_step", "on_failure", "off")
+
+
+def resolve_screenshots_mode(config: dict | None = None, default: str = "every_step") -> str:
+    """Reads "screenshots": "every_step" | "on_failure" | "off".
+
+    Older configs still work: true means every_step, false means off, and a true together with the old
+    "screenshots_failures_only": true means on_failure. Falls back to `default` on any other value.
+    """
     config = config if config is not None else load_run_config()
     val = config.get("screenshots", default)
-    if not isinstance(val, bool):
-        print(f"[config] Invalid screenshots value '{val}' — using default {default}")
-        return default
-    return val
+    if isinstance(val, bool):
+        if not val:
+            return "off"
+        return "on_failure" if config.get("screenshots_failures_only") is True else "every_step"
+    if isinstance(val, str) and val.strip().lower().replace("-", "_") in SCREENSHOT_MODES:
+        return val.strip().lower().replace("-", "_")
+    print(f"[config] Invalid screenshots value '{val}' (use {' | '.join(SCREENSHOT_MODES)}) — using {default}")
+    return default
+
+
+def resolve_screenshots(config: dict | None = None, default: bool = True) -> bool:
+    """Whether any screenshots are taken (the "screenshots" mode is not "off")."""
+    return resolve_screenshots_mode(config, "every_step" if default else "off") != "off"
 
 
 def resolve_screenshots_failures_only(config: dict | None = None, default: bool = False) -> bool:
-    """Reads "screenshots_failures_only": with screenshots on, only steps whose invariants failed get one."""
-    config = config if config is not None else load_run_config()
-    val = config.get("screenshots_failures_only", default)
-    if not isinstance(val, bool):
-        print(f"[config] Invalid screenshots_failures_only value '{val}' — using default {default}")
-        return default
-    return val
+    """Whether only failing steps (and the step before) are saved: the "screenshots" mode is "on_failure"."""
+    return resolve_screenshots_mode(config, "on_failure" if default else "every_step") == "on_failure"
 
 
 VERBOSE_ENV = "MT_VERBOSE"
@@ -164,6 +177,70 @@ def _resolve_probability(config: dict | None, key: str, default: float) -> float
         print(f"[config] Invalid {key} '{p}' — using default {default}")
         return default
     return float(p)
+
+
+def _resolve_block_value(block_name: str, block: dict, key: str, default, kind: type, minimum) -> int | float:
+    """One value of a run_config.json block: an int (kind=int) or a number (kind=float) >= `minimum`, else `default` with a message."""
+    val = block.get(key, default)
+    ok_type = (isinstance(val, int) and not isinstance(val, bool)) if kind is int \
+        else (isinstance(val, (int, float)) and not isinstance(val, bool))
+    if not ok_type or val < minimum:
+        print(f"[config] Invalid {block_name}.{key} '{val}' (need {kind.__name__} >= {minimum}) — using default {default}")
+        return default
+    return kind(val)
+
+
+def _resolve_locality_value(block: dict, key: str, default, kind: type, minimum) -> int | float:
+    """One "locality_bias" value (see _resolve_block_value)."""
+    return _resolve_block_value("locality_bias", block, key, default, kind, minimum)
+
+
+def resolve_locality_config(config: dict | None = None) -> LocalityConfig:
+    """The "locality_bias" block of run_config.json as a LocalityConfig; each value falls back to its default on its own.
+
+    Setting both multipliers to 1.0 switches the bias off (uniform choice within the weighted levels).
+    """
+    config = config if config is not None else load_run_config()
+    block = config.get("locality_bias") or {}
+    if not isinstance(block, dict):
+        print(f"[config] Invalid locality_bias '{block}' (need an object) — using defaults")
+        block = {}
+    d = LocalityConfig()
+    locality = LocalityConfig(
+        decay_steps=_resolve_locality_value(block, "decay_steps", d.decay_steps, int, 1),
+        mode_view_multiplier=_resolve_locality_value(block, "mode_view_multiplier", d.mode_view_multiplier, float, 1.0),
+        element_multiplier=_resolve_locality_value(block, "element_multiplier", d.element_multiplier, float, 1.0),
+        min_shared_depth=_resolve_locality_value(block, "min_shared_depth", d.min_shared_depth, int, 0),
+    )
+    print(f"[config] Applied locality bias: {locality}")
+    return locality
+
+
+def resolve_loop_limits(config: dict | None = None) -> LoopLimits:
+    """The "loop_limits" block of run_config.json as a LoopLimits; each value falls back to its default on its own.
+
+    max_stuck_steps = 0 never abandons a stuck run. max_lingering_invalid_episodes = 0 undoes every invalid schema at once.
+    """
+    config = config if config is not None else load_run_config()
+    block = config.get("loop_limits") or {}
+    if not isinstance(block, dict):
+        print(f"[config] Invalid loop_limits '{block}' (need an object) — using defaults")
+        block = {}
+    d = LoopLimits()
+
+    def val(key: str, default: int, minimum: int) -> int:
+        return _resolve_block_value("loop_limits", block, key, default, int, minimum)
+
+    limits = LoopLimits(
+        max_undo_attempts=val("max_undo_attempts", d.max_undo_attempts, 1),
+        unchanged_undo_limit=val("unchanged_undo_limit", d.unchanged_undo_limit, 1),
+        max_stuck_steps=val("max_stuck_steps", d.max_stuck_steps, 0),
+        max_lingering_invalid_episodes=val("max_lingering_invalid_episodes", d.max_lingering_invalid_episodes, 0),
+        max_steps_in_invalid_schema=val("max_steps_in_invalid_schema", d.max_steps_in_invalid_schema, 1),
+        max_recovery_undos=val("max_recovery_undos", d.max_recovery_undos, 1),
+    )
+    print(f"[config] Applied loop limits: {limits}")
+    return limits
 
 
 def apply_configured_valid_probability(config: dict | None = None) -> None:

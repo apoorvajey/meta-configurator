@@ -81,6 +81,14 @@
       "reason": "Compares the GUI with an error shown in the Text View, which is not in the snapshots."
     },
     {
+      "id": "INV-D7",
+      "name": "Text View markers match schema violations",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/text_view_validation_matches_schema.py",
+      "expressible": false,
+      "reason": "Compares the Text View error markers with the schema violations; the markers are not in the snapshots."
+    },
+    {
       "id": "INV-S0",
       "name": "Schema state is an object",
       "kind": "state",
@@ -141,64 +149,6 @@
       "source": "tests/invariants/state/any_editor/gui_not_stuck_loading.py",
       "expressible": false,
       "reason": "Loading state is not part of the snapshots."
-    },
-    {
-      "id": "TEMP-EDIT-01",
-      "name": "edit-field keeps schema.properties keys",
-      "kind": "temporal",
-      "source": "tests/invariants/temporal/edit/schema_properties_unchanged.py",
-      "expressible": true,
-      "template": "stability",
-      "params": {
-        "facet": "schema.properties"
-      },
-      "categories": [
-        "edit_field"
-      ],
-      "implied_by": [
-        {
-          "template": "stability",
-          "params": {
-            "facet": "schema"
-          }
-        }
-      ]
-    },
-    {
-      "id": "TEMP-EDIT-02",
-      "name": "edit-field in the Data Editor keeps the schema",
-      "kind": "temporal",
-      "source": "tests/invariants/temporal/edit/schema_unchanged_in_data_editor.py",
-      "expressible": true,
-      "template": "stability",
-      "params": {
-        "facet": "schema"
-      },
-      "categories": [
-        "edit_field@data"
-      ]
-    },
-    {
-      "id": "TEMP-EDIT-03",
-      "name": "edit-field keeps the length of schema.required",
-      "kind": "temporal",
-      "source": "tests/invariants/temporal/edit/required_count_unchanged.py",
-      "expressible": true,
-      "template": "stability",
-      "params": {
-        "facet": "schema.required"
-      },
-      "categories": [
-        "edit_field"
-      ],
-      "implied_by": [
-        {
-          "template": "stability",
-          "params": {
-            "facet": "schema"
-          }
-        }
-      ]
     },
     {
       "id": "TEMP-EXPAND-01",
@@ -381,7 +331,7 @@
       ]
     },
     {
-      "id": "NEW-07",
+      "id": "TEMP-ANY-01",
       "name": "The schema state stays an object after any action",
       "kind": "temporal",
       "source": "tests/invariants/temporal/schema_stays_object.py",

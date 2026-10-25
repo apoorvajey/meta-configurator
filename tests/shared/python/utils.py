@@ -5,7 +5,10 @@ Imports only the standard library and Playwright, never anything inside tests/.
 
 from __future__ import annotations
 from enum import Enum
+import json
+import os
 import platform
+from pathlib import Path
 from playwright.sync_api import Page
 
 
@@ -44,7 +47,39 @@ MODE_MENU_TITLES = {
 }
 
 
-LIVE_BASE_URL = "https://www.metaconfigurator.org"
+HOSTED_URL = "https://www.metaconfigurator.org"
+LOCAL_URL = "http://localhost:5173"
+_RUN_CONFIG = Path(__file__).resolve().parents[2] / "mutation_testing" / "config" / "run_config.json"
+
+
+def configured_local_url() -> str:
+    """"local_url" of run_config.json, else http://localhost:5173."""
+    try:
+        config = json.loads(_RUN_CONFIG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return LOCAL_URL
+    return str(config.get("local_url") or LOCAL_URL).strip()
+
+
+def _app_url() -> str:
+    """The app the tests run against. Order: the environment variable METACONFIGURATOR_URL (CI sets it), then "app" in
+    run_config.json ("hosted", "local" = "local_url", default http://localhost:5173, or a full URL), else the hosted site."""
+    env = os.environ.get("METACONFIGURATOR_URL")
+    if env:
+        return env
+    try:
+        config = json.loads(_RUN_CONFIG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return HOSTED_URL
+    app = str(config.get("app") or "hosted").strip()
+    if app == "local":
+        return configured_local_url()
+    if app.startswith(("http://", "https://")):
+        return app
+    return HOSTED_URL
+
+
+LIVE_BASE_URL = _app_url()
 
 def open_app(
     page: Page,
