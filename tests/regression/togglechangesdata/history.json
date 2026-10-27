@@ -1,0 +1,244 @@
+{
+  "meta": {
+    "schema_option_name": "Strenda Schema",
+    "data_file": "strenda_data.json",
+    "run_config": {
+      "_comment": "Edit only the lines WITHOUT a leading underscore. Lines starting with _ are notes and are ignored.",
+      "app": "hosted",
+      "_app": "Which version of MetaConfigurator the tests run against: hosted (the website) | local (the dev server, see local_url) | a full URL such as http://localhost:5174. Applies to the loop and replay. The environment variable METACONFIGURATOR_URL overrides it (CI uses that).",
+      "local_url": "http://localhost:5173",
+      "_local_url": "Address of the local dev server, used when app is local. Start it first: cd meta_configurator, npm run dev.",
+      "action_weights_profile": "uniform",
+      "_action_weights_profile_options": "default | textview_focus | schema_focus | data_focus | uniform | random (random = one of the others, picked per run)",
+      "schema": "Strenda Schema",
+      "_schema_options": "random | Autonomous Vehicle Schema | Feature Testing Schema | Strenda Schema | EnzymeML Schema",
+      "num_steps": 40,
+      "_num_steps": "steps per run (whole number, 1 or more)",
+      "valid_value_probability": 0.5,
+      "_valid_value_probability": "0.0 to 1.0: chance a GUI value is valid (1.0 = always valid, 0.0 = always invalid)",
+      "text_view_valid_value_probability": 0.5,
+      "_text_view_valid_value_probability": "same, for Text View edits only",
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "_locality_bias": "Makes the sampler keep working in the same area (same mode, view and part of the document) for a few steps instead of jumping around. To switch it off, set both multipliers to 1.0.",
+      "_locality_bias.decay_steps": "How many steps the sampler stays focused on an area. 4 = about 4 steps, with the pull getting weaker each step. Whole number, 1 or more.",
+      "_locality_bias.mode_view_multiplier": "How strongly it prefers the same mode/view as recently. 4.0 = up to 4 times as likely. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.element_multiplier": "How strongly it prefers elements near the recent one in the document. 6.0 = a strong preference. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.min_shared_depth": "How much of the path two elements must share to count as 'near'. 1 = the first path segment must match. 0 = everything counts as near. Whole number, 0 or more.",
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "_loop_limits": "Limits for how a run repairs failures and when it gives up. They change what a run does, so they are saved with the run.",
+      "_loop_limits.max_undo_attempts": "Most undo clicks in one walk-back to the last good state. If that state is further back than this many edits, no repair is tried. Whole number, 1 or more.",
+      "_loop_limits.unchanged_undo_limit": "A walk-back stops after this many undo clicks in a row that change nothing (nothing left to undo). 2 = stop after two. Whole number, 1 or more.",
+      "_loop_limits.max_stuck_steps": "A run is abandoned after this many steps in a row that fail the same invariant. 0 = never abandon. Not used in interactive runs. Whole number, 0 or more.",
+      "_loop_limits.max_lingering_invalid_episodes": "How many times per run the edited schema may stay invalid for a few steps before it is undone. 0 = every invalid schema is undone right after the step that caused it. Whole number, 0 or more.",
+      "_loop_limits.max_steps_in_invalid_schema": "For those episodes: how many further steps the schema may stay invalid before it is undone. Whole number, 1 or more.",
+      "_loop_limits.max_recovery_undos": "Most undo clicks in the Schema Editor when recovering from an invalid schema. If the schema is still invalid after that, the undos are redone and recovery pauses until the schema is valid again. Whole number, 1 or more.",
+      "screenshots": "on_failure",
+      "_screenshots": "every_step | on_failure | off",
+      "run_mode": "background",
+      "_run_mode": "background | watch_failures | interactive | null (null = ask at the terminal each run)"
+    },
+    "resolved_settings": {
+      "run_id": "20261025_153033",
+      "run_mode": "background",
+      "interactive": false,
+      "pause_on_failure": false,
+      "schema_option_name": "Strenda Schema",
+      "data_file": "strenda_data.json",
+      "n_steps": 40,
+      "screenshots_enabled": true,
+      "screenshots_failures_only": true,
+      "weights_profile_file": "action_weights_uniform.json",
+      "valid_value_probability": 0.5,
+      "text_view_valid_value_probability": 0.5,
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "stopped_early": null
+    },
+    "reduced": {
+      "target_invariant": "INF-6D118B0D",
+      "source_steps": 40,
+      "kept_steps": 2,
+      "confirmed_with_all_invariants": true,
+      "replays": 4,
+      "seconds": 82,
+      "bug": "toggle-changes-data"
+    }
+  },
+  "steps": [
+    {
+      "action_id": "dynamic:add-item-experiments",
+      "description": "click add-item-experiments",
+      "testid": "add-item-experiments",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": true,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "span",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 4020411315,
+      "step": 1,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ADD-01",
+        "TEMP-ANY-01",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-4E7D96FC",
+        "INF-E8C6D1CF",
+        "INF-7986CA04",
+        "INF-6F5A8574"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [],
+      "failure_evidence": [],
+      "facet_hashes": {
+        "de_data": "08d73b28e8",
+        "de_schema": "47d6fba6f7",
+        "se_schema": "aec0f2a854",
+        "se_data": "47d6fba6f7",
+        "de_text": "fc2d7d0a4a",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "observed_value": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026",
+      "observed_effect": [
+        {
+          "path": "experiments",
+          "before": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026",
+          "after": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026"
+        }
+      ],
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:format-selector",
+      "description": "select format-selector",
+      "testid": "format-selector",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": false,
+      "el_mode": "dataEditor",
+      "el_interaction": "select",
+      "el_tag": "div",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 3050119342,
+      "step": 2,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ANY-01",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-E8C6D1CF",
+        "INF-6D118B0D",
+        "INF-A9B85B97",
+        "INF-49A6ECBA"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [
+        "INF-6D118B0D after format_toggle@data: data is unchanged"
+      ],
+      "failure_evidence": [
+        {
+          "id": "INF-6D118B0D",
+          "message": "after format_toggle@data: data is unchanged - violated (1/1 observation(s)) [accepted; not promotable in the latest mining only because some dataset has too few observations (the observed datasets clear the threshold); minimum support 100%] [accepted 2026-10-10 14:08]",
+          "paths": [],
+          "details": {
+            "violations": [
+              {
+                "changed_fields": 1,
+                "changes": [
+                  {
+                    "path": "experiments[1].id",
+                    "before": "<missing>",
+                    "after": "\"\""
+                  }
+                ]
+              }
+            ],
+            "asserts": "data is deep-equal before and after the step",
+            "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+          },
+          "evidence": [
+            "rule=INF-6D118B0D",
+            "action=format-selector",
+            "category=format_toggle@data",
+            "asserts: data is deep-equal before and after the step"
+          ]
+        }
+      ],
+      "facet_hashes": {
+        "de_data": "3fe39334d4",
+        "de_schema": "47d6fba6f7",
+        "se_schema": "aec0f2a854",
+        "se_data": "47d6fba6f7",
+        "de_text": "54980ce902",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "observed_value": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026",
+      "observed_effect": [
+        {
+          "path": "experiments",
+          "before": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026",
+          "after": "[{\"id\": \"experiment-001\", \"methodology\": \"Steady-state kinetics measured via UV\u2026"
+        }
+      ],
+      "schema_valid_after": true
+    }
+  ]
+}

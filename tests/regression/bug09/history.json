@@ -1,0 +1,886 @@
+{
+  "meta": {
+    "schema_option_name": "Autonomous Vehicle Schema",
+    "data_file": "self_driving_vehicle_data.json",
+    "run_config": {
+      "_comment": "Edit only the lines WITHOUT a leading underscore. Lines starting with _ are notes and are ignored.",
+      "action_weights_profile": "random",
+      "_action_weights_profile_options": "default | textview_focus | schema_focus | data_focus | random",
+      "schema": "Autonomous Vehicle Schema",
+      "_schema_options": "random | Autonomous Vehicle Schema | Feature Testing Schema | Strenda Schema | EnzymeML Schema",
+      "num_steps": 60,
+      "_num_steps": "steps per run (whole number, 1 or more)",
+      "valid_value_probability": 0.5,
+      "_valid_value_probability": "0.0 to 1.0: chance a GUI value is valid (1.0 = always valid, 0.0 = always invalid)",
+      "text_view_valid_value_probability": 0.5,
+      "_text_view_valid_value_probability": "same, for Text View edits only",
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "_locality_bias": "Makes the sampler keep working in the same area (same mode, view and part of the document) for a few steps instead of jumping around. To switch it off, set both multipliers to 1.0.",
+      "_locality_bias.decay_steps": "How many steps the sampler stays focused on an area. 4 = about 4 steps, with the pull getting weaker each step. Whole number, 1 or more.",
+      "_locality_bias.mode_view_multiplier": "How strongly it prefers the same mode/view as recently. 4.0 = up to 4 times as likely. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.element_multiplier": "How strongly it prefers elements near the recent one in the document. 6.0 = a strong preference. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.min_shared_depth": "How much of the path two elements must share to count as 'near'. 1 = the first path segment must match. 0 = everything counts as near. Whole number, 0 or more.",
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "_loop_limits": "Limits for how a run repairs failures and when it gives up. They change what a run does, so they are saved with the run.",
+      "_loop_limits.max_undo_attempts": "Most undo clicks in one walk-back to the last good state. If that state is further back than this many edits, no repair is tried. Whole number, 1 or more.",
+      "_loop_limits.unchanged_undo_limit": "A walk-back stops after this many undo clicks in a row that change nothing (nothing left to undo). 2 = stop after two. Whole number, 1 or more.",
+      "_loop_limits.max_stuck_steps": "A run is abandoned after this many steps in a row that fail the same invariant. 0 = never abandon. Not used in interactive runs. Whole number, 0 or more.",
+      "_loop_limits.max_lingering_invalid_episodes": "How many times per run the edited schema may stay invalid for a few steps before it is undone. 0 = every invalid schema is undone right after the step that caused it. Whole number, 0 or more.",
+      "_loop_limits.max_steps_in_invalid_schema": "For those episodes: how many further steps the schema may stay invalid before it is undone. Whole number, 1 or more.",
+      "_loop_limits.max_recovery_undos": "Most undo clicks in the Schema Editor when recovering from an invalid schema. If the schema is still invalid after that, the undos are redone and recovery pauses until the schema is valid again. Whole number, 1 or more.",
+      "screenshots": "on_failure",
+      "_screenshots": "every_step | on_failure | off",
+      "run_mode": "interactive",
+      "_run_mode": "background | watch_failures | interactive | null (null = ask at the terminal each run)"
+    },
+    "resolved_settings": {
+      "run_id": "20261020_055127",
+      "run_mode": "interactive",
+      "interactive": true,
+      "pause_on_failure": true,
+      "schema_option_name": "Autonomous Vehicle Schema",
+      "data_file": "self_driving_vehicle_data.json",
+      "n_steps": 60,
+      "screenshots_enabled": true,
+      "screenshots_failures_only": true,
+      "weights_profile_file": "action_weights_random.json",
+      "valid_value_probability": 0.5,
+      "text_view_valid_value_probability": 0.5,
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "stopped_early": null
+    },
+    "reduced": {
+      "target_invariant": "INV-D7",
+      "source_steps": 14,
+      "kept_steps": 5,
+      "confirmed_with_all_invariants": true,
+      "replays": 17,
+      "seconds": 381,
+      "bug": "BUG-09"
+    }
+  },
+  "steps": [
+    {
+      "action_id": "dynamic:mode-active-false",
+      "description": "click mode-active-false",
+      "testid": "mode-active-false",
+      "value": "",
+      "mode": "schemaEditor",
+      "action_succeeded": true,
+      "passed": false,
+      "role": null,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "a",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 1321767623,
+      "step": 1,
+      "checked_invariants": [
+        "INV-S0",
+        "INV-S1",
+        "INV-S2",
+        "INV-S3",
+        "INV-S4",
+        "INV-G1",
+        "INV-G2"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [
+        "INV-G1 No uncaught app exception"
+      ],
+      "failure_evidence": [
+        {
+          "id": "INV-G1",
+          "message": "app threw 1 uncaught exception(s): Cannot read properties of undefined (reading 'dimensions')",
+          "paths": [],
+          "details": {
+            "app_errors": [
+              "Cannot read properties of undefined (reading 'dimensions')"
+            ],
+            "count": 1
+          },
+          "evidence": [
+            "uncaught: Cannot read properties of undefined (reading 'dimensions')"
+          ]
+        }
+      ],
+      "facet_hashes": {
+        "de_data": "1519038704",
+        "de_schema": "ce8a9c1cd7",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "ce8a9c1cd7",
+        "de_text": "0de3a0b84e",
+        "se_text": "fc95b2af24"
+      },
+      "input_value": null,
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:add-item-required",
+      "description": "click add-item-required",
+      "testid": "add-item-required",
+      "value": "",
+      "mode": "schemaEditor",
+      "action_succeeded": true,
+      "passed": true,
+      "role": null,
+      "el_mode": "schemaEditor",
+      "el_interaction": "click",
+      "el_tag": "span",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 3976839172,
+      "step": 2,
+      "checked_invariants": [
+        "INV-S0",
+        "INV-S1",
+        "INV-S2",
+        "INV-S3",
+        "INV-S4",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ADD-01",
+        "TEMP-ADD-02",
+        "TEMP-ADD-03",
+        "TEMP-ANY-01",
+        "INF-B559BE98",
+        "INF-C8939CA0"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [],
+      "failure_evidence": [],
+      "facet_hashes": {
+        "de_data": "33779b140b",
+        "de_schema": "f7e6ec523f",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "f7e6ec523f",
+        "de_text": "0de3a0b84e",
+        "se_text": "8390510e2c"
+      },
+      "input_value": null,
+      "observed_value": "[\"summit\"]",
+      "observed_effect": [
+        {
+          "path": "required",
+          "before": "\"<missing>\"",
+          "after": "[\"summit\"]"
+        }
+      ],
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:mode-active-false",
+      "description": "click mode-active-false",
+      "testid": "mode-active-false",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": false,
+      "role": null,
+      "el_mode": "schemaEditor",
+      "el_interaction": "click",
+      "el_tag": "a",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 1917924189,
+      "step": 3,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ANY-01",
+        "TEMP-MODE-01",
+        "TEMP-MODE-02",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-CE20C70A",
+        "INF-F4BD449D",
+        "INF-25729BD8",
+        "INF-E8C6D1CF"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [
+        "INV-D7 Text View markers match schema violations"
+      ],
+      "failure_evidence": [
+        {
+          "id": "INV-D7",
+          "message": "0 stale marker(s), 2 missing marker(s)",
+          "paths": [],
+          "details": {
+            "stale_markers": [],
+            "missing_markers": [
+              {
+                "keyword": "additionalProperties",
+                "path": "",
+                "message_start": "must NOT have additional properties"
+              },
+              {
+                "keyword": "additionalProperties",
+                "path": "/summit",
+                "message_start": "must NOT have additional properties"
+              }
+            ],
+            "gutter_error_cells": 0,
+            "text_view": {
+              "SimulationName": "Sim_UrbanCommute2024",
+              "SelfDrivingVehicle": {
+                "StartingLocation": {
+                  "x": 12.5,
+                  "y": 48.3
+                },
+                "Destination": {
+                  "x": 98.7,
+                  "y": 112.4
+                },
+                "PlanningAlgorithm": "A* search",
+                "VehicleType": "Level 4",
+                "PassengerCapacity": 6,
+                "MaxSpeed": 120,
+                "is4-Wheel-Drive": true,
+                "Sensors": [
+                  {
+                    "name": "Sensor01",
+                    "type": "lidar",
+                    "range": 400,
+                    "position": {
+                      "x": 0,
+                      "y": 2.5
+                    }
+                  },
+                  {
+                    "name": "Sensor02",
+                    "type": "radar",
+                    "range": 250,
+                    "position": {
+                      "x": 1.2,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "name": "Sensor03",
+                    "type": "ultrasonic",
+                    "range": 50,
+                    "position": {
+                      "x": -1.2,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "name": "Sensor04",
+                    "type": "lidar",
+                    "range": 300,
+                    "position": {
+                      "x": 0,
+                      "y": -2.5
+                    }
+                  }
+                ]
+              },
+              "Environment": {
+                "Weather": "cloudy",
+                "Temperature": 18.5,
+                "Humidity": 72
+              },
+              "Waypoints": {
+                "Alpha": {
+                  "point": {
+                    "x": 12.5,
+                    "y": 48.3
+                  },
+                  "connectedWaypoints": [
+                    "Beta",
+                    "Gamma"
+                  ],
+                  "waypointType": "street"
+                },
+                "Beta": {
+                  "point": {
+                    "x": 35,
+                    "y": 60
+                  },
+                  "connectedWaypoints": [
+                    "Alpha",
+                    "Delta"
+                  ],
+                  "waypointType": "trafficLight"
+                },
+                "Gamma": {
+                  "point": {
+                    "x": 20,
+                    "y": 75
+                  },
+                  "connectedWaypoints": [
+                    "Alpha",
+                    "Delta"
+                  ],
+                  "waypointType": "pedestrianCrossing"
+                },
+                "Delta": {
+                  "point": {
+                    "x": 55,
+                    "y": 80
+                  },
+                  "connectedWaypoints": [
+                    "Beta",
+                    "Gamma",
+                    "Epsilon"
+                  ],
+                  "waypointType": "stopSign"
+                },
+                "Epsilon": {
+                  "point": {
+                    "x": 80,
+                    "y": 95
+                  },
+                  "connectedWaypoints": [
+                    "Delta",
+                    "Zeta"
+                  ],
+                  "waypointType": "street"
+                },
+                "Zeta": {
+                  "point": {
+                    "x": 98.7,
+                    "y": 112.4
+                  },
+                  "connectedWaypoints": [
+                    "Epsilon"
+                  ],
+                  "waypointType": "street"
+                }
+              },
+              "Vehicles": {
+                "car1": {
+                  "VehicleType": "car",
+                  "PathToDrive": [
+                    "Alpha",
+                    "Beta",
+                    "Delta",
+                    "Epsilon"
+                  ],
+                  "DrivingSpeed": 50,
+                  "IsElectric": true,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.3,
+                    "ReactionTime": 250,
+                    "Distraction": 0.1,
+                    "Fatigue": 0.05
+                  }
+                },
+                "car2": {
+                  "VehicleType": "car",
+                  "PathToDrive": [
+                    "Gamma",
+                    "Delta",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 40,
+                  "IsElectric": false,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.7,
+                    "ReactionTime": 400,
+                    "Distraction": 0.4,
+                    "Fatigue": 0.2
+                  }
+                },
+                "truck1": {
+                  "VehicleType": "truck",
+                  "PathToDrive": [
+                    "Beta",
+                    "Delta",
+                    "Epsilon",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 30,
+                  "IsElectric": false,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.2,
+                    "ReactionTime": 500,
+                    "Distraction": 0.15,
+                    "Fatigue": 0.6
+                  }
+                },
+                "bus1": {
+                  "VehicleType": "bus",
+                  "PathToDrive": [
+                    "Alpha",
+                    "Beta",
+                    "Gamma",
+                    "Delta",
+                    "Epsilon",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 40,
+                  "IsElectric": true,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.1,
+                    "ReactionTime": 300,
+                    "Distraction": 0.05,
+                    "Fatigue": 0.3
+                  }
+                }
+              },
+              "PedestrianGroups": [
+                {
+                  "Count": 5,
+                  "Path": [
+                    "Alpha",
+                    "Gamma",
+                    "Delta"
+                  ],
+                  "Speed": 4.5
+                },
+                {
+                  "Count": 12,
+                  "Path": [
+                    "Gamma",
+                    "Delta"
+                  ],
+                  "Speed": 3
+                },
+                {
+                  "Count": 2,
+                  "Path": [
+                    "Beta",
+                    "Delta",
+                    "Epsilon"
+                  ],
+                  "Speed": 6
+                }
+              ],
+              "SimulationSettings": {
+                "Duration": 30,
+                "TimeUnit": "minutes"
+              },
+              "": {},
+              "summit": {}
+            }
+          },
+          "evidence": [
+            "predicted 2 error(s), Text View shows 0 marker(s), 0 rendered gutter icon(s)",
+            "/: additionalProperties predicted, NO marker \u2717",
+            "/summit: additionalProperties predicted, NO marker \u2717"
+          ]
+        }
+      ],
+      "facet_hashes": {
+        "de_data": "33779b140b",
+        "de_schema": "f7e6ec523f",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "f7e6ec523f",
+        "de_text": "c559951f2b",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:remove-property-",
+      "description": "click remove-property-",
+      "testid": "remove-property-",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": true,
+      "role": null,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "button",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 2750262967,
+      "step": 4,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ANY-01",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-E8C6D1CF"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [],
+      "failure_evidence": [],
+      "facet_hashes": {
+        "de_data": "a54047afa8",
+        "de_schema": "f7e6ec523f",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "f7e6ec523f",
+        "de_text": "ed05341cdd",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "observed_value": "\"<missing>\"",
+      "observed_effect": [
+        {
+          "path": "",
+          "before": "{}",
+          "after": "\"<missing>\""
+        }
+      ],
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:undo",
+      "description": "click undo",
+      "testid": "undo",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": false,
+      "role": null,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "button",
+      "el_role": "",
+      "el_view": "GUI View",
+      "resolved_property_name": null,
+      "step_seed": 1317418381,
+      "step": 5,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ANY-01",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-0FD73F5A",
+        "INF-4C3FDC72",
+        "INF-E8C6D1CF"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [
+        "INV-D7 Text View markers match schema violations"
+      ],
+      "failure_evidence": [
+        {
+          "id": "INV-D7",
+          "message": "0 stale marker(s), 1 missing marker(s)",
+          "paths": [],
+          "details": {
+            "stale_markers": [],
+            "missing_markers": [
+              {
+                "keyword": "additionalProperties",
+                "path": "/summit",
+                "message_start": "must NOT have additional properties"
+              }
+            ],
+            "gutter_error_cells": 1,
+            "text_view": {
+              "SimulationName": "Sim_UrbanCommute2024",
+              "SelfDrivingVehicle": {
+                "StartingLocation": {
+                  "x": 12.5,
+                  "y": 48.3
+                },
+                "Destination": {
+                  "x": 98.7,
+                  "y": 112.4
+                },
+                "PlanningAlgorithm": "A* search",
+                "VehicleType": "Level 4",
+                "PassengerCapacity": 6,
+                "MaxSpeed": 120,
+                "is4-Wheel-Drive": true,
+                "Sensors": [
+                  {
+                    "name": "Sensor01",
+                    "type": "lidar",
+                    "range": 400,
+                    "position": {
+                      "x": 0,
+                      "y": 2.5
+                    }
+                  },
+                  {
+                    "name": "Sensor02",
+                    "type": "radar",
+                    "range": 250,
+                    "position": {
+                      "x": 1.2,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "name": "Sensor03",
+                    "type": "ultrasonic",
+                    "range": 50,
+                    "position": {
+                      "x": -1.2,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "name": "Sensor04",
+                    "type": "lidar",
+                    "range": 300,
+                    "position": {
+                      "x": 0,
+                      "y": -2.5
+                    }
+                  }
+                ]
+              },
+              "Environment": {
+                "Weather": "cloudy",
+                "Temperature": 18.5,
+                "Humidity": 72
+              },
+              "Waypoints": {
+                "Alpha": {
+                  "point": {
+                    "x": 12.5,
+                    "y": 48.3
+                  },
+                  "connectedWaypoints": [
+                    "Beta",
+                    "Gamma"
+                  ],
+                  "waypointType": "street"
+                },
+                "Beta": {
+                  "point": {
+                    "x": 35,
+                    "y": 60
+                  },
+                  "connectedWaypoints": [
+                    "Alpha",
+                    "Delta"
+                  ],
+                  "waypointType": "trafficLight"
+                },
+                "Gamma": {
+                  "point": {
+                    "x": 20,
+                    "y": 75
+                  },
+                  "connectedWaypoints": [
+                    "Alpha",
+                    "Delta"
+                  ],
+                  "waypointType": "pedestrianCrossing"
+                },
+                "Delta": {
+                  "point": {
+                    "x": 55,
+                    "y": 80
+                  },
+                  "connectedWaypoints": [
+                    "Beta",
+                    "Gamma",
+                    "Epsilon"
+                  ],
+                  "waypointType": "stopSign"
+                },
+                "Epsilon": {
+                  "point": {
+                    "x": 80,
+                    "y": 95
+                  },
+                  "connectedWaypoints": [
+                    "Delta",
+                    "Zeta"
+                  ],
+                  "waypointType": "street"
+                },
+                "Zeta": {
+                  "point": {
+                    "x": 98.7,
+                    "y": 112.4
+                  },
+                  "connectedWaypoints": [
+                    "Epsilon"
+                  ],
+                  "waypointType": "street"
+                }
+              },
+              "Vehicles": {
+                "car1": {
+                  "VehicleType": "car",
+                  "PathToDrive": [
+                    "Alpha",
+                    "Beta",
+                    "Delta",
+                    "Epsilon"
+                  ],
+                  "DrivingSpeed": 50,
+                  "IsElectric": true,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.3,
+                    "ReactionTime": 250,
+                    "Distraction": 0.1,
+                    "Fatigue": 0.05
+                  }
+                },
+                "car2": {
+                  "VehicleType": "car",
+                  "PathToDrive": [
+                    "Gamma",
+                    "Delta",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 40,
+                  "IsElectric": false,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.7,
+                    "ReactionTime": 400,
+                    "Distraction": 0.4,
+                    "Fatigue": 0.2
+                  }
+                },
+                "truck1": {
+                  "VehicleType": "truck",
+                  "PathToDrive": [
+                    "Beta",
+                    "Delta",
+                    "Epsilon",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 30,
+                  "IsElectric": false,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.2,
+                    "ReactionTime": 500,
+                    "Distraction": 0.15,
+                    "Fatigue": 0.6
+                  }
+                },
+                "bus1": {
+                  "VehicleType": "bus",
+                  "PathToDrive": [
+                    "Alpha",
+                    "Beta",
+                    "Gamma",
+                    "Delta",
+                    "Epsilon",
+                    "Zeta"
+                  ],
+                  "DrivingSpeed": 40,
+                  "IsElectric": true,
+                  "DriverBehavior": {
+                    "AggressivenessFactor": 0.1,
+                    "ReactionTime": 300,
+                    "Distraction": 0.05,
+                    "Fatigue": 0.3
+                  }
+                }
+              },
+              "PedestrianGroups": [
+                {
+                  "Count": 5,
+                  "Path": [
+                    "Alpha",
+                    "Gamma",
+                    "Delta"
+                  ],
+                  "Speed": 4.5
+                },
+                {
+                  "Count": 12,
+                  "Path": [
+                    "Gamma",
+                    "Delta"
+                  ],
+                  "Speed": 3
+                },
+                {
+                  "Count": 2,
+                  "Path": [
+                    "Beta",
+                    "Delta",
+                    "Epsilon"
+                  ],
+                  "Speed": 6
+                }
+              ],
+              "SimulationSettings": {
+                "Duration": 30,
+                "TimeUnit": "minutes"
+              },
+              "": {},
+              "summit": {}
+            }
+          },
+          "evidence": [
+            "predicted 2 error(s), Text View shows 1 marker(s), 1 rendered gutter icon(s)",
+            "/: additionalProperties -> marker 'must NOT have additional properties' (row 0) \u2713",
+            "/summit: additionalProperties predicted, NO marker \u2717"
+          ]
+        }
+      ],
+      "facet_hashes": {
+        "de_data": "33779b140b",
+        "de_schema": "f7e6ec523f",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "f7e6ec523f",
+        "de_text": "1883bae2e4",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "schema_valid_after": true
+    }
+  ]
+}

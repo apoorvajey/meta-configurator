@@ -1,0 +1,199 @@
+{
+  "meta": {
+    "schema_option_name": "Feature Testing Schema",
+    "data_file": "person_data.json",
+    "run_config": {
+      "_comment": "Edit only the lines WITHOUT a leading underscore. Lines starting with _ are notes and are ignored.",
+      "action_weights_profile": "schema_focus",
+      "_action_weights_profile_options": "default | textview_focus | schema_focus | data_focus | random",
+      "schema": "Feature Testing Schema",
+      "_schema_options": "random | Autonomous Vehicle Schema | Feature Testing Schema | Strenda Schema | EnzymeML Schema",
+      "num_steps": 60,
+      "_num_steps": "steps per run (whole number, 1 or more)",
+      "valid_value_probability": 0.5,
+      "_valid_value_probability": "0.0 to 1.0: chance a GUI value is valid (1.0 = always valid, 0.0 = always invalid)",
+      "text_view_valid_value_probability": 0.5,
+      "_text_view_valid_value_probability": "same, for Text View edits only",
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "_locality_bias": "Makes the sampler keep working in the same area (same mode, view and part of the document) for a few steps instead of jumping around. To switch it off, set both multipliers to 1.0.",
+      "_locality_bias.decay_steps": "How many steps the sampler stays focused on an area. 4 = about 4 steps, with the pull getting weaker each step. Whole number, 1 or more.",
+      "_locality_bias.mode_view_multiplier": "How strongly it prefers the same mode/view as recently. 4.0 = up to 4 times as likely. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.element_multiplier": "How strongly it prefers elements near the recent one in the document. 6.0 = a strong preference. 1.0 = no preference. Number, 1.0 or more.",
+      "_locality_bias.min_shared_depth": "How much of the path two elements must share to count as 'near'. 1 = the first path segment must match. 0 = everything counts as near. Whole number, 0 or more.",
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "_loop_limits": "Limits for how a run repairs failures and when it gives up. They change what a run does, so they are saved with the run.",
+      "_loop_limits.max_undo_attempts": "Most undo clicks in one walk-back to the last good state. If that state is further back than this many edits, no repair is tried. Whole number, 1 or more.",
+      "_loop_limits.unchanged_undo_limit": "A walk-back stops after this many undo clicks in a row that change nothing (nothing left to undo). 2 = stop after two. Whole number, 1 or more.",
+      "_loop_limits.max_stuck_steps": "A run is abandoned after this many steps in a row that fail the same invariant. 0 = never abandon. Not used in interactive runs. Whole number, 0 or more.",
+      "_loop_limits.max_lingering_invalid_episodes": "How many times per run the edited schema may stay invalid for a few steps before it is undone. 0 = every invalid schema is undone right after the step that caused it. Whole number, 0 or more.",
+      "_loop_limits.max_steps_in_invalid_schema": "For those episodes: how many further steps the schema may stay invalid before it is undone. Whole number, 1 or more.",
+      "_loop_limits.max_recovery_undos": "Most undo clicks in the Schema Editor when recovering from an invalid schema. If the schema is still invalid after that, the undos are redone and recovery pauses until the schema is valid again. Whole number, 1 or more.",
+      "screenshots": "on_failure",
+      "_screenshots": "every_step | on_failure | off",
+      "run_mode": "background",
+      "_run_mode": "background | watch_failures | interactive | null (null = ask at the terminal each run)"
+    },
+    "resolved_settings": {
+      "run_id": "20261020_220639",
+      "run_mode": "background",
+      "interactive": false,
+      "pause_on_failure": false,
+      "schema_option_name": "Feature Testing Schema",
+      "data_file": "person_data.json",
+      "n_steps": 60,
+      "screenshots_enabled": true,
+      "screenshots_failures_only": true,
+      "weights_profile_file": "action_weights_schema_focus.json",
+      "valid_value_probability": 0.5,
+      "text_view_valid_value_probability": 0.5,
+      "locality_bias": {
+        "decay_steps": 4,
+        "mode_view_multiplier": 4.0,
+        "element_multiplier": 6.0,
+        "min_shared_depth": 1
+      },
+      "loop_limits": {
+        "max_undo_attempts": 15,
+        "unchanged_undo_limit": 2,
+        "max_stuck_steps": 5,
+        "max_lingering_invalid_episodes": 0,
+        "max_steps_in_invalid_schema": 3,
+        "max_recovery_undos": 6
+      },
+      "stopped_early": "abandoned after step 7/60: 5 consecutive failing steps with the same failing invariant (INV-G2 GUI not stuck loading)"
+    },
+    "reduced": {
+      "target_invariant": "INV-G2",
+      "source_steps": 9,
+      "kept_steps": 2,
+      "confirmed_with_all_invariants": true,
+      "replays": 4,
+      "seconds": 124,
+      "bug": "BUG-04"
+    }
+  },
+  "steps": [
+    {
+      "action_id": "dynamic:remove-array-item-text-dataEditor:address.moreInfo.numbers[1]",
+      "description": "click remove-array-item-text-dataEditor:address.moreInfo.numbers[1]",
+      "testid": "remove-array-item-text-dataEditor:address.moreInfo.numbers[1]",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": true,
+      "role": null,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "div",
+      "el_role": "",
+      "el_view": "Text View",
+      "resolved_property_name": null,
+      "step_seed": 1932648565,
+      "step": 1,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [],
+      "failure_evidence": [],
+      "facet_hashes": {
+        "de_data": "87082f0ce6",
+        "de_schema": "370a929660",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "370a929660",
+        "de_text": "fb5675a395",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "observed_value": "[1, 3]",
+      "observed_effect": [
+        {
+          "path": "address.moreInfo.numbers",
+          "before": "[1, 2.5, 3]",
+          "after": "[1, 3]"
+        }
+      ],
+      "schema_valid_after": true
+    },
+    {
+      "action_id": "dynamic:change-type-text-dataEditor:address.moreInfo",
+      "description": "click change-type-text-dataEditor:address.moreInfo",
+      "testid": "change-type-text-dataEditor:address.moreInfo",
+      "value": "",
+      "mode": "dataEditor",
+      "action_succeeded": true,
+      "passed": true,
+      "role": null,
+      "el_mode": "dataEditor",
+      "el_interaction": "click",
+      "el_tag": "div",
+      "el_role": "",
+      "el_view": "Text View",
+      "resolved_property_name": null,
+      "step_seed": 2999862050,
+      "step": 2,
+      "checked_invariants": [
+        "INV-D1",
+        "INV-D3",
+        "INV-D4",
+        "INV-D5",
+        "INV-D6",
+        "INV-D7",
+        "INV-GUI-ERR-01",
+        "INV-G1",
+        "INV-G2",
+        "TEMP-ANY-01",
+        "INF-A28E3AE0",
+        "INF-4AA5865F",
+        "INF-DCE8AC44",
+        "INF-2AB96604",
+        "INF-9D1B4131",
+        "INF-9AE0A84E",
+        "INF-31BFD8F0",
+        "INF-13AE8612",
+        "INF-E8C6D1CF"
+      ],
+      "skipped_invariants": [],
+      "failed_invariants": [],
+      "failure_evidence": [],
+      "facet_hashes": {
+        "de_data": "bb046d4ed3",
+        "de_schema": "370a929660",
+        "se_schema": "e8fc5b9bc2",
+        "se_data": "370a929660",
+        "de_text": "149cd85952",
+        "se_text": "0de3a0b84e"
+      },
+      "input_value": null,
+      "observed_value": "null",
+      "observed_effect": [
+        {
+          "path": "address.moreInfo",
+          "before": "{\"info\": \"Rented since 2020\", \"neighborhood\": \"Mitte\", \"timeZone\": \"UTC\", \"bool\u2026",
+          "after": "null"
+        }
+      ],
+      "schema_valid_after": true
+    }
+  ]
+}
