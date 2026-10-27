@@ -40,7 +40,8 @@
     "INV-S1": "The Schema Text View parses to exactly the same object as the editor's internal schema",
     "INV-S2": "Every top-level schema key has a visible row in the Schema GUI",
     "INV-GUI-ERR-01": "A validation error shown in the Text View is also shown by the GUI View's error indicator",
-    "INV-G2": "The GUI is not stuck on a loading spinner"
+    "INV-G2": "The GUI is not stuck on a loading spinner",
+    "TEMP-RENAME-05": "Committing a property name that did not exist before never opens the Rename conflict dialog"
   },
   "retired_invariants": {
     "_comment": "Episodes that fail only these invariants are filtered out.",
@@ -50,17 +51,13 @@
     {
       "id": "BUG-04",
       "summary": "After a schema containing a null where a sub-schema is expected (e.g. additionalProperties: null, set by changing its type) is cleared and restored with undo/redo, the Schema GUI stays stuck on a loading spinner (the app logs 'Cannot read properties of null')",
-      "invariants": ["INV-G2"],
+      "invariants": ["INV-G2", "INF-4AA5865F", "INF-2AB96604"],
+      "only_with": {
+        "INF-2AB96604": ["INV-G2", "INF-4AA5865F"]
+      },
       "name": "GUI stuck on a loading spinner",
-      "where": "both"
-    },
-    {
-      "id": "BUG-05",
-      "summary": "A keyword with an invalid value (e.g. maxProperties: -1) on a schema node without 'type' is not flagged in the hosted version; the development branch flags it",
-      "invariants": ["INV-S4"],
-      "when_action_kinds": ["edit"],
-      "name": "Mismatch in validation icons",
-      "where": "schema"
+      "where": "both",
+      "found_by": "loop"
     },
     {
       "id": "BUG-01",
@@ -69,13 +66,16 @@
       "when_action_kinds": ["redo", "switch", "undo"],
       "where": "data",
       "name": "Data Text View format does not match selected format",
-      "group": "format selector out of sync"
+      "group": "format selector out of sync",
+      "found_by": "loop"
     },
     {
       "id": "BUG-03",
       "summary": "Schema Text View content is valid YAML but the format selector shows 'json'",
-      "invariants": ["INV-S1", "INF-B559BE98", "INF-13916E7A"],
-      "only_with": {"INF-13916E7A": ["INV-S1", "INF-B559BE98"]},
+      "invariants": ["INV-S1", "INF-13916E7A", "INF-B559BE98"],
+      "only_with": {
+        "INF-13916E7A": ["INV-S1", "INF-B559BE98"]
+      },
       "when_action_kinds": ["switch", "undo"],
       "name": "Schema Text View format does not match selected format",
       "where": "schema",
@@ -87,7 +87,8 @@
       "invariants": ["INV-G1"],
       "do_not_repair": true,
       "name": "App exception when switching to Schema mode",
-      "where": "both"
+      "where": "both",
+      "found_by": "loop"
     },
     {
       "id": "BUG-08",
@@ -97,26 +98,81 @@
       "when_action_kinds": ["switch"],
       "where": "data",
       "comment": "Repro: data that violates the schema (e.g. an extra top-level key) shows red markers; switch to Schema mode and back to Data mode without editing. Expected: same markers as before. Actual: none until the next edit; the GUI View keeps its red triangles. Runs: 20261021_175138 (Autonomous Vehicle) steps 3, 5, 10, 21; 20261020_231523 (Strenda) steps 47-48 after schema_undo then switch (unconfirmed variant). INV-D7 is in NO_REPAIR_INVARIANTS in repair.py.",
-      "added_at": "2026-10-23 21:31"
+      "added_at": "2026-10-23 21:31",
+      "found_by": "loop"
     },
     {
       "id": "BUG-09",
       "summary": "With additionalProperties: false at the top level, every extra key gets a 'must NOT have additional properties' marker except the blank key \"\".",
-      "invariants": ["INV-D7"],
+      "invariants": ["INV-D8"],
       "name": "Blank key skipped by additionalProperties marker",
       "where": "data",
       "comment": "Repro: add \"\" and other extra keys to the data. {\"\": {}, \"x\": 1} gives 1 marker, {\"x\": 1, \"y\": 1} gives 2, {\"\": {}} alone gives 0. A key in required but not in properties still gets the marker, so only the blank key is skipped. Run 20261021_175138 steps 6, 11, 13-18: INV-D7 reported 'additionalProperties predicted, NO marker'.",
-      "added_at": "2026-10-23 21:31"
+      "added_at": "2026-10-23 21:31",
+      "found_by": "loop"
     },
     {
       "id": "BUG-10",
       "summary": "Replacing an object with a string in the Text View makes the GUI show one row per character, and clicking the delete icon on one of those rows throws a TypeError.",
-      "invariants": ["INF-2AB96604"],
+      "invariants": [
+        "INF-2AB96604"
+      ],
       "name": "String value at object node creates per-character GUI rows",
-      "when_action_kinds": ["change_type"],
+      "when_action_kinds": [
+        "change_type"
+      ],
+      "symptom": {
+        "INF-2AB96604": "(\\S+)\\.0,\\s*\\1\\.1\\b"
+      },
       "where": "data",
-      "comment": "Repro (Strenda): add an item to Experiments, replace experiments[1] ({}) with a string such as \"BPiOebcB\" in the Text View, expand Item 2 in the GUI View, click the delete icon on row 0-7. Expected: like 12345 or [] - warning, keeps ': object' and its four schema rows. Actual: extra rows 0-7 typed any; deleting row 1 shows 'Unknown Error occurred' and TypeError: Cannot delete property '1' of [object String]. Run 20261020_231523 steps 3-5. Reproduced by hand on metaconfigurator.org (index-981d8f4a.js); only strings affected. The delete error is app-handled, so INV-G1 does not catch it.",
-      "added_at": "2026-10-23 21:31"
+      "comment": "Repro (Strenda): add an item to Experiments, replace experiments[1] ({}) with a string such as \"BPiOebcB\" in the Text View, expand Item 2 in the GUI View, click the delete icon on row 0-7. Expected: like 12345 or [] - warning, keeps ': object' and its four schema rows. Actual: extra rows 0-7 typed any; deleting row 1 shows 'Unknown Error occurred' and TypeError: Cannot delete property '1' of [object String]. Run 20261020_231523 steps 3-5. Reproduced by hand on metaconfigurator.org (index-981d8f4a.js); only strings affected. The delete error is app-handled, so INV-G1 does not catch it. Confirmed open on v2.7.0 and v2.8.0 (hosted) by regression sequence tests/regression/bug10 (4 steps, reduced 2026-10-27 from replay 20261020_231523/replays/20261027_194208): rows experiments[1].0-7 at step 4.",
+      "added_at": "2026-10-23 21:31",
+      "found_by": "inferred"
+    },
+    {
+      "id": "BUG-12",
+      "summary": "Learned bug: after add_item_required@schema#first: data has exactly 2 DeepDiff change(s)",
+      "invariants": ["INF-D282168D", "INF-9B617D60"],
+      "where": "both",
+      "learned": true,
+      "confirmed": false,
+      "added_at": "2026-10-24 02:21",
+      "name": "first add_item_required adds a blank “” key to data"
+    },
+    {
+      "id": "BUG-14",
+      "summary": "A 'Rename conflict' dialog opens when a property name is committed with Enter, although no field with that name existed.",
+      "invariants": ["TEMP-RENAME-05"],
+      "name": "Spurious 'Rename conflict' dialog after adding or renaming a property",
+      "do_not_repair": true,
+      "where": "both",
+      "comment": "Repro: Schema tab, empty schema, GUI View: click 'New Subschema' under $defs (or definitions), select all, type a new name (e.g. pioneer), press Enter. The property is created, then the dialog 'Rename conflict - The data already contains a field named \"pioneer\" at this location. Renaming would overwrite it.' opens. Also happens when renaming an existing property to a new name, and when $defs already exists. Cause: PropertyMetadata.vue commits the name on Enter (@keydown.enter) and again on blur (@blur); the blur fires before the tree re-renders, so it is emitted with the old name and the new name, and shouldPromptForRenameConflict (utility/renameUtils.ts) finds the key the first commit created. Run 20261025_044641 steps 17-18 (raven, nimbus). The loop clicks 'Proceed but keep existing data' (gui_actions._dismiss_rename_conflict).",
+      "added_at": "2026-10-25 04:55",
+      "found_by": "loop"
+    },
+    {
+      "id": "toggle-changes-data",
+      "summary": "The check reports: after format_toggle@data: data is unchanged - violated (1/1 observation(s)) [accepted; not promotable in the latest mining only because some dataset has too few observations (the observed datasets clear the threshold); minimum support 100%] [accepted 2026-10-10 14:08]\n\nFormat toggle right after adding an item changes the data from [{}] to [{ \"id\": \"\" }];",
+      "invariants": ["INF-6D118B0D"],
+      "name": "After format_toggle@data: data is changed",
+      "when_action_kinds": ["format"],
+      "where": "data",
+      "comment": "Problem P-a8dc5a, after: Changed the file format. Runs: 20261025_145014 (step 11), 20261025_152419 (step 38), 20261025_153033 (step 2), 20261025_154320 (step 15), 20261025_174627 (step 5), 20261025_203545 (step 19), 20261025_210442 (step 14), 20261025_211353 (step 40).",
+      "found_by": "loop",
+      "added_at": "2026-10-25 22:25",
+      "group": "empty id added to a freshly added item"
+    },
+    {
+      "id": "collapse-changes-data",
+      "summary": "The check reports: data changed after collapse - unexpected\nClosing the 'Experiments' list right after adding an item changes the data from [{}] to [{ \"id\": \"\" }]; collapsing should be navigation only.",
+      "invariants": ["INF-037CC91C", "TEMP-COLLAPSE-02"],
+      "name": "Collapsing a list writes an empty id into a freshly added item",
+      "when_action_kinds": ["collapse"],
+      "where": "data",
+      "comment": "Problem P-e6ab91, after: Collapsed a node (Data panel). Runs: 20261025_153033 (step 40), 20261025_170537 (step 12), 20261025_214301 (step 24).",
+      "found_by": "loop",
+      "added_at": "2026-10-25 23:01",
+      "group": "empty id added to a freshly added item"
     }
   ],
   "fixed_bugs": [],
@@ -134,7 +190,7 @@
     "undo_redo_across_panels": "This sequence uses Undo/Redo and touches both panels. Undo stacks are per panel (Data and Schema), so first check that the Undo was pressed in the same panel as the edit; otherwise the failure may not be an app bug."
   },
   "screenshots": {
-    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder (tests/output/runs/<run_id>/screenshots).",
+    "_comment": "Screenshots are named step_<N>_<action>.png. N counts the main actions; the tool's own undo/retry screenshots share the N of the action that triggered them. Files are matched by N and action name. They are looked up in the run's folder (tests/output/runs/<run_id>/screenshots) and, for runs recorded before the runs/ layout, in <root>/<run_id>.",
     "enabled": true,
     "root": "mutation_screenshots",
     "filename_regex": "^step_(?P<n>\\d+)_(?P<name>.*)$",
@@ -145,7 +201,7 @@
     "jpeg_quality": 75
   },
   "state_snapshots": {
-    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run (tests/output/runs/<run_id>/states) and by replay_runner for a replay (tests/output/runs/<run_id>/replays/<replay_id>/states). A card shows the diff when the states folder next to the history is found. Otherwise it suggests: python -m tests.mutation_testing.replay.replay_runner --history <history.json>",
+    "_comment": "Full before/after app state for a step where an invariant failed. Written by mutation_loop's export_history() for every failing step of a live run (tests/output/runs/<run_id>/states) and by replay_runner for a replay (tests/output/runs/<run_id>/replays/<replay_id>/states). A card shows the diff when the states folder next to the history is found. Runs recorded before the runs/ layout are looked up in <root>/<run_id>. Otherwise it suggests: python -m tests.mutation_testing.replay.replay_runner --history <history.json>",
     "root": "replay_snapshots",
     "_root_note": "Files are <root>/<run_id>/step_<N>_before.json and step_<N>_after.json, where N is the 0-based position in the history's 'steps' list."
   },
@@ -221,7 +277,7 @@
     "_comment": "Settings for causal_analysis.py (the 'Where it likely started' section).",
     "max_lookback_when_no_clean_step": 10,
     "transition_rule_prefixes": ["INF-", "TEMP-"],
-    "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead.",
+    "_transition_rule_prefixes_note": "Rules whose id starts with one of these compare the state before and after a single action, so the failing action itself is the lead. Add NEW- here if NEW-xx rules behave the same way.",
     "rule_reads": {
       "_comment": "Which state facets each rule reads, so the report only suspects actions that changed one of them. Facets: de_data, de_schema, se_schema, se_data, de_text, se_text. For rules not listed, any state change makes an action a suspect.",
       "INV-D1": ["de_data", "de_text"],
@@ -262,11 +318,12 @@
       "INV-S3": "Schema title field differs from the internal schema",
       "INV-GUI-ERR-01": "Text View shows a validation error the GUI does not",
       "INV-G2": "The GUI is stuck on a loading spinner (frozen)",
-      "TEMP-ADD-03": "Adding a required item does not reach the data"
+      "TEMP-ADD-03": "Adding a required item does not reach the data",
+      "TEMP-RENAME-05": "A Rename conflict dialog opens for a name that did not exist before"
     }
   },
   "run_logs": {
-    "_comment": "The mutation loop's own log: tests/output/runs/<run_id>/mutation_log.html, found next to the history.",
+    "_comment": "The mutation loop's own log: tests/output/runs/<run_id>/mutation_log.html, found next to the history. The root below is only the older layout (mutation_logs/<run_id>/mutation_log.html, plural).",
     "root": "mutation_logs",
     "max_files": 5
   }

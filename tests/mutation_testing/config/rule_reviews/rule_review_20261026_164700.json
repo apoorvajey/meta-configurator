@@ -1,0 +1,2458 @@
+{
+  "INF-211D0B93": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-5EEE2C81": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-9FFFFF53": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-896D61C8": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-AD59D39C": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-5C4FE313": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-AD9634CE": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-038A66FD": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-6266D645": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 62
+  },
+  "INF-A28E3AE0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 99,
+    "statement": "the Data Editor's Text View content is in the format its format selector shows",
+    "action": "*",
+    "template": "format_agreement"
+  },
+  "INF-B559BE98": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 99,
+    "statement": "the Schema Editor's Text View content is in the format its format selector shows",
+    "action": "*",
+    "template": "format_agreement"
+  },
+  "INF-DCE8AC44": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100,
+    "statement": "the GUI required-star matches the schema's required list",
+    "action": "*",
+    "template": "gui_required_agreement"
+  },
+  "INF-592FCED5": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "note": "Covered by an existing hand-written invariant; the engine never exports it, so accepting it did nothing."
+  },
+  "INF-6B7ACFBF": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "note": "Covered by an existing hand-written invariant; the engine never exports it, so accepting it did nothing."
+  },
+  "INF-E075E3B5": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "note": "Covered by an existing hand-written invariant; the engine never exports it, so accepting it did nothing."
+  },
+  "INF-E6D2360B": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "note": "Covered by an existing hand-written invariant; the engine never exports it, so accepting it did nothing."
+  },
+  "INF-061911D3": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "note": "Covered by an existing hand-written invariant; the engine never exports it, so accepting it did nothing."
+  },
+  "INF-9D1B4131": {
+    "status": "rejected",
+    "tier": "holds",
+    "minSupport": 100,
+    "statement": "the GUI validation-error icon agrees with actual schema validity",
+    "action": "*",
+    "template": "gui_validation_agreement"
+  },
+  "INF-9AE0A84E": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100,
+    "statement": "the GUI displayed value matches the data value",
+    "action": "*",
+    "template": "gui_value_agreement"
+  },
+  "INF-1E4861CD": {
+    "status": "rejected",
+    "tier": "holds",
+    "minSupport": 85,
+    "note": "There are times when the schema adds a key to required and it is already present in data, hence there will be no new addition in the data."
+  },
+  "INF-6D118B0D": {
+    "status": "accepted",
+    "tier": "investigate",
+    "minSupport": 79,
+    "statement": "data is unchanged",
+    "action": "format_toggle@data",
+    "template": "stability"
+  },
+  "INF-037CC91C": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "ui_only@data",
+    "template": "stability"
+  },
+  "INF-CE20C70A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "ui_only@schema",
+    "template": "stability"
+  },
+  "INF-DE681A06": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "note": "When adding something required",
+    "statement": "data is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "stability"
+  },
+  "INF-83E8B833": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "change_type_text@schema",
+    "template": "stability"
+  },
+  "INF-F55A226A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "format_toggle@schema",
+    "template": "stability"
+  },
+  "INF-058BFBF6": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability"
+  },
+  "INF-40399451": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "add_array_item_text@data",
+    "template": "stability"
+  },
+  "INF-66209615": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "add_child_text@data",
+    "template": "stability"
+  },
+  "INF-4E7D96FC": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "add_item@data",
+    "template": "stability"
+  },
+  "INF-31BFD8F0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "change_type_text@data",
+    "template": "stability"
+  },
+  "INF-E13091AF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "clear_text@data",
+    "template": "stability"
+  },
+  "INF-74BC3624": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "edit_text@data",
+    "template": "stability"
+  },
+  "INF-A9B85B97": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "format_toggle@data",
+    "template": "stability"
+  },
+  "INF-6EFDFA0A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "remove_array_item_text@data",
+    "template": "stability"
+  },
+  "INF-E2FE53C7": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "ui_only@data",
+    "template": "stability"
+  },
+  "INF-F4BD449D": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "ui_only@schema",
+    "template": "stability"
+  },
+  "INF-0FD73F5A": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "undo_redo@data",
+    "template": "stability"
+  },
+  "INF-E8C6D1CF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 100,
+    "statement": "the Data Editor's Text View shows the same content as its store",
+    "action": "*",
+    "template": "text_store_agreement"
+  },
+  "INF-C8939CA0": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 99,
+    "statement": "the Schema Editor's Text View shows the same content as its store",
+    "action": "*",
+    "template": "text_store_agreement"
+  },
+  "INF-19106981": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 86,
+    "statement": "undoing an edit restores the schema to its state before the edit",
+    "action": "undo_inverse@any",
+    "template": "undo_inverse"
+  },
+  "INF-41CDC00F": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_array_item_text@data",
+    "template": "app_health"
+  },
+  "INF-8319E42F": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_child_text@data",
+    "template": "app_health"
+  },
+  "INF-995605F4": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_item@data",
+    "template": "app_health"
+  },
+  "INF-354CC6E7": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "clear_text@data",
+    "template": "app_health"
+  },
+  "INF-B1842738": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "clear_text@schema",
+    "template": "app_health"
+  },
+  "INF-4AA41052": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "edit_text@data",
+    "template": "app_health"
+  },
+  "INF-0C1BA519": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "format_toggle@data",
+    "template": "app_health"
+  },
+  "INF-C3BDB34A": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "format_toggle@schema",
+    "template": "app_health"
+  },
+  "INF-3E428B06": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove_array_item_text@data",
+    "template": "app_health"
+  },
+  "INF-14B0A805": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove_child_text@data",
+    "template": "app_health"
+  },
+  "INF-9A1879D7": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "rename_child_text@data",
+    "template": "app_health"
+  },
+  "INF-54A732C4": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "ui_only@schema",
+    "template": "app_health"
+  },
+  "INF-4DDE11DA": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "undo_redo@data",
+    "template": "app_health"
+  },
+  "INF-479087C0": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-9D1DA336": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 95
+  },
+  "INF-334F1724": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 92
+  },
+  "INF-4503F013": {
+    "status": "rejected",
+    "tier": "insufficient",
+    "minSupport": 100
+  },
+  "INF-29666D3A": {
+    "status": "rejected",
+    "tier": "insufficient",
+    "minSupport": 100
+  },
+  "INF-E03B3D00": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 95,
+    "statement": "the data is exactly 1 edit(s) away from its state before the step",
+    "action": "add_array_item_text@data",
+    "template": "edit_distance"
+  },
+  "INF-25909D8C": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 95,
+    "statement": "the data is exactly 1 edit(s) away from its state before the step",
+    "action": "rename_child_text@data",
+    "template": "edit_distance"
+  },
+  "INF-84E322BC": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 85,
+    "statement": "the data is exactly 2 edit(s) away from its state before the step",
+    "action": "add_child_text@data",
+    "template": "edit_distance"
+  },
+  "INF-4AA5865F": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 98,
+    "statement": "the GUI shows rows for the data and no loading spinner",
+    "action": "*",
+    "template": "gui_renders"
+  },
+  "INF-2AB96604": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 97,
+    "note": "Trial (to figure out which steps it doesn't hold for)",
+    "statement": "every GUI row belongs to the data or the schema",
+    "action": "*",
+    "template": "gui_row_set"
+  },
+  "INF-DBA7FFEA": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "clear_text@schema",
+    "template": "stability"
+  },
+  "INF-DAA32E7D": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 100,
+    "statement": "data is unchanged",
+    "action": "remove_child_text@schema",
+    "template": "stability"
+  },
+  "INF-1921DD5B": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability"
+  },
+  "INF-A52CE6C6": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "format_toggle@schema",
+    "template": "stability"
+  },
+  "INF-44272F79": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "remove_child_text@data",
+    "template": "stability"
+  },
+  "INF-CC2E1E3E": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "rename_child_text@data",
+    "template": "stability"
+  },
+  "INF-97AF4A8F": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 100
+  },
+  "INF-7BBFCCCA": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 88,
+    "statement": "schema.valid is unchanged",
+    "action": "format_toggle@schema",
+    "template": "stability",
+    "note": "schema.valid is no longer mined: the engine drops it as too weak (validity is computed from the schema)."
+  },
+  "INF-25729BD8": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 88,
+    "statement": "schema.valid is unchanged",
+    "action": "ui_only@schema",
+    "template": "stability",
+    "note": "schema.valid is no longer mined: the engine drops it as too weak (validity is computed from the schema)."
+  },
+  "INF-3C623457": {
+    "status": "accepted",
+    "tier": "investigate",
+    "minSupport": 65,
+    "statement": "when the app logs that the schema is invalid, the meta-schema rejects the schema too",
+    "action": "*",
+    "template": "validity_agreement"
+  },
+  "INF-0F4E4198": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-D5213714": {
+    "status": "rejected",
+    "tier": "investigate",
+    "minSupport": 39,
+    "statement": "the app writes no console error and throws no exception",
+    "action": "*",
+    "template": "app_health"
+  },
+  "INF-8CA10297": {
+    "status": "rejected",
+    "tier": "investigate",
+    "minSupport": 38,
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "undo_redo@schema",
+    "template": "app_health"
+  },
+  "INF-12BD69A0": {
+    "status": "learned_bug",
+    "tier": "holds",
+    "minSupport": 86,
+    "bug": "BUG-12",
+    "check": true,
+    "bugName": "first add_item_required adds a blank “” key to data",
+    "bugWhere": "both",
+    "statement": "data has exactly 2 DeepDiff change(s)",
+    "action": "add_item_required@schema#first",
+    "template": "change_count"
+  },
+  "INF-AABFC2F5": {
+    "status": "rejected",
+    "tier": "holds",
+    "minSupport": 92,
+    "note": "When the required key is already present in the data, no change is made.",
+    "statement": "schema.required has exactly 1 DeepDiff change(s)",
+    "action": "add_item_required@schema",
+    "template": "change_count"
+  },
+  "INF-40114425": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-5CF8D2E4": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-4D939581": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 94
+  },
+  "INF-0568A158": {
+    "status": "learned_bug",
+    "tier": "holds",
+    "minSupport": 86,
+    "bug": "BUG-12",
+    "check": true,
+    "bugWhere": "both",
+    "statement": "the data is exactly 4 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#first",
+    "template": "edit_distance"
+  },
+  "INF-3E4D4C5C": {
+    "status": "rejected",
+    "tier": "investigate",
+    "minSupport": 82,
+    "statement": "data changes",
+    "action": "add_item_required@schema",
+    "template": "stability"
+  },
+  "INF-BCE7B9AC": {
+    "status": "rejected",
+    "tier": "investigate",
+    "minSupport": 45
+  },
+  "INF-AB93D088": {
+    "status": "rejected",
+    "tier": "insufficient",
+    "minSupport": 71
+  },
+  "INF-236E3390": {
+    "status": "rejected",
+    "tier": "below",
+    "minSupport": 80
+  },
+  "INF-3CBAEAFF": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "add_property@schema",
+    "template": "stability"
+  },
+  "INF-EB0ED7F1": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability"
+  },
+  "INF-F0443651": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability"
+  },
+  "INF-7C711215": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 93,
+    "statement": "data is unchanged",
+    "action": "remove@schema",
+    "template": "stability"
+  },
+  "INF-8E59F430": {
+    "status": "rejected",
+    "tier": "investigate",
+    "minSupport": 25
+  },
+  "INF-1FCA3AD8": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 94,
+    "statement": "schema is unchanged",
+    "action": "remove@data",
+    "template": "stability"
+  },
+  "INF-EBF3047C": {
+    "status": "accepted",
+    "tier": "insufficient",
+    "minSupport": 100,
+    "statement": "schema is unchanged",
+    "action": "add_property@data",
+    "template": "stability"
+  },
+  "INF-0AD1BC58": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 87,
+    "statement": "when the meta-schema rejects the schema, the app logs that it is invalid",
+    "action": "*",
+    "template": "validity_agreement"
+  },
+  "INF-90ADBD6F": {
+    "status": "accepted",
+    "tier": "holds",
+    "minSupport": 91,
+    "statement": "a key newly added to schema.required is a key of data afterwards",
+    "action": "add_item_required@schema",
+    "template": "value_to_key"
+  },
+  "INF-99104755": {
+    "status": "trivial",
+    "tier": "holds",
+    "minSupport": 100,
+    "statement": "a key newly added to schema.required is not a key of schema.properties afterwards",
+    "action": "add_item_required@schema",
+    "template": "value_to_key"
+  },
+  "INF-4BECD57B": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-B547BD07": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-C0FF0E21": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-56F407E0": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-A78465DF": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-F9A51933": {
+    "status": "trivial",
+    "tier": "insufficient",
+    "minSupport": 50
+  },
+  "INF-22FC0DAC": {
+    "status": "rejected",
+    "statement": "the app writes a console error or throws an exception",
+    "action": "change_type_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 58
+  },
+  "INF-E7793C61": {
+    "status": "trivial",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "change_type_text@data",
+    "template": "app_health",
+    "tier": "holds",
+    "minSupport": 93
+  },
+  "INF-F5032C11": {
+    "status": "trivial",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove@data",
+    "template": "app_health",
+    "tier": "holds",
+    "minSupport": 93
+  },
+  "INF-AC17981C": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_array_item_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-4B63363E": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_item_required@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-5082CBC5": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_property@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-CC6B6D5B": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "edit_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-7FC22570": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-957E926D": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove_array_item_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-A9400E36": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "rename_child_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-612CD921": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "undo_redo@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 39
+  },
+  "INF-749C1704": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_child_text@schema",
+    "template": "app_health",
+    "tier": "below",
+    "minSupport": 30
+  },
+  "INF-C113AB8F": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "ui_only@data",
+    "template": "app_health",
+    "tier": "below",
+    "minSupport": 30
+  },
+  "INF-872C548F": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "add_property@data",
+    "template": "app_health",
+    "tier": "insufficient",
+    "minSupport": 43
+  },
+  "INF-506E57EE": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception",
+    "action": "remove_child_text@schema",
+    "template": "app_health",
+    "tier": "insufficient",
+    "minSupport": 43
+  },
+  "INF-A3862749": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "add_child_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 38
+  },
+  "INF-B87CDB95": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "add_item_required@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 38
+  },
+  "INF-EED98FBC": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "edit_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 38
+  },
+  "INF-65395059": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "remove@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 38
+  },
+  "INF-0924462D": {
+    "status": "rejected",
+    "statement": "the app writes no console error and throws no exception, when the edited schema is valid",
+    "action": "rename_child_text@schema",
+    "template": "app_health",
+    "tier": "investigate",
+    "minSupport": 38
+  },
+  "INF-13E62B95": {
+    "status": "trivial",
+    "statement": "data has exactly 1 DeepDiff change(s)",
+    "action": "add_child_text@data",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-A2EA34C4": {
+    "status": "trivial",
+    "statement": "data has exactly 1 DeepDiff change(s)",
+    "action": "remove_child_text@data",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 85,
+    "note": "Implied by an 'exactly k edits' rule for the same store and action; dropped by the engine."
+  },
+  "INF-771439D3": {
+    "status": "trivial",
+    "statement": "data has exactly 2 DeepDiff change(s)",
+    "action": "rename_child_text@data",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 86
+  },
+  "INF-D29030A4": {
+    "status": "trivial",
+    "statement": "schema has exactly 1 DeepDiff change(s)",
+    "action": "add_item_required@schema",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-FC8F2158": {
+    "status": "trivial",
+    "statement": "schema has exactly 1 DeepDiff change(s)",
+    "action": "edit_text@schema",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-15B5E8FC": {
+    "status": "trivial",
+    "statement": "schema has exactly 1 DeepDiff change(s)",
+    "action": "remove@schema",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 87,
+    "note": "Implied by an 'exactly k edits' rule for the same store and action; dropped by the engine."
+  },
+  "INF-A8DB28C3": {
+    "status": "trivial",
+    "statement": "schema has exactly 2 DeepDiff change(s)",
+    "action": "rename_child_text@schema",
+    "template": "change_count",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-C891377D": {
+    "status": "trivial",
+    "statement": "the data is at most 1 edit(s) away from its state before the step",
+    "action": "add_array_item_text@data",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 91
+  },
+  "INF-909F7EB6": {
+    "status": "trivial",
+    "statement": "the data is at most 1 edit(s) away from its state before the step",
+    "action": "edit_text@data",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 91,
+    "note": "Implied by an 'exactly k edits' rule for the same action and store; dropped by the engine."
+  },
+  "INF-B814134D": {
+    "status": "trivial",
+    "statement": "the data is at most 1 edit(s) away from its state before the step",
+    "action": "rename_child_text@data",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 91
+  },
+  "INF-E823C277": {
+    "status": "trivial",
+    "statement": "the data is at most 2 edit(s) away from its state before the step",
+    "action": "add_child_text@data",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 96
+  },
+  "INF-CE5FEDFD": {
+    "status": "trivial",
+    "statement": "the data is at most 2 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#later",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 96,
+    "note": "Implied by an 'exactly k edits' rule for the same action and store; dropped by the engine."
+  },
+  "INF-58D5FE8F": {
+    "status": "rejected",
+    "statement": "the data is at most 4 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#first",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-D9A917FC": {
+    "status": "trivial",
+    "statement": "the data is exactly 1 edit(s) away from its state before the step",
+    "action": "edit_text@data",
+    "template": "edit_distance",
+    "tier": "investigate",
+    "minSupport": 70
+  },
+  "INF-3FD6B7C2": {
+    "status": "trivial",
+    "statement": "the data is exactly 2 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#later",
+    "template": "edit_distance",
+    "tier": "investigate",
+    "minSupport": 78
+  },
+  "INF-A6E3B533": {
+    "status": "trivial",
+    "statement": "the schema is at most 1 edit(s) away from its state before the step",
+    "action": "add_array_item_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 94,
+    "note": "Implied by an 'exactly k edits' rule for the same action and store; dropped by the engine."
+  },
+  "INF-05AD326A": {
+    "status": "trivial",
+    "statement": "the schema is at most 1 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#later",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 94
+  },
+  "INF-A0A8E286": {
+    "status": "trivial",
+    "statement": "the schema is at most 1 edit(s) away from its state before the step",
+    "action": "edit_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 94
+  },
+  "INF-C72987FC": {
+    "status": "trivial",
+    "statement": "the schema is at most 1 edit(s) away from its state before the step",
+    "action": "remove_array_item_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 94,
+    "note": "Implied by an 'exactly k edits' rule for the same action and store; dropped by the engine."
+  },
+  "INF-84C1AEA8": {
+    "status": "trivial",
+    "statement": "the schema is at most 1 edit(s) away from its state before the step",
+    "action": "rename_child_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 94
+  },
+  "INF-B7C66A7F": {
+    "status": "trivial",
+    "statement": "the schema is at most 2 edit(s) away from its state before the step",
+    "action": "add_child_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 92,
+    "note": "Implied by an 'exactly k edits' rule for the same action and store; dropped by the engine."
+  },
+  "INF-564A06E3": {
+    "status": "accepted",
+    "statement": "the schema is exactly 1 edit(s) away from its state before the step",
+    "action": "add_item_required@schema#later",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-705B7AF3": {
+    "status": "accepted",
+    "statement": "the schema is exactly 1 edit(s) away from its state before the step",
+    "action": "edit_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-63B9F4C1": {
+    "status": "accepted",
+    "statement": "the schema is exactly 1 edit(s) away from its state before the step",
+    "action": "rename_child_text@schema",
+    "template": "edit_distance",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-73CEF3FE": {
+    "status": "accepted",
+    "statement": "the Schema Editor GUI shows a validation-error icon exactly when the edited schema violates the meta-schema",
+    "action": "*",
+    "template": "gui_icon_presence",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-EB9CF392": {
+    "status": "trivial",
+    "statement": "every top-level key of the data has a row in the Data Editor GUI View",
+    "action": "*",
+    "template": "gui_rows_complete",
+    "tier": "holds",
+    "minSupport": 99
+  },
+  "INF-AE3990F0": {
+    "status": "trivial",
+    "statement": "every top-level key of the edited schema has a row in the Schema Editor GUI View",
+    "action": "*",
+    "template": "gui_rows_complete",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-3386E94C": {
+    "status": "accepted",
+    "statement": "the value shown in a Schema Editor GUI input equals the edited schema's value",
+    "action": "*",
+    "template": "gui_store_value",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-E1DEB11A": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data changes",
+    "action": "clear_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-F2DE0970": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_array_item_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-95C82E53": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-47393DE2": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_child_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-C6A510AF": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_child_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-76432068": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_item@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-19BD4AAA": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "add_property@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-8184379A": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "change_type_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-1C4E7BB4": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "clear_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-936E4B5F": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "edit_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-C9DF304F": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "edit_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-4F14CFB8": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "format_toggle@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-A315AD8D": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "format_toggle@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-16D32CA7": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "remove@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-FFE5B698": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "remove_array_item_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-7B13BD46": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-83663193": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "rename_child_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-BAD0EEB9": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-D1FF2C88": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "ui_only@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-9E705F29": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "ui_only@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-20191974": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "undo_redo@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-5DFE4CC8": {
+    "status": "rejected",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "change_type_text@data",
+    "template": "key_count_stability",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-33FBAD51": {
+    "status": "rejected",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "remove_child_text@data",
+    "template": "key_count_stability",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-63F1E512": {
+    "status": "rejected",
+    "statement": "the number of top-level keys of data is unchanged",
+    "action": "undo_redo@data",
+    "template": "key_count_stability",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-737B1248": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties changes",
+    "action": "clear_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-070E7CA5": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_array_item_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-7E3C9A36": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-EC1801F9": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_child_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-7AADF3B9": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_child_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-D88399B9": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_item@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-E8CD344F": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_item_required@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-40B0011E": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "change_type_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-87CE9DCD": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "change_type_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-D33FC327": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "clear_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-878406D3": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "edit_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-FEB847C0": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "edit_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-41FBB985": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "format_toggle@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-F74F4D0A": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "format_toggle@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-A631405C": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "remove@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-EEAE26E9": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "remove_array_item_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-96A3F9F6": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-28395840": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "remove_child_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-6CB642B4": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "rename_child_text@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-C1FA2B84": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-F77FCF28": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "ui_only@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-4A778ED4": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "ui_only@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-58C60C2F": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "undo_redo@data",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-83F16DD3": {
+    "status": "trivial",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "undo_redo@schema",
+    "template": "key_count_stability",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-AB7DAD5A": {
+    "status": "rejected",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "add_property@schema",
+    "template": "key_count_stability",
+    "tier": "investigate",
+    "minSupport": 60
+  },
+  "INF-B3BB0005": {
+    "status": "rejected",
+    "statement": "the number of top-level keys of schema.properties is unchanged",
+    "action": "remove@schema",
+    "template": "key_count_stability",
+    "tier": "investigate",
+    "minSupport": 60
+  },
+  "INF-09292060": {
+    "status": "trivial",
+    "statement": "top-level keys of data are added or removed without a swap, or more than 1 are swapped",
+    "action": "clear_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-B122B711": {
+    "status": "rejected",
+    "statement": "top-level keys of data are added or removed without a swap, or more than 1 are swapped",
+    "action": "add_item_required@schema",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 82
+  },
+  "INF-67B517B9": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_array_item_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-A0F3642F": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_array_item_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-02F3359E": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_child_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-21FD5F15": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_child_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-40C2105A": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_item@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-C4C5E9E0": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "add_property@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-EC1D1394": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "change_type_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-4DCB3225": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "clear_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-5A081259": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "edit_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-C60D0434": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "edit_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-7F5A4658": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "format_toggle@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-E72D2B71": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "format_toggle@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-00376D22": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "remove@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-5B734766": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "remove_array_item_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-B27EED9A": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "remove_array_item_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-DFAA1ADD": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "rename_child_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-200AAE5A": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "rename_child_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-B5BEECB2": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "ui_only@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-532917D3": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "ui_only@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-BCFD38A5": {
+    "status": "trivial",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "undo_redo@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 85
+  },
+  "INF-03E770AD": {
+    "status": "rejected",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "change_type_text@data",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-756EFBE5": {
+    "status": "rejected",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "remove_child_text@data",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-2485225D": {
+    "status": "rejected",
+    "statement": "top-level keys of data are only swapped: as many are added as removed, at most 1",
+    "action": "undo_redo@data",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 72
+  },
+  "INF-C13DA9F4": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are added or removed without a swap, or more than 1 are swapped",
+    "action": "clear_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-B4849EFC": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_array_item_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-A4C295CE": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_array_item_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-F00950BA": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_child_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-EEB48FF8": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_child_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-63BA7DE3": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_item@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-8CB3F7B1": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_item_required@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-361BC43B": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "change_type_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-D8A2F22E": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "change_type_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-EDD24107": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "clear_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-4F48CCCA": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "edit_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-0D9BF3EE": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "edit_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-ADCE81FF": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "format_toggle@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-31B8D050": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "format_toggle@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-25473250": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "remove@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-7AE0887C": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "remove_array_item_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-DED3185D": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "remove_array_item_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-94BE78A2": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "remove_child_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-8A087C57": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "rename_child_text@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-41E9369F": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "rename_child_text@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-639519ED": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "ui_only@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-D42C7990": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "ui_only@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-06D21AC1": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "undo_redo@data",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-5D35D469": {
+    "status": "trivial",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "undo_redo@schema",
+    "template": "key_swap",
+    "tier": "holds",
+    "minSupport": 90
+  },
+  "INF-E9008F4D": {
+    "status": "rejected",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "add_property@schema",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 60
+  },
+  "INF-90CF55A3": {
+    "status": "rejected",
+    "statement": "top-level keys of schema.properties are only swapped: as many are added as removed, at most 1",
+    "action": "remove@schema",
+    "template": "key_swap",
+    "tier": "investigate",
+    "minSupport": 60
+  },
+  "INF-AFAA1684": {
+    "status": "rejected",
+    "statement": "the root value of the data has the JSON type object",
+    "action": "*",
+    "template": "root_type",
+    "tier": "investigate",
+    "minSupport": 82
+  },
+  "INF-74431231": {
+    "status": "accepted",
+    "statement": "the root value of the schema has the JSON type object",
+    "action": "*",
+    "template": "root_type",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-C7DB6FD6": {
+    "status": "accepted",
+    "statement": "data is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 93
+  },
+  "INF-FD0F2B95": {
+    "status": "trivial",
+    "statement": "schema.$defs is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-667C7886": {
+    "status": "trivial",
+    "statement": "schema.$defs is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-9F6DEB3B": {
+    "status": "trivial",
+    "statement": "schema.$defs is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-CE1C49D0": {
+    "status": "trivial",
+    "statement": "schema.$id is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 94
+  },
+  "INF-AA8C55AB": {
+    "status": "rejected",
+    "statement": "schema.defs is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-EA6CCAFE": {
+    "status": "rejected",
+    "statement": "schema.defs is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 22
+  },
+  "INF-3597E3B3": {
+    "status": "rejected",
+    "statement": "schema.defs is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 22
+  },
+  "INF-7D3877FB": {
+    "status": "rejected",
+    "statement": "schema.defs is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 22
+  },
+  "INF-70C28E1A": {
+    "status": "accepted",
+    "statement": "schema.properties is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-B4E86605": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-805D517A": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "add_property@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-4172F260": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-65652C6C": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-19FB43B3": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-B6EDC06C": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-EBDDDAE8": {
+    "status": "rejected",
+    "statement": "schema.properties is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 20
+  },
+  "INF-C789BA6A": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-92DF6E72": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-3D83CBE5": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "add_property@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-321AA491": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "change_type_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-F3AB7FB0": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-80AD10CA": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-BE509C3F": {
+    "status": "accepted",
+    "statement": "schema.required is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 87
+  },
+  "INF-BBB61B69": {
+    "status": "rejected",
+    "statement": "schema.required is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 67
+  },
+  "INF-966C4FDD": {
+    "status": "rejected",
+    "statement": "schema.required is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 67
+  },
+  "INF-BD6941ED": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-9AFC2A5C": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-429864A5": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-7F51F0A1": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "add_property@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-AFFC7F53": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "change_type_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-37CDAD91": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-DA1B5ADC": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-F6A75D7D": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-18432C95": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-ACA4A95F": {
+    "status": "trivial",
+    "statement": "schema.title is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 89
+  },
+  "INF-7460E518": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "add_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-9190532D": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-110E1A47": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "add_item_required@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-253E32D0": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "add_property@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-32A43995": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "change_type_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-8AD81014": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-B0463A56": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "remove_array_item_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-1FE2E987": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-A560DD43": {
+    "status": "trivial",
+    "statement": "schema.type is unchanged",
+    "action": "undo_redo@schema",
+    "template": "stability",
+    "tier": "holds",
+    "minSupport": 88
+  },
+  "INF-78D10ADB": {
+    "status": "rejected",
+    "statement": "schema.valid is unchanged",
+    "action": "add_child_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 64
+  },
+  "INF-62424205": {
+    "status": "rejected",
+    "statement": "schema.valid is unchanged",
+    "action": "edit_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 64
+  },
+  "INF-27515317": {
+    "status": "rejected",
+    "statement": "schema.valid is unchanged",
+    "action": "remove@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 64
+  },
+  "INF-E97B45E7": {
+    "status": "rejected",
+    "statement": "schema.valid is unchanged",
+    "action": "rename_child_text@schema",
+    "template": "stability",
+    "tier": "investigate",
+    "minSupport": 64
+  },
+  "INF-485ABDA4": {
+    "status": "trivial",
+    "statement": "a key newly added to data is a key of schema.properties afterwards",
+    "action": "add_child_text@data",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 43
+  },
+  "INF-69D80C4E": {
+    "status": "trivial",
+    "statement": "a key newly added to data is a key of schema.properties afterwards",
+    "action": "add_item@data",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 43
+  },
+  "INF-86A7E77D": {
+    "status": "trivial",
+    "statement": "a key newly added to data is a key of schema.properties afterwards",
+    "action": "undo_redo@data",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 43
+  },
+  "INF-50BCA49F": {
+    "status": "rejected",
+    "statement": "a key newly added to data is a key of schema.required afterwards",
+    "action": "add_item_required@schema",
+    "template": "value_to_key",
+    "tier": "below",
+    "minSupport": 72
+  },
+  "INF-0757905D": {
+    "status": "trivial",
+    "statement": "a key newly added to data is not a key of schema.properties afterwards",
+    "action": "add_item_required@schema",
+    "template": "value_to_key",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-B574EDBF": {
+    "status": "rejected",
+    "statement": "a key newly added to data is not a key of schema.required afterwards",
+    "action": "add_child_text@data",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 86
+  },
+  "INF-1DBC97D2": {
+    "status": "rejected",
+    "statement": "a key newly added to data is not a key of schema.required afterwards",
+    "action": "undo_redo@data",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 86
+  },
+  "INF-A88A40F9": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.defs is not a key of data afterwards",
+    "action": "add_property@schema",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 93
+  },
+  "INF-90A6F521": {
+    "status": "trivial",
+    "statement": "a key newly added to schema.defs is not a key of schema.properties afterwards",
+    "action": "add_property@schema",
+    "template": "value_to_key",
+    "tier": "holds",
+    "minSupport": 100
+  },
+  "INF-A4B607DB": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.properties is not a key of data afterwards",
+    "action": "add_property@schema",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 100
+  },
+  "INF-2ADB69AA": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.required is a key of data afterwards",
+    "action": "undo_redo@schema",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 71
+  },
+  "INF-1C902F26": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.required is a key of data afterwards",
+    "action": "undo_redo@schema#first",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 71
+  },
+  "INF-45BB9B8F": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.required is a key of schema.properties afterwards",
+    "action": "undo_redo@schema",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 57
+  },
+  "INF-DEE68240": {
+    "status": "rejected",
+    "statement": "a key newly added to schema.required is not a key of data afterwards",
+    "action": "undo_redo@schema#later",
+    "template": "value_to_key",
+    "tier": "insufficient",
+    "minSupport": 67
+  }
+}

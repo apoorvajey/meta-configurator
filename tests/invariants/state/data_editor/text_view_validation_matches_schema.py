@@ -10,7 +10,8 @@ from tests.shared.python.utils_code_editor import read_text_editor_content
 ID = "INV-D7"
 NAME = "_inv_d7_text_view_markers_match_schema_violations"
 
-# Time for the app's debounced validation to finish before the markers are read.
+# Let the app's debounced validation finish before reading the markers.
+# TODO: move into run_config.json (no magic numbers rule).
 SETTLE_MS = 600
 
 # jsonschema keyword -> start of the message AJV shows for it in the Text View.
@@ -110,14 +111,16 @@ def _gutter_error_cells(page, mode) -> int | None:
         return None
 
 
-def check(ctx) -> InvariantResult:
-    """The red error markers in the Text View gutter must be exactly the schema violations of the text shown there.
+def _is_blank_key(expected: dict) -> bool:
+    """True for the predicted additionalProperties error of the blank key "" (the app never marks it)."""
+    return expected["keyword"] == "additionalProperties" and expected["path"].endswith("/")
 
-    Extracts Ace's annotations (type 'error') and the rendered gutter cells, predicts the AJV errors by validating the
-    parsed Text View content against the schema with jsonschema, and matches them one to one. Fails when
-    - a marker has no predicted violation (stale warning, e.g. left over after deleting an entry in the GUI View), or
-    - a predicted violation has no marker (missing warning).
-    Marker text is only compared in the evidence; pass/fail is decided by the match.
+
+def analyse(ctx):
+    """Compare the Text View markers with the schema violations of the text shown there. Shared by INV-D7 and INV-D8.
+
+    Returns (skipped, data). skipped is an InvariantResult (passed, skipped=True) when the markers cannot be compared,
+    else None. data is a dict: expected, markers, gutter_cells, matched, missing, unused, text_data.
     """
     name = "INV-D7 Text View markers match schema violations"
 
@@ -125,12 +128,12 @@ def check(ctx) -> InvariantResult:
     meta_violations = schema_meta_violations(ctx.page, schema)
     if meta_violations is None or meta_violations:
         return InvariantResult(name, True, "SKIPPED: schema validity unknown or invalid - markers not comparable",
-                               skipped=True)
+                               skipped=True), None
 
     ctx.page.wait_for_timeout(SETTLE_MS)
     text_data = read_text_editor_content(ctx.page, ctx.mode)
     if text_data is None:
-        return InvariantResult(name, True, "SKIPPED: Text View not parseable (INV-D1 reports this)", skipped=True)
+        return InvariantResult(name, True, "SKIPPED: Text View not parseable (INV-D1 reports this)", skipped=True), None
 
     expected = _predict(text_data, schema)
     markers = [a for a in _get_ace_annotations(ctx.page, ctx.mode) if a.get("type") == "error"]
@@ -147,27 +150,55 @@ def check(ctx) -> InvariantResult:
         else:
             unused.remove(hit)
             matched.append({"expected": exp, "marker": hit.get("text"), "row": hit.get("row")})
+    return None, {"expected": expected, "markers": markers, "gutter_cells": gutter_cells, "matched": matched,
+                  "missing": missing, "unused": unused, "text_data": text_data}
+
+
+def check(ctx) -> InvariantResult:
+    """The red error markers in the Text View gutter must be exactly the schema violations of the text shown there.
+
+    Extracts Ace's annotations (type 'error') and the rendered gutter cells, predicts the AJV errors by validating the
+    parsed Text View content against the schema with jsonschema, and matches them one to one. Fails when
+    - a marker has no predicted violation (stale warning, e.g. left over after deleting an entry in the GUI View), or
+    - a predicted violation has no marker (missing warning).
+    Marker text is only compared in the evidence; pass/fail is decided by the match.
+
+    The one exception is the marker of the blank key "": the app never shows it (BUG-09), so its absence is judged by
+    INV-D8, not here. It still counts here when other markers are missing too (e.g. all markers lost after a mode
+    switch, BUG-08), so that case keeps failing INV-D7.
+    """
+    name = "INV-D7 Text View markers match schema violations"
+    skipped, data = analyse(ctx)
+    if skipped is not None:
+        return skipped
+    expected, markers, gutter_cells = data["expected"], data["markers"], data["gutter_cells"]
+    matched, missing, unused, text_data = data["matched"], data["missing"], data["unused"], data["text_data"]
+
+    missing_other = [e for e in missing if not _is_blank_key(e)]
+    blank_only = bool(missing) and not missing_other
 
     evidence = [f"predicted {len(expected)} error(s), Text View shows {len(markers)} marker(s), "
                 f"{gutter_cells} rendered gutter icon(s)"]
     evidence += [f"{m['expected']['path'] or '/'}: {m['expected']['keyword']} -> marker '{m['marker']}' (row {m['row']}) ✓"
                  for m in matched]
     for e in missing:
-        evidence.append(f"{e['path'] or '/'}: {e['keyword']} predicted, NO marker ✗")
+        evidence.append(f"{e['path'] or '/'}: {e['keyword']} predicted, NO marker ✗"
+                        + (" (blank key only: judged by INV-D8)" if blank_only else ""))
         evidence.append(f"   jsonschema: {e['reason']}   value: {e['value']}   rule: {e['rule']}")
     evidence += [f"row {m.get('row')}: marker '{m.get('text')}' has no predicted violation ✗" for m in unused]
     if missing or unused:
         evidence.append("markers shown by app: " + (
             "; ".join(f"row {m.get('row')}: '{m.get('text')}'" for m in markers) or "(none)"))
 
-    passed = not missing and not unused
+    judged_missing = [] if blank_only else missing
+    passed = not judged_missing and not unused
     return InvariantResult(
         name, passed,
         "Text View markers match schema violations ✓" if passed
-        else f"{len(unused)} stale marker(s), {len(missing)} missing marker(s)",
+        else f"{len(unused)} stale marker(s), {len(judged_missing)} missing marker(s)",
         {} if passed else {
             "stale_markers": [{"row": m.get("row"), "text": m.get("text")} for m in unused],
-            "missing_markers": missing,
+            "missing_markers": judged_missing,
             "gutter_error_cells": gutter_cells,
             "text_view": text_data,
         },

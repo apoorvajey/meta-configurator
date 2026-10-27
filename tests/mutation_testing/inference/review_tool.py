@@ -44,6 +44,7 @@ from pathlib import Path
 
 from tests.mutation_testing.common.paths import INBOX_DIR
 from tests.mutation_testing.common.report_theme import DARK_VARS
+from tests.mutation_testing.inference.inferred_rules import load_inferred_rules
 from tests.mutation_testing.inference.learned_bug import negation_unsupported_reason
 from tests.mutation_testing.inference.review_store import (REVIEW_DIR, default_download_dir, install_review, latest_review_file,
                                                  load_review, review_files, save_review)
@@ -450,8 +451,9 @@ function render(){renderManual();$("#bpane").hidden=mode!=="browse";$("#review")
  if(mode==="browse"){renderBrowse();renderRules()}else renderReview();updateCounts()}
 ["#q","#ftier","#fdec","#ftpl","#fact","#fsort"].forEach(s=>$(s).addEventListener("input",()=>{pin.clear();pinR.clear();render()}));
 $("#rshow").onchange=()=>{try{localStorage.setItem(KEY+":showrules",$("#rshow").checked?"1":"0")}catch(e){}render()};
-function put(out,id,e,tier,ms,keep){if(!e.d){delete out[id];return}
+function put(out,id,e,tier,ms,keep,txt){if(!e.d){delete out[id];return}
  const o=Object.assign({},out[id]||{},{status:e.d});
+ if(txt){["statement","action","template"].forEach(k=>{if(txt[k])o[k]=txt[k]})}
  if(keep){if(!o.tier&&tier)o.tier=tier;if(o.minSupport==null&&ms!=null)o.minSupport=ms}else{o.tier=tier;o.minSupport=ms}
  if(e.bug&&e.d==="learned_bug")o.bug=e.bug;else delete o.bug;if(e.chk&&e.d==="learned_bug")o.check=true;else delete o.check;
  const lg=e.chk&&e.d==="learned_bug";if(lg&&e.bn)o.bugName=e.bn;else delete o.bugName;if(lg&&e.bg)o.bugGroup=e.bg;else delete o.bugGroup;if(lg&&e.bw)o.bugWhere=e.bw;else delete o.bugWhere;if(lg&&e.bs)o.bugSummary=e.bs;else delete o.bugSummary;if(lg&&e.bc)o.bugNotes=e.bc;else delete o.bugNotes;
@@ -462,8 +464,8 @@ $("#dl").onclick=()=>{const miss=[...new Set([...DATA.families.flatMap(f=>f.ids)
  let msg=$("#dlerr");if(!msg){msg=el("span");msg.id="dlerr";msg.style.cssText="color:var(--no);font-weight:700";$("#dl").insertAdjacentElement("afterend",msg)}
  if(miss.length){msg.textContent="Not downloaded: "+miss.length+" learned bug(s) with an invariant need a Bug ID (like BUG-08, no spaces) and Where.";return}msg.textContent="";
  const out=JSON.parse(JSON.stringify(BASE));
- DATA.families.forEach(f=>f.ids.forEach(id=>put(out,id,effOf(id),f.tier,f.minSupport)));
- DATA.rules.forEach(r=>{if(!inFam.has(r.id)&&RS[r.id])put(out,r.id,effOf(r.id),r.tier,r.minSupport,true)});
+ DATA.families.forEach(f=>f.ids.forEach(id=>{const it=f.items.find(x=>x.id===id);put(out,id,effOf(id),f.tier,f.minSupport,false,{statement:f.statement,action:it&&it.action,template:f.template})}));
+ DATA.rules.forEach(r=>{if(!inFam.has(r.id)&&RS[r.id])put(out,r.id,effOf(r.id),r.tier,r.minSupport,true,{statement:r.statement,action:r.action,template:r.template})});
  const text=JSON.stringify(out,null,2),name="rule_review_"+STAMP()+".json";
  const dl=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"application/json"}));a.download=name;a.click()};
  dl()};
@@ -516,6 +518,27 @@ def _known_groups() -> list[str]:
         return []
 
 
+def _earlier_texts(wanted: set[str], current_run: Path) -> dict[str, dict]:
+    """{rule id: {statement, action, template}} for ids in `wanted`, taken from the candidates.json of earlier inference runs
+    (newest first; stops once every id is found). Used for decisions saved before the text was stored in the review file."""
+    found: dict[str, dict] = {}
+    root = Path(RUNS_DIR)
+    runs = sorted((d for d in root.glob("*") if d.is_dir() and d.resolve() != Path(current_run).resolve()),
+                  key=lambda d: d.name, reverse=True) if root.exists() else []
+    for d in runs:
+        if len(found) == len(wanted):
+            break
+        try:
+            candidates = json.loads((d / "candidates.json").read_text(encoding="utf-8")).get("candidates", [])
+        except (OSError, ValueError):
+            continue
+        for c in candidates:
+            rid = c.get("rule", {}).get("id")
+            if rid in wanted and rid not in found and c.get("statement"):
+                found[rid] = {"statement": c["statement"], "action": c.get("category", ""), "template": c.get("template", "")}
+    return found
+
+
 def html_page(run_dir: Path, review_dir: str, out_path: str = REVIEW_HTML) -> Path:
     review = load_review(review_dir)
     payload = _payload(run_dir)
@@ -542,13 +565,20 @@ def html_page(run_dir: Path, review_dir: str, out_path: str = REVIEW_HTML) -> Pa
         })
     by_id = {c["rule"]["id"]: c for c in payload["candidates"]}
     rules = []   # every rule saved in the newest review file, for the "Accepted rules" panel (also ids the latest run no longer has)
+    exported = {r["id"]: r for r in load_inferred_rules()}   # promoted rules in inferred_rules.json
+    missing = {rid for rid, entry in review.items()
+               if rid not in by_id and not entry.get("statement") and not exported.get(rid, {}).get("statement")}
+    earlier = _earlier_texts(missing, run_dir) if missing else {}
     for rid, entry in sorted(review.items()):
         c = by_id.get(rid)
+        e = exported.get(rid, {})
+        old = earlier.get(rid, {})
         seen = [v["pct"] for v in c["datasets"].values() if v["m"]] if c else []
         rules.append({
             "id": rid, "status": entry.get("status", ""), "note": entry.get("note", ""),
-            "statement": c["statement"] if c else "", "action": c["category"] if c else "",
-            "template": c["template"] if c else "",
+            "statement": c["statement"] if c else entry.get("statement") or e.get("statement") or old.get("statement", ""),
+            "action": c["category"] if c else entry.get("action") or e.get("category") or old.get("action", ""),
+            "template": c["template"] if c else entry.get("template") or e.get("template") or old.get("template", ""),
             "tier": c["group"] if c else entry.get("tier", ""),
             "minSupport": round(100 * min(seen, default=0.0)) if c else entry.get("minSupport"),
         })
@@ -635,17 +665,19 @@ def session(run_dir: Path, review_dir: str) -> None:
 
 
 def newest_download(downloads: str, review_dir: str = REVIEW_DIR) -> str | None:
-    """The newest rule_review_*.json in the downloads folder, if it is newer than the active file in the review folder.
-    None when the review folder already has the newest decisions (a file saved there directly needs no import)."""
+    """The newest rule_review_*.json in the inbox (tests/output/inbox), else in the downloads folder, if it is newer than
+    the active file in the review folder. None when the review folder already has the newest decisions (a file saved
+    there directly needs no import)."""
     active = latest_review_file(review_dir)
-    found = latest_review_file(downloads)
-    if found is not None and (active is None or found.stat().st_mtime > active.stat().st_mtime):
-        print(f"[Review] newest download: {found}")
-        return str(found)
+    for folder in (str(INBOX_DIR), downloads):
+        found = latest_review_file(folder)
+        if found is not None and (active is None or found.stat().st_mtime > active.stat().st_mtime):
+            print(f"[Review] newest download: {found}")
+            return str(found)
     if active is not None:
-        print(f"[Review] nothing newer in {downloads}; the active review file is already in the review folder: {active}")
+        print(f"[Review] nothing newer in {INBOX_DIR} or {downloads}; the active review file is already in the review folder: {active}")
         return None
-    raise SystemExit(f"[Review] no rule_review_*.json in {review_dir} or {downloads}. Download it from the review page "
+    raise SystemExit(f"[Review] no rule_review_*.json in {review_dir}, {INBOX_DIR} or {downloads}. Download it from the review page "
                      f"(save it in {review_dir}), or pass --json FILE (or --downloads DIR if your browser saves elsewhere).")
 
 

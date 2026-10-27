@@ -1,10 +1,11 @@
 {
   "_parameters": {
     "min_observations": "Per dataset: how many (before, after) step pairs an action category needs before any template is run on it.",
-    "min_rule_observations": "Per dataset: how many observations a guarded rule (correlation, path_key, value_to_key, key_containment) needs, counting only steps where its guard applies, before it is reported.",
+    "min_rule_observations": "Per dataset: how many observations the key-pair rule value_to_key needs, counting only steps where its guard applies, before it is reported.",
     "min_observations_for_promotion": "Per dataset: how many observations a candidate needs to be promotable. A dataset below this marks the candidate INSUFFICIENT_EVIDENCE.",
     "promotion_threshold": "Per-dataset support (held / observations) a candidate needs in EVERY dataset to be promoted. In (0, 1].",
-    "change_count_min_share": "change_count template: the most common DeepDiff change count k is only proposed if it covers at least this share of the steps. In (0, 1].",
+    "change_count_min_share": "change_count and edit_distance templates: the most common change count / edit distance k is only proposed if it covers at least this share of the steps. In (0, 1].",
+    "disabled_templates": "Templates the engine does not mine (names as in inference/templates/). A rule already exported from such a template is still checked by the loop. Empty list [] = mine every template (the default).",
     "max_examples": "How many hold / fail examples are kept per finding, and how many counter-examples are listed per line of the report.",
     "guard_min_gain": "Guarded rules (inference/guards.py): a guarded rule is kept only if its support beats the same rule without the guard by at least this much in at least one dataset. In (0, 1].",
     "edit_distance_work_limit": "edit_distance template (inference/json_edit_distance.py): how many units of work comparing one pair of snapshots may cost. A pair that needs more gives no observation instead of slowing the run. Integer >= 1.",
@@ -21,6 +22,7 @@
     "max_examples": 3,
     "guard_min_gain": 0.05,
     "edit_distance_work_limit": 200000,
+    "disabled_templates": [],
     "sweep_start": 0.70,
     "sweep_end": 1.00,
     "sweep_step": 0.05

@@ -24,7 +24,9 @@ from tests.invariants.invariants_core import InvariantReport, _diff_nested
 from tests.invariants.schema_validity import schema_meta_violations
 from tests.mutation_testing.loop.action_weights import _MODE_SWITCH_TESTID
 from tests.mutation_testing.loop.console import show
-from tests.mutation_testing.loop.app_setup import _short, format_effect_lines, undo_redo_label
+from tests.mutation_testing.loop.app_setup import (
+    document_diffs, effect_console_lines, effect_records, read_documents, undo_redo_label,
+)
 
 
 UNDO_REDO_TESTIDS = ("undo", "redo", "schema_undo", "schema_redo")
@@ -45,7 +47,7 @@ def capture_inverse(page, testid: str) -> dict | None:
 
     Every Text View edit is a change of the raw text of one editor, so restoring that text reverses it, whatever the
     edit was. Returns {"kind": "text_replace", "mode", "text"}, or None for actions that are not Text View edits (GUI
-    actions have no inverse; repair then falls back to undo) or when the text cannot be read.
+    actions have no inverse yet; repair then falls back to undo) or when the text cannot be read.
     """
     for prefix in _TEXT_ACTION_PREFIXES:
         if testid.startswith(prefix):
@@ -104,25 +106,22 @@ class RepairEngine:
             self.page.get_by_test_id(testid).first.click()
 
     def _document(self, mode: str):
-        """The edited document of editor `mode` (the data in the Data Editor, the schema in the Schema Editor); None if unreadable."""
-        try:
-            return TestPanel(self.page, SessionMode.SchemaEditor if mode == "schemaEditor" else SessionMode.DataEditor).get_data()
-        except Exception:
-            return None
+        """Both edited documents ({"data", "schema"}, see read_documents), whichever editor is active. `mode` is the editor
+        the repair works in; it only decides which document is listed first in the effect."""
+        return read_documents(self.page)
 
     def _effect(self, mode: str, before, label: str) -> list[dict] | None:
-        """Print and return what changed in the document of `mode` since `before` (see format_effect_lines).
+        """Print and return what changed in the data and the schema since `before` (see effect_console_lines).
 
-        The result is a list of {"path", "before", "after"} (first 5 changes; "before" is what was taken away, "after"
-        what came back) for the repair block; [] if nothing changed; None if the document could not be read.
+        The result is a list of {"document", "path", "before", "after"} (first 5 changes per document; "before" is what
+        was taken away, "after" what came back) for the repair block; [] if nothing changed; None if nothing could be read.
         """
-        after = self._document(mode)
-        if before is None or after is None:
+        diffs = document_diffs(before, self._document(mode), "schema" if mode == "schemaEditor" else "data")
+        if diffs is None:
             return None
-        diffs = _diff_nested(before, after)
-        for line in format_effect_lines(diffs, limit=5, label=label):
+        for line in effect_console_lines(diffs, limit=5, label=label):
             self.say("   " + line)
-        return [{"path": p, "before": _short(a), "after": _short(b)} for p, a, b in diffs[:5]]
+        return effect_records(diffs, 5)
 
     def click_with_effect(self, testid: str) -> list[dict] | None:
         """click(testid) for an undo or redo, plus what it reverted or re-applied (see _effect)."""
@@ -443,7 +442,7 @@ class RepairEngine:
     def undo_clear_text(self, mode: str | None) -> dict:
         """The unconditional undo after a clear-text action in editor `mode`: one click, then a fresh check.
 
-        If clear-text was a no-op on an already empty document, the undo reverts the previous action instead.
+        Known gap: if clear-text was a no-op on an already empty document, the undo reverts the previous action instead.
         """
         undo_testid, _ = undo_redo_for_mode(mode)
         self.say(f"\n   Auto-undoing the clear-text action (it is always reverted after its check)")

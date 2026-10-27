@@ -96,7 +96,8 @@ def _value_violates_schema(value, prop_schema, root_schema=None) -> bool:
 
 
 def _get_ace_annotations(page: Page, mode: SessionMode) -> list[dict]:
-    """Ace's gutter annotations for the editor, [{row, column, text, type}, ...]. This is how AJV errors reach the Text View.
+    """Ace's gutter annotations for the editor, [{row, column, text, type}, ...]. Assumed to be how AJV errors
+    reach the Text View; not checked against every app version.
     """
     mode_str = "dataEditor" if mode == SessionMode.DataEditor else "schemaEditor"
     try:
@@ -146,7 +147,7 @@ def _text_view_error_for_key(page: Page, mode: SessionMode, raw_text: str | None
 
 def _gui_error_icon_and_tooltip_for_path(page: Page, full_path: list) -> dict:
     """Path-aware version of InvariantCheckerDataEditor's _property_has_error_icon() and
-    _get_validation_error_messages(), which only handle top-level keys.
+    _get_validation_error_messages(), which only handle top-level keys. Nested paths are untested.
     """
     path_str = _path_to_testid_string(full_path)
     testid = f"property-metadata-{path_str}"
@@ -367,6 +368,18 @@ class InvariantReport:
                             _print_detail_value(k, v)
 
 
+_ONLY_IDS: set[str] | None = None   # None = run every state invariant (the default)
+
+
+def set_invariant_filter(ids) -> None:
+    """Run only the state invariants whose id is in `ids` (e.g. {"INV-S1"}); None restores the default (all).
+    An empty set runs none of them. Temporal and inferred rules are not affected: they work on snapshots.
+    Used by the test case reducer, where every step only needs to know whether ONE invariant failed.
+    """
+    global _ONLY_IDS
+    _ONLY_IDS = None if ids is None else set(ids)
+
+
 class _BaseInvariantChecker:
     """Runs every method whose name starts with _inv_. Subclasses define the invariants."""
 
@@ -382,6 +395,10 @@ class _BaseInvariantChecker:
         names = sorted((n for n in dir(self) if n.startswith("_inv_")),
                        key=lambda n: (getattr(getattr(self, n), "run_last", False), n))
         for name in names:
+            if _ONLY_IDS is not None:
+                plugin = INVARIANT_REGISTRY.get(name)
+                if plugin is not None and plugin.id not in _ONLY_IDS:
+                    continue
             try:
                 result: InvariantResult = getattr(self, name)()
                 report.results.append(result)
@@ -416,13 +433,17 @@ class InvariantCheckerDataEditor(_BaseInvariantChecker):
         if row.count() == 0:
             return False
 
-        for el in row.locator('input, textarea, select').all():
-            if el.get_attribute('type') == 'checkbox':
-                if el.is_checked():
+        try:
+            for el in row.locator('input, textarea, select').all():
+                if el.get_attribute('type', timeout=1000) == 'checkbox':
+                    if el.is_checked(timeout=1000):
+                        return True
+                    continue
+                if (el.input_value(timeout=1000) or '').strip():
                     return True
-                continue
-            if (el.input_value() or '').strip():
-                return True
+        except Exception:
+            # The row was re-rendered or removed while being read (GUI render lag): nothing stale to report.
+            return False
 
         if row.locator(f'[data-testid^="property-data-{key}["]').count() > 0:
             return True

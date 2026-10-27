@@ -50,25 +50,15 @@ FACET_DEFINITIONS = {
 }
 
 
-CORRELATION_PAIRS = [
-    ("schema.properties", "data"),
+# Only the pair whose rule is not implied by the action itself: a name newly added to schema.required ends up as a data key.
+# The other pairs gave rules like "a key added to schema.defs is not a key of schema.properties", which hold by construction.
+VALUE_TO_KEY_PAIRS = [
     ("schema.required",   "data"),
-    ("schema.required",   "schema.properties"),
-    ("data",              "schema.properties"),
-    ("data",              "schema.required"),
-    ("schema.defs",       "schema.properties"),
-    ("schema.defs",       "data"),
 ]
 
 
-# Containment is directional. ('data', 'schema.required') is left out because data nearly always has more keys,
-# and schema.defs because a def name is not expected to be a property or data key.
-CONTAINMENT_PAIRS = [
-    ("schema.properties", "data"),
-    ("schema.required",   "data"),
-    ("schema.required",   "schema.properties"),
-    ("data",              "schema.properties"),
-]
+# Facets whose top-level keys key_count_stability compares (the stores a rename changes).
+KEY_FACETS = ("data", "schema.properties")
 
 
 # view -> (text field, store field). The Schema Editor's store is se_data (the schema being edited), not se_schema (the meta-schema).

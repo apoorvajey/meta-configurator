@@ -1,0 +1,3262 @@
+{
+  "generated": "2026-10-26 13:56",
+  "source": "tests\\output\\traces",
+  "datasets": [
+    "autonomous_vehicle",
+    "enzymeml",
+    "feature_testing",
+    "strenda"
+  ],
+  "threshold": 0.85,
+  "config": {
+    "min_observations": 5,
+    "min_rule_observations": 3,
+    "min_observations_for_promotion": 5,
+    "promotion_threshold": 0.85,
+    "change_count_min_share": 0.5,
+    "max_examples": 3,
+    "guard_min_gain": 0.05,
+    "edit_distance_work_limit": 200000,
+    "disabled_templates": [],
+    "sweep_start": 0.7,
+    "sweep_end": 1.0,
+    "sweep_step": 0.05,
+    "profile": "default"
+  },
+  "rules": [
+    {
+      "id": "INF-E03B3D00",
+      "template": "edit_distance",
+      "category": "add_array_item_text@data",
+      "params": {
+        "facet": "data",
+        "mode": "exact",
+        "work_limit": 200000,
+        "k": 1
+      },
+      "direction": "positive",
+      "statement": "after add_array_item_text@data: the data is exactly 1 edit(s) away from its state before the step",
+      "card": {
+        "trigger": "steps whose action is in category 'add_array_item_text' (action starts with \"add-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "snapshot['de_data'] is recorded before and after the step and the distance fits the work limit (200000)",
+        "asserts": "the edit distance of data between before and after is exactly 1",
+        "definitions": "edit distance = minimum number of node inserts, deletes and renames that turn the JSON before into the JSON after (JEDI, Hütter et al., SIGMOD 2022): objects unordered, arrays ordered, one key or one value is one node. Computed top-down (inference/json_edit_distance.py), which is an upper bound on the true JEDI distance. k is the most common non-zero distance of the action category in the traces."
+      },
+      "min_support": 0.9512,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 35,
+          "observations": 36,
+          "support": 0.9722
+        },
+        "enzymeml": {
+          "held": 56,
+          "observations": 58,
+          "support": 0.9655
+        },
+        "feature_testing": {
+          "held": 59,
+          "observations": 61,
+          "support": 0.9672
+        },
+        "strenda": {
+          "held": 39,
+          "observations": 41,
+          "support": 0.9512
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-25909D8C",
+      "template": "edit_distance",
+      "category": "rename_child_text@data",
+      "params": {
+        "facet": "data",
+        "mode": "exact",
+        "work_limit": 200000,
+        "k": 1
+      },
+      "direction": "positive",
+      "statement": "after rename_child_text@data: the data is exactly 1 edit(s) away from its state before the step",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "snapshot['de_data'] is recorded before and after the step and the distance fits the work limit (200000)",
+        "asserts": "the edit distance of data between before and after is exactly 1",
+        "definitions": "edit distance = minimum number of node inserts, deletes and renames that turn the JSON before into the JSON after (JEDI, Hütter et al., SIGMOD 2022): objects unordered, arrays ordered, one key or one value is one node. Computed top-down (inference/json_edit_distance.py), which is an upper bound on the true JEDI distance. k is the most common non-zero distance of the action category in the traces."
+      },
+      "min_support": 0.9737,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 37,
+          "observations": 38,
+          "support": 0.9737
+        },
+        "feature_testing": {
+          "held": 25,
+          "observations": 25,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 41,
+          "observations": 42,
+          "support": 0.9762
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-A28E3AE0",
+      "template": "format_agreement",
+      "category": "*",
+      "params": {
+        "view": "data",
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "the Data Editor's Text View content is in the format its format selector shows",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "after the step, snapshot['de_text']['format'] is set and snapshot['de_text']['raw'] has a detectable format",
+        "asserts": "after the step, the detected format of snapshot['de_text']['raw'] equals snapshot['de_text']['format']",
+        "definitions": "snapshot['de_text']['format'] = the label shown by the format selector ('json'/'yaml'); detected format = 'json' if json.loads gives an object/array, 'yaml' if yaml.safe_load gives a mapping/list and the text does not start with '{' or '[', otherwise not judgeable (empty, scalar, or half-edited text is skipped)"
+      },
+      "min_support": 0.9867,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 372,
+          "observations": 377,
+          "support": 0.9867
+        },
+        "enzymeml": {
+          "held": 536,
+          "observations": 536,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 535,
+          "observations": 540,
+          "support": 0.9907
+        },
+        "strenda": {
+          "held": 501,
+          "observations": 507,
+          "support": 0.9882
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-B559BE98",
+      "template": "format_agreement",
+      "category": "*",
+      "params": {
+        "view": "schema",
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "the Schema Editor's Text View content is in the format its format selector shows",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "after the step, snapshot['se_text']['format'] is set and snapshot['se_text']['raw'] has a detectable format",
+        "asserts": "after the step, the detected format of snapshot['se_text']['raw'] equals snapshot['se_text']['format']",
+        "definitions": "snapshot['se_text']['format'] = the label shown by the format selector ('json'/'yaml'); detected format = 'json' if json.loads gives an object/array, 'yaml' if yaml.safe_load gives a mapping/list and the text does not start with '{' or '[', otherwise not judgeable (empty, scalar, or half-edited text is skipped)"
+      },
+      "min_support": 0.989,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 245,
+          "observations": 245,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 180,
+          "observations": 182,
+          "support": 0.989
+        },
+        "feature_testing": {
+          "held": 279,
+          "observations": 281,
+          "support": 0.9929
+        },
+        "strenda": {
+          "held": 240,
+          "observations": 241,
+          "support": 0.9959
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-4AA5865F",
+      "template": "gui_renders",
+      "category": "*",
+      "params": {
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "the GUI shows rows for the data and no loading spinner",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "the Data Editor's GUI View is showing, the data is a non-empty object and the spinner was read, checked after the step",
+        "asserts": "at least one data key has a GUI row and no loading spinner is shown",
+        "definitions": "rows = the top-level names of snapshot['de_gui'] without the settings rows (textEditor.*, guiEditor.*); blank = no data key has a row (the reading of INV-D4 'GUI is blank'); spinner = snapshot['spinner_present'] (the TreeTable loading icon of INV-G2, read when the snapshot is taken)"
+      },
+      "min_support": 0.9842,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 376,
+          "observations": 377,
+          "support": 0.9973
+        },
+        "enzymeml": {
+          "held": 532,
+          "observations": 534,
+          "support": 0.9963
+        },
+        "feature_testing": {
+          "held": 446,
+          "observations": 451,
+          "support": 0.9889
+        },
+        "strenda": {
+          "held": 498,
+          "observations": 506,
+          "support": 0.9842
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-DCE8AC44",
+      "template": "gui_required_agreement",
+      "category": "*",
+      "params": {
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "the GUI required-star matches the schema's required list",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "a property row has a GUI reading, checked after the step",
+        "asserts": "the required-star is shown when the name is required (always or under a condition) and hidden when it is not always required",
+        "definitions": "de_gui[key] from capture_gui_facts; rows at any depth ('address.city', 'nickNames[0]'); the parent's required list is read through $ref, allOf, anyOf, oneOf, then/else and dependentRequired; array elements are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 10993,
+          "observations": 10993,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 34389,
+          "observations": 34389,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 12629,
+          "observations": 12629,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 12995,
+          "observations": 12995,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-2AB96604",
+      "template": "gui_row_set",
+      "category": "*",
+      "params": {
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "every GUI row belongs to the data or the schema",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "the Data Editor's GUI has rows after the step",
+        "asserts": "every GUI row is a path in the data or a path the schema declares",
+        "definitions": "rows = the keys of snapshot['de_gui'] without the settings rows (textEditor.*, guiEditor.*); a path is looked up in snapshot['de_data'] and, through $ref/allOf/anyOf/oneOf/then/else, in snapshot['de_schema']; a path that runs into a $ref that cannot be followed counts as declared. One observation per step; a counter-example lists the stale rows."
+      },
+      "min_support": 0.9724,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 403,
+          "observations": 407,
+          "support": 0.9902
+        },
+        "enzymeml": {
+          "held": 564,
+          "observations": 569,
+          "support": 0.9912
+        },
+        "feature_testing": {
+          "held": 577,
+          "observations": 583,
+          "support": 0.9897
+        },
+        "strenda": {
+          "held": 529,
+          "observations": 544,
+          "support": 0.9724
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-9AE0A84E",
+      "template": "gui_value_agreement",
+      "category": "*",
+      "params": {
+        "transition": false
+      },
+      "direction": "positive",
+      "statement": "the GUI displayed value matches the data value",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "a property row has a GUI reading, checked after the step",
+        "asserts": "the GUI input value equals the data value",
+        "definitions": "de_gui[key] from capture_gui_facts; rows at any depth ('address.city', 'nickNames[0]'); primitive values only (numbers compared as floats)"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 1525,
+          "observations": 1525,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 15029,
+          "observations": 15029,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 3623,
+          "observations": 3623,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 4177,
+          "observations": 4177,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-40399451",
+      "template": "stability",
+      "category": "add_array_item_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after add_array_item_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_array_item_text' (action starts with \"add-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 36,
+          "observations": 36,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 58,
+          "observations": 58,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 61,
+          "observations": 61,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 41,
+          "observations": 41,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-DE681A06",
+      "template": "stability",
+      "category": "add_array_item_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after add_array_item_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_array_item_text' (action starts with \"add-array-item-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.9286,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 8,
+          "observations": 8,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 13,
+          "observations": 14,
+          "support": 0.9286
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-66209615",
+      "template": "stability",
+      "category": "add_child_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after add_child_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_child_text' (action starts with \"add-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 35,
+          "observations": 35,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 48,
+          "observations": 48,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 48,
+          "observations": 48,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 45,
+          "observations": 45,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-F0443651",
+      "template": "stability",
+      "category": "add_child_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after add_child_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_child_text' (action starts with \"add-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 20,
+          "observations": 20,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 11,
+          "observations": 11,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-4E7D96FC",
+      "template": "stability",
+      "category": "add_item@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after add_item@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item' (action starts with \"add-item-\" (except \"add-item-required\")), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 21,
+          "observations": 21,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 58,
+          "observations": 58,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 43,
+          "observations": 43,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 59,
+          "observations": 59,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-3CBAEAFF",
+      "template": "stability",
+      "category": "add_property@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after add_property@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_property' (action starts with \"add-property-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.9474,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 18,
+          "observations": 19,
+          "support": 0.9474
+        },
+        "feature_testing": {
+          "held": 20,
+          "observations": 20,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 21,
+          "observations": 21,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-31BFD8F0",
+      "template": "stability",
+      "category": "change_type_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after change_type_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'change_type_text' (action starts with \"change-type-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 22,
+          "observations": 22,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 40,
+          "observations": 40,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-83E8B833",
+      "template": "stability",
+      "category": "change_type_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after change_type_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'change_type_text' (action starts with \"change-type-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 20,
+          "observations": 20,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 9,
+          "observations": 9,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-E13091AF",
+      "template": "stability",
+      "category": "clear_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after clear_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'clear_text' (action starts with \"clear-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 19,
+          "observations": 19,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 29,
+          "observations": 29,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 28,
+          "observations": 28,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-DBA7FFEA",
+      "template": "stability",
+      "category": "clear_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after clear_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'clear_text' (action starts with \"clear-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 6,
+          "observations": 6,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 8,
+          "observations": 8,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-74BC3624",
+      "template": "stability",
+      "category": "edit_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after edit_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'edit_text' (action starts with \"edit-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 27,
+          "observations": 27,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 63,
+          "observations": 63,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 56,
+          "observations": 56,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-EB0ED7F1",
+      "template": "stability",
+      "category": "edit_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after edit_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'edit_text' (action starts with \"edit-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-A9B85B97",
+      "template": "stability",
+      "category": "format_toggle@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 28,
+          "observations": 28,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 23,
+          "observations": 23,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 24,
+          "observations": 24,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 29,
+          "observations": 29,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-F55A226A",
+      "template": "stability",
+      "category": "format_toggle@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-A52CE6C6",
+      "template": "stability",
+      "category": "format_toggle@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@schema: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.9375,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 15,
+          "observations": 16,
+          "support": 0.9375
+        },
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-1FCA3AD8",
+      "template": "stability",
+      "category": "remove@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after remove@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove' (action starts with \"remove-property-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 22,
+          "observations": 22,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 24,
+          "observations": 24,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 22,
+          "observations": 22,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-7C711215",
+      "template": "stability",
+      "category": "remove@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after remove@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove' (action starts with \"remove-property-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 19,
+          "observations": 19,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 11,
+          "observations": 11,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 29,
+          "observations": 29,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-6EFDFA0A",
+      "template": "stability",
+      "category": "remove_array_item_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after remove_array_item_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_array_item_text' (action starts with \"remove-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 31,
+          "observations": 31,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 56,
+          "observations": 56,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 61,
+          "observations": 61,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 53,
+          "observations": 53,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-058BFBF6",
+      "template": "stability",
+      "category": "remove_array_item_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after remove_array_item_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_array_item_text' (action starts with \"remove-array-item-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-44272F79",
+      "template": "stability",
+      "category": "remove_child_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after remove_child_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_child_text' (action starts with \"remove-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 13,
+          "observations": 13,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 39,
+          "observations": 39,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 32,
+          "observations": 32,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 33,
+          "observations": 33,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-CC2E1E3E",
+      "template": "stability",
+      "category": "rename_child_text@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after rename_child_text@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 38,
+          "observations": 38,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 25,
+          "observations": 25,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 42,
+          "observations": 42,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-1921DD5B",
+      "template": "stability",
+      "category": "rename_child_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after rename_child_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 6,
+          "observations": 6,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-037CC91C",
+      "template": "stability",
+      "category": "ui_only@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@data: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.9259,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 70,
+          "observations": 70,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 50,
+          "observations": 54,
+          "support": 0.9259
+        },
+        "feature_testing": {
+          "held": 104,
+          "observations": 106,
+          "support": 0.9811
+        },
+        "strenda": {
+          "held": 69,
+          "observations": 74,
+          "support": 0.9324
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-E2FE53C7",
+      "template": "stability",
+      "category": "ui_only@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 70,
+          "observations": 70,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 54,
+          "observations": 54,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 106,
+          "observations": 106,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 74,
+          "observations": 74,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-CE20C70A",
+      "template": "stability",
+      "category": "ui_only@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 37,
+          "observations": 37,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 42,
+          "observations": 42,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 66,
+          "observations": 66,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-F4BD449D",
+      "template": "stability",
+      "category": "ui_only@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@schema: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.9848,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 37,
+          "observations": 37,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 42,
+          "observations": 42,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 65,
+          "observations": 66,
+          "support": 0.9848
+        },
+        "strenda": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-0FD73F5A",
+      "template": "stability",
+      "category": "undo_redo@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after undo_redo@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_redo' (action is \"undo\", \"redo\", \"schema_undo\" or \"schema_redo\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 41,
+          "observations": 41,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 42,
+          "observations": 42,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 64,
+          "observations": 64,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 34,
+          "observations": 34,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-E8C6D1CF",
+      "template": "text_store_agreement",
+      "category": "*",
+      "params": {
+        "view": "data"
+      },
+      "direction": "positive",
+      "statement": "the Data Editor's Text View shows the same content as its store",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "snapshot['de_text']['parsed'] is present after the step (that editor's Text View was showing and parsed)",
+        "asserts": "snapshot['de_text']['parsed'] deep-equals snapshot['de_data'] (YAML: ISO timestamps compared as instants)",
+        "definitions": "-"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 403,
+          "observations": 403,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 568,
+          "observations": 568,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 575,
+          "observations": 575,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 540,
+          "observations": 540,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-C8939CA0",
+      "template": "text_store_agreement",
+      "category": "*",
+      "params": {
+        "view": "schema"
+      },
+      "direction": "positive",
+      "statement": "the Schema Editor's Text View shows the same content as its store",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "snapshot['se_text']['parsed'] is present after the step (that editor's Text View was showing and parsed)",
+        "asserts": "snapshot['se_text']['parsed'] deep-equals snapshot['se_data'] (YAML: ISO timestamps compared as instants)",
+        "definitions": "-"
+      },
+      "min_support": 0.9947,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 251,
+          "observations": 251,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 188,
+          "observations": 189,
+          "support": 0.9947
+        },
+        "feature_testing": {
+          "held": 287,
+          "observations": 287,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 245,
+          "observations": 245,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-19106981",
+      "template": "undo_inverse",
+      "category": "undo_inverse@any",
+      "params": {
+        "store": "schema"
+      },
+      "direction": "positive",
+      "statement": "after undo_inverse@any: undoing an edit restores the schema to its state before the edit",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_inverse' (an undo directly after an edit that changed the data or the schema (same run, adjacent steps, no failed interaction between), compared with the state before that edit; see _undo_pairs. Checked in the loop on such an undo (see _undo_pair)), performed while either editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "an edit that changed the data or the schema is directly followed by an undo in the same run, and the schema (snapshot['de_schema']) is available before the edit and after the undo",
+        "asserts": "the schema after the undo deep-equals the schema before the edit",
+        "definitions": "schema = snapshot['de_schema']. Checked on (snapshot before the edit, snapshot after the undo); the edit is named in the 'undone' field of a counter-example. The loop checks it on an undo that directly follows such an edit."
+      },
+      "min_support": 0.8571,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 24,
+          "observations": 28,
+          "support": 0.8571
+        },
+        "enzymeml": {
+          "held": 33,
+          "observations": 33,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 34,
+          "observations": 38,
+          "support": 0.8947
+        },
+        "strenda": {
+          "held": 23,
+          "observations": 25,
+          "support": 0.92
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-0AD1BC58",
+      "template": "validity_agreement",
+      "category": "*",
+      "params": {
+        "variant": "meta_invalid_implies_app_flag"
+      },
+      "direction": "positive",
+      "statement": "when the meta-schema rejects the schema, the app logs that it is invalid",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "the meta-schema rejects the edited schema after the step, and the app's log was recorded",
+        "asserts": "the app logged that the schema is invalid during the step",
+        "definitions": "meta-schema verdict = snapshot['schema_valid_meta'] (schema_validity.py, incl. schemas Ajv refuses to compile); app verdict = snapshot['app_logged_invalid'] (the app wrote 'schema is invalid' to the console). Recorded apart so that a disagreement stays visible. The app logs only when it reloads the schema, so the second direction need not hold."
+      },
+      "min_support": 0.8667,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 31,
+          "observations": 31,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 13,
+          "observations": 15,
+          "support": 0.8667
+        },
+        "feature_testing": {
+          "held": 20,
+          "observations": 21,
+          "support": 0.9524
+        },
+        "strenda": {
+          "held": 33,
+          "observations": 33,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-90ADBD6F",
+      "template": "value_to_key",
+      "category": "add_item_required@schema",
+      "params": {
+        "a": "schema.required",
+        "b": "data"
+      },
+      "direction": "positive",
+      "statement": "after add_item_required@schema: a key newly added to schema.required is a key of data afterwards",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item_required' (action is exactly \"add-item-required\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "a top-level key was newly added to schema.required - checked once per added key",
+        "asserts": "that key is a top-level key of data after the step",
+        "definitions": "schema.required = the names listed in snapshot['de_schema']['required'] - ROOT level only; data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.913,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 31,
+          "observations": 31,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 16,
+          "observations": 17,
+          "support": 0.9412
+        },
+        "feature_testing": {
+          "held": 25,
+          "observations": 26,
+          "support": 0.9615
+        },
+        "strenda": {
+          "held": 21,
+          "observations": 23,
+          "support": 0.913
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-EBF3047C",
+      "template": "stability",
+      "category": "add_property@data",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "positive",
+      "statement": "after add_property@data: schema is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_property' (action starts with \"add-property-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema is deep-equal before and after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 36,
+          "observations": 36,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-6D118B0D",
+      "template": "stability",
+      "category": "format_toggle@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@data: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.7826,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 27,
+          "observations": 28,
+          "support": 0.9643
+        },
+        "enzymeml": {
+          "held": 18,
+          "observations": 23,
+          "support": 0.7826
+        },
+        "feature_testing": {
+          "held": 24,
+          "observations": 24,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 23,
+          "observations": 29,
+          "support": 0.7931
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-DAA32E7D",
+      "template": "stability",
+      "category": "remove_child_text@schema",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "positive",
+      "statement": "after remove_child_text@schema: data is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_child_text' (action starts with \"remove-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data is deep-equal before and after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-34E7D8F6",
+      "template": "undo_inverse",
+      "category": "undo_inverse@any",
+      "params": {
+        "store": "data"
+      },
+      "direction": "positive",
+      "statement": "after undo_inverse@any: undoing an edit restores the data to its state before the edit",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_inverse' (an undo directly after an edit that changed the data or the schema (same run, adjacent steps, no failed interaction between), compared with the state before that edit; see _undo_pairs. Checked in the loop on such an undo (see _undo_pair)), performed while either editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "an edit that changed the data or the schema is directly followed by an undo in the same run, and the data (snapshot['de_data']) is available before the edit and after the undo",
+        "asserts": "the data after the undo deep-equals the data before the edit",
+        "definitions": "data = snapshot['de_data']. Checked on (snapshot before the edit, snapshot after the undo); the edit is named in the 'undone' field of a counter-example. The loop checks it on an undo that directly follows such an edit."
+      },
+      "min_support": 0.64,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 25,
+          "observations": 28,
+          "support": 0.8929
+        },
+        "enzymeml": {
+          "held": 23,
+          "observations": 33,
+          "support": 0.697
+        },
+        "feature_testing": {
+          "held": 35,
+          "observations": 38,
+          "support": 0.9211
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 25,
+          "support": 0.64
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-01C4BDCF",
+      "template": "undo_inverse",
+      "category": "undo_inverse@any",
+      "params": {
+        "store": "data Text View"
+      },
+      "direction": "positive",
+      "statement": "after undo_inverse@any: undoing an edit restores the data Text View to its state before the edit",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_inverse' (an undo directly after an edit that changed the data or the schema (same run, adjacent steps, no failed interaction between), compared with the state before that edit; see _undo_pairs. Checked in the loop on such an undo (see _undo_pair)), performed while either editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "an edit that changed the data or the schema is directly followed by an undo in the same run, and the data Text View (snapshot['de_text']['parsed'] (the Data Editor's Text View, parsed)) is available before the edit and after the undo",
+        "asserts": "the data Text View after the undo deep-equals the data Text View before the edit",
+        "definitions": "data Text View = snapshot['de_text']['parsed'] (the Data Editor's Text View, parsed). Checked on (snapshot before the edit, snapshot after the undo); the edit is named in the 'undone' field of a counter-example. The loop checks it on an undo that directly follows such an edit."
+      },
+      "min_support": 0.5882,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 18,
+          "observations": 19,
+          "support": 0.9474
+        },
+        "enzymeml": {
+          "held": 18,
+          "observations": 28,
+          "support": 0.6429
+        },
+        "feature_testing": {
+          "held": 25,
+          "observations": 25,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 10,
+          "observations": 17,
+          "support": 0.5882
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-3C623457",
+      "template": "validity_agreement",
+      "category": "*",
+      "params": {
+        "variant": "app_flags_imply_meta_invalid"
+      },
+      "direction": "positive",
+      "statement": "when the app logs that the schema is invalid, the meta-schema rejects the schema too",
+      "card": {
+        "trigger": "every step, whatever the action and tab",
+        "applies_when": "the app logged that the schema is invalid during the step, and the meta-schema verdict was recorded",
+        "asserts": "the meta-schema also rejects the edited schema",
+        "definitions": "meta-schema verdict = snapshot['schema_valid_meta'] (schema_validity.py, incl. schemas Ajv refuses to compile); app verdict = snapshot['app_logged_invalid'] (the app wrote 'schema is invalid' to the console). Recorded apart so that a disagreement stays visible. The app logs only when it reloads the schema, so the second direction need not hold."
+      },
+      "min_support": 0.6471,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 31,
+          "observations": 31,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 13,
+          "observations": 13,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 20,
+          "observations": 27,
+          "support": 0.7407
+        },
+        "strenda": {
+          "held": 33,
+          "observations": 51,
+          "support": 0.6471
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-9B617D60",
+      "template": "edit_distance",
+      "category": "add_item_required@schema#first",
+      "params": {
+        "facet": "data",
+        "mode": "exact",
+        "work_limit": 200000,
+        "k": 4
+      },
+      "direction": "negative",
+      "statement": "after add_item_required@schema#first: the data is not exactly 4 edit(s) away from its state before the step",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item_required' (action is exactly \"add-item-required\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action; only the FIRST such step of a run",
+        "applies_when": "snapshot['de_data'] is recorded before and after the step and the distance fits the work limit (200000)",
+        "asserts": "the edit distance of data between before and after is not 4",
+        "definitions": "edit distance = minimum number of node inserts, deletes and renames that turn the JSON before into the JSON after (JEDI, Hütter et al., SIGMOD 2022): objects unordered, arrays ordered, one key or one value is one node. Computed top-down (inference/json_edit_distance.py), which is an upper bound on the true JEDI distance. k is the most common non-zero distance of the action category in the traces."
+      },
+      "min_support": 1.0,
+      "evidence": {},
+      "verdict": "LEARNED_BUG",
+      "promotion": "learned_bug",
+      "negates": "INF-0568A158",
+      "bug": "BUG-13",
+      "learned_from": "after add_item_required@schema#first: the data is exactly 4 edit(s) away from its state before the step"
+    },
+    {
+      "id": "INF-D282168D",
+      "template": "change_count",
+      "category": "add_item_required@schema#first",
+      "params": {
+        "facet": "data",
+        "expected": 2
+      },
+      "direction": "negative",
+      "statement": "after add_item_required@schema#first: data does not have exactly 2 DeepDiff change(s)",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item_required' (action is exactly \"add-item-required\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action; only the FIRST such step of a run",
+        "applies_when": "always",
+        "asserts": "DeepDiff reports a number of change entries other than 2 for data",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 1.0,
+      "evidence": {},
+      "verdict": "LEARNED_BUG",
+      "promotion": "learned_bug",
+      "negates": "INF-12BD69A0",
+      "bug": "BUG-12",
+      "learned_from": "after add_item_required@schema#first: data has exactly 2 DeepDiff change(s)"
+    },
+    {
+      "id": "INF-7BBFCCCA",
+      "template": "stability",
+      "category": "format_toggle@schema",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@schema: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-25729BD8",
+      "template": "stability",
+      "category": "ui_only@schema",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@schema: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 37,
+          "observations": 37,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 41,
+          "observations": 41,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 66,
+          "observations": 66,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 47,
+          "observations": 47,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-8CA10297",
+      "template": "app_health",
+      "category": "undo_redo@schema",
+      "params": {
+        "guard": "schema_valid"
+      },
+      "direction": "positive",
+      "statement": "after undo_redo@schema: the app writes no console error and throws no exception, when the edited schema is valid",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_redo' (action is \"undo\", \"redo\", \"schema_undo\" or \"schema_redo\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "snapshot['console_errors_since_last_step'] was recorded for the step; and the guard holds: snapshot['schema_valid_meta'] is True after the step (the edited schema passes the meta-schema, see tests/invariants/schema_validity.py); a step without that reading is skipped",
+        "asserts": "no console error and no uncaught exception was recorded during the step",
+        "definitions": "console errors = Playwright 'console' events of type error plus 'pageerror' events, cut per snapshot (tests/invariants/app_errors.py, kept apart from INV-G1's list). The app reloads the schema from a debounced callback, so a message can land on the snapshot after the edit that caused it."
+      },
+      "min_support": 0.6923,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 9,
+          "observations": 13,
+          "support": 0.6923
+        },
+        "enzymeml": {
+          "held": 9,
+          "observations": 9,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 21,
+          "observations": 23,
+          "support": 0.913
+        },
+        "strenda": {
+          "held": 13,
+          "observations": 14,
+          "support": 0.9286
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-59F5EE19",
+      "template": "stability",
+      "category": "add_array_item_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after add_array_item_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_array_item_text' (action starts with \"add-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 23,
+          "observations": 23,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 29,
+          "observations": 29,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 9,
+          "observations": 9,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-CEAC2F39",
+      "template": "stability",
+      "category": "add_child_text@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after add_child_text@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_child_text' (action starts with \"add-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.8846,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 23,
+          "observations": 26,
+          "support": 0.8846
+        },
+        "feature_testing": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-49FB93E5",
+      "template": "stability",
+      "category": "add_child_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after add_child_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_child_text' (action starts with \"add-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 26,
+          "observations": 26,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-7986CA04",
+      "template": "stability",
+      "category": "add_item@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after add_item@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item' (action starts with \"add-item-\" (except \"add-item-required\")), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 32,
+          "observations": 32,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 34,
+          "observations": 34,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 35,
+          "observations": 35,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-C80A2D4D",
+      "template": "stability",
+      "category": "add_item_required@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after add_item_required@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item_required' (action is exactly \"add-item-required\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 30,
+          "observations": 30,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 28,
+          "observations": 28,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 68,
+          "observations": 68,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 27,
+          "observations": 27,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-8848895C",
+      "template": "stability",
+      "category": "add_property@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after add_property@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_property' (action starts with \"add-property-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.95,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 19,
+          "observations": 20,
+          "support": 0.95
+        },
+        "enzymeml": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 50,
+          "observations": 52,
+          "support": 0.9615
+        },
+        "strenda": {
+          "held": 23,
+          "observations": 24,
+          "support": 0.9583
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-13AE8612",
+      "template": "stability",
+      "category": "change_type_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after change_type_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'change_type_text' (action starts with \"change-type-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 18,
+          "observations": 18,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 31,
+          "observations": 31,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-5E77CA82",
+      "template": "stability",
+      "category": "edit_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after edit_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'edit_text' (action starts with \"edit-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 19,
+          "observations": 19,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 22,
+          "observations": 22,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 19,
+          "observations": 19,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-FB25B870",
+      "template": "stability",
+      "category": "remove@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after remove@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove' (action starts with \"remove-property-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 13,
+          "observations": 13,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-0CA05A2F",
+      "template": "stability",
+      "category": "remove_array_item_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after remove_array_item_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_array_item_text' (action starts with \"remove-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 22,
+          "observations": 22,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 32,
+          "observations": 32,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 13,
+          "observations": 13,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-03914145",
+      "template": "stability",
+      "category": "ui_only@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after ui_only@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'ui_only' (action starts with \"expand-\", \"collapse-\" or \"mode-active-\" (view-only actions: open/close a tree node or switch tab; not meant to edit data or schema)), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 21,
+          "observations": 21,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 45,
+          "observations": 45,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 42,
+          "observations": 42,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 41,
+          "observations": 41,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-4C3FDC72",
+      "template": "stability",
+      "category": "undo_redo@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after undo_redo@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_redo' (action is \"undo\", \"redo\", \"schema_undo\" or \"schema_redo\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 38,
+          "observations": 38,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 32,
+          "observations": 32,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 29,
+          "observations": 29,
+          "support": 1.0
+        }
+      },
+      "verdict": "PROMOTABLE",
+      "promotion": "automatic"
+    },
+    {
+      "id": "INF-954ADF8E",
+      "template": "stability",
+      "category": "add_array_item_text@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after add_array_item_text@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_array_item_text' (action starts with \"add-array-item-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.4483,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 19,
+          "observations": 23,
+          "support": 0.8261
+        },
+        "enzymeml": {
+          "held": 13,
+          "observations": 29,
+          "support": 0.4483
+        },
+        "feature_testing": {
+          "held": 8,
+          "observations": 9,
+          "support": 0.8889
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-140D9C01",
+      "template": "stability",
+      "category": "add_child_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after add_child_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_child_text' (action starts with \"add-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.6,
+      "evidence": {
+        "enzymeml": {
+          "held": 22,
+          "observations": 23,
+          "support": 0.9565
+        },
+        "feature_testing": {
+          "held": 9,
+          "observations": 15,
+          "support": 0.6
+        },
+        "strenda": {
+          "held": 11,
+          "observations": 16,
+          "support": 0.6875
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-6F5A8574",
+      "template": "stability",
+      "category": "add_item@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after add_item@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'add_item' (action starts with \"add-item-\" (except \"add-item-required\")), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.5312,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 17,
+          "observations": 18,
+          "support": 0.9444
+        },
+        "enzymeml": {
+          "held": 17,
+          "observations": 32,
+          "support": 0.5312
+        },
+        "feature_testing": {
+          "held": 28,
+          "observations": 34,
+          "support": 0.8235
+        },
+        "strenda": {
+          "held": 34,
+          "observations": 35,
+          "support": 0.9714
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-C0578383",
+      "template": "stability",
+      "category": "add_property@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after add_property@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'add_property' (action starts with \"add-property-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 17,
+          "observations": 17,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-10B262E0",
+      "template": "stability",
+      "category": "change_type_text@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after change_type_text@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'change_type_text' (action starts with \"change-type-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.6774,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 17,
+          "observations": 18,
+          "support": 0.9444
+        },
+        "enzymeml": {
+          "held": 21,
+          "observations": 31,
+          "support": 0.6774
+        },
+        "feature_testing": {
+          "held": 9,
+          "observations": 10,
+          "support": 0.9
+        },
+        "strenda": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-DFF4394D",
+      "template": "stability",
+      "category": "clear_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after clear_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'clear_text' (action starts with \"clear-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 16,
+          "observations": 16,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 14,
+          "observations": 14,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 12,
+          "observations": 12,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-04D9F04B",
+      "template": "stability",
+      "category": "clear_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after clear_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'clear_text' (action starts with \"clear-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "enzymeml": {
+          "held": 6,
+          "observations": 6,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 6,
+          "observations": 6,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-FBB69A75",
+      "template": "stability",
+      "category": "edit_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after edit_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'edit_text' (action starts with \"edit-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.8,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 6,
+          "observations": 7,
+          "support": 0.8571
+        },
+        "enzymeml": {
+          "held": 17,
+          "observations": 18,
+          "support": 0.9444
+        },
+        "feature_testing": {
+          "held": 8,
+          "observations": 10,
+          "support": 0.8
+        },
+        "strenda": {
+          "held": 17,
+          "observations": 19,
+          "support": 0.8947
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-49A6ECBA",
+      "template": "stability",
+      "category": "format_toggle@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after format_toggle@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'format_toggle' (action is exactly \"format-selector\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "enzymeml": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 14,
+          "observations": 14,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-815F406C",
+      "template": "stability",
+      "category": "remove@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after remove@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'remove' (action starts with \"remove-property-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.5385,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 11,
+          "observations": 12,
+          "support": 0.9167
+        },
+        "enzymeml": {
+          "held": 7,
+          "observations": 13,
+          "support": 0.5385
+        },
+        "feature_testing": {
+          "held": 15,
+          "observations": 16,
+          "support": 0.9375
+        },
+        "strenda": {
+          "held": 10,
+          "observations": 10,
+          "support": 1.0
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-D444C0EB",
+      "template": "stability",
+      "category": "remove@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after remove@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'remove' (action starts with \"remove-property-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 9,
+          "observations": 9,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 26,
+          "observations": 26,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 15,
+          "observations": 15,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-F39B3A8B",
+      "template": "stability",
+      "category": "remove_array_item_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after remove_array_item_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_array_item_text' (action starts with \"remove-array-item-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.3333,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 20,
+          "observations": 26,
+          "support": 0.7692
+        },
+        "feature_testing": {
+          "held": 10,
+          "observations": 18,
+          "support": 0.5556
+        },
+        "strenda": {
+          "held": 5,
+          "observations": 15,
+          "support": 0.3333
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-FB65DD94",
+      "template": "stability",
+      "category": "remove_child_text@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after remove_child_text@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_child_text' (action starts with \"remove-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.7143,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 5,
+          "observations": 7,
+          "support": 0.7143
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-1A237571",
+      "template": "stability",
+      "category": "remove_child_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after remove_child_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_child_text' (action starts with \"remove-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "enzymeml": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-193B6938",
+      "template": "stability",
+      "category": "remove_child_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after remove_child_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'remove_child_text' (action starts with \"remove-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "enzymeml": {
+          "held": 11,
+          "observations": 11,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-58EA6E67",
+      "template": "stability",
+      "category": "rename_child_text@data",
+      "params": {
+        "facet": "data"
+      },
+      "direction": "negative",
+      "statement": "after rename_child_text@data: data changes",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "data differs after the step",
+        "definitions": "data = snapshot['de_data'] - the Data Editor's data; key-based rules use its TOP-LEVEL keys only"
+      },
+      "min_support": 0.8333,
+      "evidence": {
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 5,
+          "observations": 6,
+          "support": 0.8333
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "manual"
+    },
+    {
+      "id": "INF-ACDFF7B7",
+      "template": "stability",
+      "category": "rename_child_text@data",
+      "params": {
+        "facet": "schema.valid"
+      },
+      "direction": "positive",
+      "statement": "after rename_child_text@data: schema.valid is unchanged",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Data Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema.valid is deep-equal before and after the step",
+        "definitions": "schema.valid = {'valid': snapshot['schema_valid_meta']} - whether the edited schema passes the meta-schema (tests/invariants/schema_validity.py); steps without that reading are skipped"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "enzymeml": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        },
+        "feature_testing": {
+          "held": 5,
+          "observations": 5,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 6,
+          "observations": 6,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-7C1AB7D5",
+      "template": "stability",
+      "category": "rename_child_text@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after rename_child_text@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'rename_child_text' (action starts with \"rename-child-text-\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 1.0,
+      "evidence": {
+        "enzymeml": {
+          "held": 11,
+          "observations": 11,
+          "support": 1.0
+        },
+        "strenda": {
+          "held": 7,
+          "observations": 7,
+          "support": 1.0
+        }
+      },
+      "verdict": "INSUFFICIENT_EVIDENCE",
+      "promotion": "insufficient_evidence"
+    },
+    {
+      "id": "INF-13916E7A",
+      "template": "stability",
+      "category": "undo_redo@schema",
+      "params": {
+        "facet": "schema"
+      },
+      "direction": "negative",
+      "statement": "after undo_redo@schema: schema changes",
+      "card": {
+        "trigger": "steps whose action is in category 'undo_redo' (action is \"undo\", \"redo\", \"schema_undo\" or \"schema_redo\"), performed while the Schema Editor was active - the tab showing in the snapshot BEFORE the step; Text View actions use the editor named in the action",
+        "applies_when": "always",
+        "asserts": "schema differs after the step",
+        "definitions": "schema = snapshot['de_schema'] - the Data Editor's copy of the schema, whole document"
+      },
+      "min_support": 0.6,
+      "evidence": {
+        "autonomous_vehicle": {
+          "held": 6,
+          "observations": 8,
+          "support": 0.75
+        },
+        "enzymeml": {
+          "held": 9,
+          "observations": 15,
+          "support": 0.6
+        },
+        "feature_testing": {
+          "held": 22,
+          "observations": 24,
+          "support": 0.9167
+        },
+        "strenda": {
+          "held": 8,
+          "observations": 9,
+          "support": 0.8889
+        }
+      },
+      "verdict": "BELOW_THRESHOLD",
+      "promotion": "manual"
+    }
+  ]
+}

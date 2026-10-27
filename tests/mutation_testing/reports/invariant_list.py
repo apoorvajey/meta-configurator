@@ -2,7 +2,8 @@
 
 `python -m tests.cli invariants` collects them here, prints them and rewrites the HTML report
 tests/output/reports/invariants/invariants.html (one fixed file name, refreshed on every call). The report can be
-filtered by origin (hand-written / inferred), by type and by free text.
+filtered by origin (hand-written / inferred), by type and by free text. invariants.html#<id> opens that invariant
+(the stats reports link here).
 
 Type of a hand-written invariant: the editor it runs in (data, schema, any) or "temporal".
 Type of an inferred invariant: the rule template it was mined with (e.g. stability, key_containment).
@@ -111,6 +112,7 @@ details.inv>summary::-webkit-details-marker{display:none}details.inv>summary:hov
 .grp[hidden]{display:none}.glbl{flex:0 0 118px;font-size:13px;font-weight:600;line-height:1.25;padding-top:4px}.glbl em{display:block;font-style:normal;font-weight:400;color:var(--mute);font-size:11.5px}
 .chips{display:flex;flex-wrap:wrap;gap:5px}button.f.zero:not(.on){opacity:.4}
 .empty{color:var(--mute);padding:20px 0;display:none}
+details.inv.picked{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
 @media(max-width:700px){details.inv>summary{grid-template-columns:1fr}.body dl{grid-template-columns:1fr}}
 """
 
@@ -136,6 +138,12 @@ document.getElementById('q').addEventListener('input',function(e){q=e.target.val
 document.getElementById('expand').addEventListener('click',function(e){var open=e.target.dataset.open!=='1';e.target.dataset.open=open?'1':'';
 e.target.textContent=open?'Collapse all':'Expand all';cards.forEach(function(c){if(!c.hidden)c.open=open})});
 apply();
+function pick(){var id=decodeURIComponent((location.hash||'').slice(1));if(!id)return;
+var d=cards.filter(function(c){return c.dataset.id===id})[0];if(!d)return;
+if(d.hidden){q='';document.getElementById('q').value='';['origin','type','kind'].forEach(function(g){var b=document.querySelector('button.f[data-g='+g+'][data-v=""]');if(b&&!b.classList.contains('on'))b.click()})}
+cards.forEach(function(c){c.classList.remove('picked')});d.open=true;d.classList.add('picked');var bar=document.querySelector('.bar');window.scrollTo(0,d.getBoundingClientRect().top+window.scrollY-(bar?bar.offsetHeight:0)-12)}
+if('scrollRestoration' in history)history.scrollRestoration='manual';
+window.addEventListener('hashchange',pick);pick();
 """
 
 
@@ -194,7 +202,7 @@ def render(rows: list[dict]) -> str:
                                 f"<td>{v.get('support', 0):.0%}</td></tr>" for ds, v in r["evidence"].items()) + "</table>")
         cls = "hand" if r["origin"] == HAND else "inferred"
         learned_tag = f'<span class="tag learned">learned bug · {e(r["bug"] or "?")}</span>' if r.get("kind") == "learned" else ""
-        parts.append(f'<details class=inv data-origin="{e(r["origin"])}" data-type="{e(r["type"])}" data-kind="{e(r.get("kind", ""))}" data-text="{e(blob)}">'
+        parts.append(f'<details class=inv data-id="{e(r["id"], quote=True)}" data-origin="{e(r["origin"])}" data-type="{e(r["type"])}" data-kind="{e(r.get("kind", ""))}" data-text="{e(blob)}">'
                      f'<summary><span class=id>{e(r["id"])}</span><span><span class="tag {cls}">{e(r["origin"])}</span>{learned_tag}</span>'
                      f'<span>{e(r["text"])}<span class=ty>{e(r["type"])}</span></span></summary>'
                      f'<div class=body><dl>{detail}</dl>{evidence}</div></details>')

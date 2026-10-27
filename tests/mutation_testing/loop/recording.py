@@ -35,6 +35,20 @@ class RecordingMixin:
             return None
         if invariants_failed:
             self._scroll_to_validation_error()
+        # A step that opened the app's 'Rename conflict' dialog: the executor clicked it away before this call, so a
+        # picture taken now would not show it. If the step failed, its screenshot is the one taken with the dialog open.
+        dialog_shot = (getattr(getattr(self, "_executor", None), "rename_conflict_shot", None)
+                       if invariants_failed else None)
+        if dialog_shot:
+            screenshot_path = os.path.join(self._screenshots_dir, filename)
+            os.makedirs(self._screenshots_dir, exist_ok=True)
+            with open(screenshot_path, "wb") as f:
+                f.write(dialog_shot)
+            print(f"   {screenshot_path}  (taken while the Rename conflict dialog was open)")
+            if self._screenshots_failures_only:   # keep the in-memory "previous step" picture as it would have been
+                data = self.page.screenshot()
+                self._shot_before, self._last_shot = self._last_shot, data
+            return screenshot_path
         if self._screenshots_failures_only:
             # The screenshot is taken exactly as with failures-only off, but a passing step's is only kept in
             # memory. If the next logged step fails, it is written out as that step's "previous step" picture.

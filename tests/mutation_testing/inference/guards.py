@@ -43,6 +43,7 @@ GUARD_DEFINITIONS = {
 # A template that is not listed is never guarded.
 GUARDABLE: dict[str, list[str]] = {
     "gui_row_set":              ["schema_valid"],
+    "gui_rows_complete":        ["schema_valid"],
     "gui_validation_agreement": ["schema_valid"],
     "gui_required_agreement":   ["schema_valid"],
     "gui_value_agreement":      ["schema_valid"],

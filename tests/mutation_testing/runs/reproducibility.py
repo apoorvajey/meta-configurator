@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+# Actions that are plain clicks without a random input: nothing to record, so no value or seed is needed to repeat them
+NO_INPUT_TESTIDS = ("undo", "redo", "schema_undo", "schema_redo")
+
+
 @dataclass
 class ReproducibilityCheck:
     """Whether a history.json carries everything replay needs to reproduce the run.
@@ -22,6 +26,7 @@ class ReproducibilityCheck:
 def check_reproducibility(steps: list[dict]) -> ReproducibilityCheck:
     """A log is reproducible if every action step (a testid) has an "input_value" key and a
     non-null "step_seed". The key's presence is what counts, since its value may be None (the executor generated it).
+    Undo and redo clicks take no input, so older logs that recorded them without a value or seed still count as complete.
     """
     action_steps = 0
     missing: list[int] = []
@@ -29,6 +34,8 @@ def check_reproducibility(steps: list[dict]) -> ReproducibilityCheck:
         if not s.get("testid"):
             continue
         action_steps += 1
+        if s["testid"] in NO_INPUT_TESTIDS:
+            continue
         if "input_value" not in s or s.get("step_seed") is None:
             missing.append(i + 1)
 
@@ -71,6 +78,10 @@ class ReplayOutcome:
     state_snapshots_saved: int = 0        # failing steps whose before/after state was written to disk
     quit_early: bool = False              # the user pressed 'q' before the end
     steps_completed: int = 0              # steps that actually ran (== steps_run unless the replay was stopped early)
+    reproduced: bool = False              # target_invariant_name failed on some step (only set when a target was given)
+    reproduced_at_step: int | None = None  # 1-based position, in the original history, of the first step that did
+    invalid: bool = False                 # a candidate action failed that succeeded originally: the result is untrustworthy
+    invalid_reason: str | None = None
     repairs_rerun: int = 0                # repairs the original run made that replay made again (clicks may differ)
     repairs_not_needed: int = 0           # repairs the original run made that replay did not need
 

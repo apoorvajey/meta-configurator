@@ -3,21 +3,26 @@
 Every stats report saves an HTML page in tests/output/reports/stats/
 (<name>_<time>.html; earlier pages are kept). The page uses the look of the corpus report (same stylesheet and colours):
 title, summary cards, sortable tables, notes.
+
+Cells can link to the other reports (Table.links): an invariant opens it on the invariants page, a bug on the known bugs
+page, a run its mutation_log.html (a step number: that step in the log). Links are relative to the saved page.
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import html
+import os
 import sys
 import webbrowser
+from urllib.parse import quote
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from tests.mutation_testing.common.paths import STATS_DIR
-from tests.mutation_testing.runs.run_layout import RUNS_DIR, iter_run_dirs
+from tests.mutation_testing.common.paths import INVARIANTS_DIR, KNOWN_BUGS_DIR, STATS_DIR
+from tests.mutation_testing.runs.run_layout import RUNS_DIR, find_run_dir, iter_run_dirs
 from tests.mutation_testing.traces.corpus_report import BUTTON_CSS, CSS   # the corpus report's stylesheet
 
 EXTRA_CSS = ("tr.total td{font-weight:700;background:var(--chip)}td.warn{font-weight:600}"
@@ -35,7 +40,8 @@ EXTRA_CSS = ("tr.total td{font-weight:700;background:var(--chip)}td.warn{font-we
              "color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px;box-shadow:0 6px 20px #0006;font-size:13px}"
              "div.ddp[hidden]{display:none}div.ddp input[type=search]{width:100%;font:inherit;margin-bottom:4px;background:var(--bg);color:var(--ink);"
              "border:1px solid var(--line);border-radius:4px}div.ddp .acts{margin-bottom:4px}div.ddp .acts a{cursor:pointer;color:var(--accent);margin-right:10px}"
-             "div.ddp .list{overflow:auto}div.ddp label{display:block;white-space:nowrap;padding:1px 0;cursor:pointer}")
+             "div.ddp .list{overflow:auto}div.ddp label{display:block;white-space:nowrap;padding:1px 0;cursor:pointer}"
+             "td a.go{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)}td a.go:hover{border-bottom-style:solid}")
 # The corpus report's sorting, except that a row with class "total" stays at the bottom
 SORT_JS = """
 document.querySelectorAll('table.sortable').forEach(function(t){var hs=t.querySelectorAll('th');
@@ -97,6 +103,12 @@ class Table:
     tab: str = ""                    # tables with a tab name are shown as tabs of one page (first tab open)
     show_count: bool = True          # collapsed tables: "title (rows)"
     filterable: bool = True          # a dropdown under every column heading to pick the values to show
+    links: dict[int, tuple] = field(default_factory=dict)
+    # column -> what its cells link to (the cell text stays the same, so sorting, filters and --csv are unchanged):
+    #   ("invariant",)        the invariant on the invariants page (reports/invariants/invariants.html#<id>)
+    #   ("bug",)              the bug on the known bugs page (reports/known_bugs/known_bugs.html#<id>)
+    #   ("run",)              the run's log (runs/<run>/mutation_log.html); the cell is the run folder name or run id
+    #   ("step", run_column)  that step in the log of the run in column run_column (mutation_log.html#step-<n>)
 
 
 @dataclass
@@ -109,6 +121,7 @@ class Report:
     tables: list[Table] = field(default_factory=list)
     csv_table: int = 0               # the table --csv prints
     notes: list[str] = field(default_factory=list)                  # "OK ..." green, "DOES NOT MATCH ..." red, "Not checked ..." orange
+    runs_dir: str | Path = RUNS_DIR  # where the runs of "run" / "step" links are
 
 
 def add_report_args(parser: argparse.ArgumentParser) -> None:
@@ -149,7 +162,88 @@ def print_table(table: Table) -> None:
         print("  ".join(c.ljust(w) if i < table.text_columns else c.rjust(w) for i, (c, w) in enumerate(zip(line, widths))))
 
 
-def _table_html(t: Table) -> str:
+class Linker:
+    """Turns a linked cell into an href, relative to the folder of the report page (so the output folder can be moved),
+    or '' when there is nothing to link to: an invariant or bug that is not defined any more, a run without a log."""
+
+    def __init__(self, page_dir: Path | None, runs_dir: str | Path = RUNS_DIR):
+        self.page_dir = page_dir.resolve() if page_dir else None
+        self.runs_dir = Path(runs_dir)
+        self._invariants: set[str] | None = None
+        self._bugs: set[str] | None = None
+        self._logs: dict[str, Path | None] = {}
+
+    def invariant_ids(self) -> set[str]:
+        if self._invariants is None:
+            try:
+                from tests.mutation_testing.reports.invariant_list import collect_invariants
+                self._invariants = {i["id"] for i in collect_invariants()}
+            except Exception:
+                self._invariants = set()
+        return self._invariants
+
+    def bug_ids(self) -> set[str]:
+        if self._bugs is None:
+            from tests.mutation_testing.runs.known_bugs import load_known_bugs
+            self._bugs = {str(b["id"]) for b in load_known_bugs() if b.get("id")}
+        return self._bugs
+
+    def _href(self, target: Path, anchor: str = "") -> str:
+        frag = "#" + quote(anchor, safe="") if anchor else ""
+        if self.page_dir is not None:
+            try:
+                return quote(Path(os.path.relpath(target.resolve(), self.page_dir)).as_posix(), safe="/") + frag
+            except ValueError:   # another drive (Windows): no relative path
+                pass
+        return target.resolve().as_uri() + frag
+
+    def run_log(self, run: str) -> Path | None:
+        if run not in self._logs:
+            folder = find_run_dir(run, self.runs_dir) or self.runs_dir / run
+            log = folder / "mutation_log.html"
+            self._logs[run] = log if log.is_file() else None
+        return self._logs[run]
+
+    def href(self, spec: tuple, row: list, value) -> str:
+        if value is None or value == "-" or value == "":
+            return ""
+        kind, key = spec[0], str(value)
+        if kind == "invariant":
+            return self._href(INVARIANTS_DIR / "invariants.html", key) if key in self.invariant_ids() else ""
+        if kind == "bug":
+            return self._href(KNOWN_BUGS_DIR / "known_bugs.html", key) if key in self.bug_ids() else ""
+        if kind == "run":
+            log = self.run_log(key)
+            return self._href(log) if log else ""
+        if kind == "step":
+            run = row[spec[1]]
+            log = self.run_log(str(run)) if run else None
+            return self._href(log, f"step-{key}") if log else ""
+        return ""
+
+    def kinds(self, report: Report) -> set[str]:
+        return {spec[0] for t in report.tables for spec in t.links.values()}
+
+
+def ensure_link_targets(report: Report) -> None:
+    """Write the pages the links point to: the invariants page is refreshed (cheap, so it lists every invariant
+    that is linked), the known bugs page is written if it does not exist yet (python -m tests.cli bugs refreshes it)."""
+    kinds = Linker(None).kinds(report)
+    if "invariant" in kinds:
+        try:
+            from tests.mutation_testing.reports.invariant_list import collect_invariants, write_report
+            write_report(collect_invariants())
+        except Exception as ex:
+            print(f"[Stats] could not refresh the invariants page: {ex}", file=sys.stderr)
+    if "bug" in kinds and not (KNOWN_BUGS_DIR / "known_bugs.html").is_file():
+        try:
+            from tests.mutation_testing.reports.known_bugs_tool import write_page as write_bugs_page
+            write_bugs_page()
+        except Exception as ex:
+            print(f"[Stats] could not write the known bugs page: {ex}", file=sys.stderr)
+
+
+def _table_html(t: Table, linker: Linker | None = None) -> str:
     e = html.escape
     out = []
     if t.collapsed:
@@ -174,7 +268,9 @@ def _table_html(t: Table) -> str:
             elif i == 0 and t.flag and not is_total and t.flag(row):
                 classes.append("warn")
             attrs = (" class='" + " ".join(classes) + "'" if classes else "") + (" data-v=-1" if empty else "")
-            cells.append("<td" + attrs + ">" + e(text_of(x)))
+            href = linker.href(t.links[i], row, x) if linker and i in t.links and not is_total else ""
+            text = e(text_of(x))
+            cells.append("<td" + attrs + ">" + (f"<a class=go href=\"{e(href, quote=True)}\">{text}</a>" if href else text))
         out.append("<tr class=total>" if is_total else "<tr>")
         out.append("".join(cells) + "</tr>")
     out.append("</table></div>")
@@ -183,8 +279,10 @@ def _table_html(t: Table) -> str:
     return "\n".join(out)
 
 
-def render_page(report: Report) -> str:
+def render_page(report: Report, page_dir: Path | None = None) -> str:
+    """The report page; links are relative to page_dir (the folder the page is saved in), absolute without it."""
     e = html.escape
+    linker = Linker(page_dir, report.runs_dir)
     out = ["<!doctype html><html lang=en><head><meta charset=utf-8>"
            "<meta name=viewport content='width=device-width,initial-scale=1'>"
            f"<title>{e(report.title)}</title><style>{CSS}{BUTTON_CSS}{EXTRA_CSS}</style></head><body><main>",
@@ -199,7 +297,7 @@ def render_page(report: Report) -> str:
     nav_done = False
     for t in report.tables:
         if not t.tab:
-            out.append(_table_html(t))
+            out.append(_table_html(t, linker))
             continue
         if not nav_done:
             buttons = "".join(f"<button type=button data-tab='{i}'" + (" class=on" if i == 0 else "") + f">{e(n)}</button>"
@@ -207,7 +305,7 @@ def render_page(report: Report) -> str:
             out.append("<div class=tabs>" + buttons + "</div>")
             nav_done = True
         k = tabs.index(t.tab)
-        out.append(f"<div class=tabpane data-tab='{k}'" + ("" if k == 0 else " hidden") + ">" + _table_html(t) + "</div>")
+        out.append(f"<div class=tabpane data-tab='{k}'" + ("" if k == 0 else " hidden") + ">" + _table_html(t, linker) + "</div>")
     if report.notes:
         out.append("<h2>Notes</h2>")
         for note in report.notes:
@@ -221,7 +319,8 @@ def render_page(report: Report) -> str:
 def write_page(report: Report, out: str | None = None) -> Path:
     path = Path(out) if out else STATS_DIR / f"{report.name}_{datetime.now():%Y%m%d_%H%M%S}.html"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_page(report), encoding="utf-8")
+    ensure_link_targets(report)
+    path.write_text(render_page(report, path.parent), encoding="utf-8")
     return path
 
 

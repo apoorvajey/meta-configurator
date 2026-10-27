@@ -1,7 +1,7 @@
-"""Known bugs in the recorded runs, in three views of the same data (the known bugs of config/triage_config.json).
-    python -m tests.cli stats bugs [--by bug|profile|invariant] [--csv] [--no-open]
-One page with three tabs: By bug (steps to the first detection, bugs per run), By profile, By invariant (which
-invariants flag which bug, hand-written vs inferred). --by chooses the tab that opens first and the table --csv prints.
+"""Known bugs in the recorded runs, in four views of the same data (the known bugs of config/triage_config.json).
+    python -m tests.cli stats bugs [--by bug|profile|invariant|run] [--csv] [--no-open]
+One page with four tabs: By bug (steps to the first detection, bugs per run), By profile, By invariant (which
+invariants flag which bug, hand-written vs inferred), By run (the bugs of each run, linked to its log). --by chooses the tab that opens first and the table --csv prints.
 All three read each run's original history.json through KnownBugMatcher, the matcher behind the run status, so a bug
 counts here exactly when the run status calls it a known bug. Only the loop's own steps count (not repair clicks);
 a step number is the step of the run (1-based), as in the logs. The report page is saved in tests/output/reports/stats/.
@@ -98,7 +98,9 @@ def detection(args, facts: list[RunFacts], bugs: list[dict], base: str) -> Repor
         table = Table("By known bug",
                       ["bug", "name", "runs_found", "pct_runs", "first_step_min", "first_step_median",
                        "first_step_mean", "first_step_max"], rows, text_columns=2, flag=lambda r: r[2] == 0,
-                      intro="Steps to the first detection of each known bug; bugs no run found are in orange.")
+                      links={0: ("bug",)},
+                      intro="Steps to the first detection of each known bug; bugs no run found are in orange. "
+                            "Click a bug to open it on the known bugs page.")
 
     with_bug = [f for f in facts if f.first_step]
     firsts = [min(f.first_step.values()) for f in with_bug]
@@ -150,16 +152,30 @@ def contribution(args, facts: list[RunFacts], bugs: list[dict], base: str) -> Re
                (kinds["inferred only"], "found by inferred only"), (kinds["both"], "found by both")],
         tables=[Table("Invariants per known bug",
                       ["bug", "invariant", "origin", "runs_flagged", "pct_of_runs_with_bug", "failing_steps", "runs_flagged_first"],
-                      rows, text_columns=3, flag=lambda r: r[3] == 0)],
+                      rows, text_columns=3, flag=lambda r: r[3] == 0, links={0: ("bug",), 1: ("invariant",)})],
         notes=[base, "runs_flagged_first: runs in which the invariant flagged the bug at the very first step that showed it. "
                      "A run/bug detection is one bug found in one run."])
 
 
+def by_run(facts: list[RunFacts]) -> Table:
+    """One row per run: the known bugs it showed and the first one, linked to the run's log at that step."""
+    rows = []
+    for f in facts:
+        order = sorted(f.first_step, key=lambda b: (f.first_step[b], b))
+        first = order[0] if order else None
+        rows.append([f.run_id, f.profile, ", ".join(order) or "-", first, f.n_steps, len(order),
+                     f.first_step[first] if first else None])
+    return Table("Runs", ["run", "profile", "known_bugs", "first_bug", "steps", "bugs_found", "first_bug_step"], rows,
+                 text_columns=4, flag=lambda r: r[5] == 0, links={0: ("run",), 3: ("bug",), 6: ("step", 0)},
+                 intro="One row per run, oldest first; runs without a known bug are in orange. Click a run to open its log, "
+                       "the first bug step to open the log at that step.")
+
+
 def main() -> None:
     parser = make_parser(__doc__)
-    parser.add_argument("--by", choices=("bug", "profile", "invariant"), default="bug",
+    parser.add_argument("--by", choices=("bug", "profile", "invariant", "run"), default="bug",
                         help="the tab that opens first, and the table --csv prints: per known bug (default), per "
-                             "action-weights profile, or per bug and invariant")
+                             "action-weights profile, per bug and invariant, or per run")
     args = parser.parse_args()
 
     bugs = [b for b in load_known_bugs() if b.get("id")]
@@ -173,7 +189,8 @@ def main() -> None:
     base = f"{len(facts)} run(s) read, {skipped} run folder(s) without history.json; {len(bugs)} known bug(s) in triage_config.json."
     views = {"bug": ("By bug", detection(SimpleNamespace(**{**vars(args), "by": "bug"}), facts, bugs, base)),
              "profile": ("By profile", detection(SimpleNamespace(**{**vars(args), "by": "profile"}), facts, bugs, base)),
-             "invariant": ("By invariant", contribution(args, facts, bugs, base))}
+             "invariant": ("By invariant", contribution(args, facts, bugs, base)),
+             "run": ("By run", Report(name="", title="", subtitle="", tables=[by_run(facts)]))}
     order = [args.by] + [k for k in views if k != args.by]   # the chosen view is the first tab (and what --csv prints)
     tables = []
     for key in order:
@@ -192,7 +209,7 @@ def main() -> None:
         intro="When the loop first showed each known bug, which profiles find them, and which invariants flag them. A bug counts "
               "when the run status calls it a known bug; repair clicks do not count.",
         cards=[(n, "runs read"), (f"{len(with_bug)} ({_pct(len(with_bug), n)}%)" if n else "-", "runs with a known bug")],
-        tables=tables, csv_table=0, notes=views["bug"][1].notes + views["invariant"][1].notes[1:]))
+        tables=tables, csv_table=0, runs_dir=args.runs_dir, notes=views["bug"][1].notes + views["invariant"][1].notes[1:]))
 
 
 if __name__ == "__main__":

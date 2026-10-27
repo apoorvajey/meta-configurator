@@ -1,0 +1,64 @@
+name: Regression Replays
+
+# Replays the minimal bug sequences listed in tests/regression/manifest.json against the app built from this commit.
+on:
+  push:
+    branches: [develop, thesis/testing-implementation]
+    paths: ['meta_configurator/**', 'tests/**', '.github/workflows/regression-replays.yml']
+  pull_request:
+    branches: [develop]
+    paths: ['meta_configurator/**', 'tests/**']
+  workflow_dispatch:
+
+jobs:
+  regression-replays:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: meta_configurator/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+
+      - name: Install the app
+        run: npm ci
+        working-directory: meta_configurator
+
+      - name: Install the test tools and a browser
+        run: |
+          pip install -r tests/requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Start the app
+        run: |
+          cd meta_configurator
+          nohup npx vite --port 5173 --strictPort > ../vite.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:5173/ > /dev/null && exit 0; sleep 2; done
+          cat ../vite.log; exit 1
+
+      - name: Use the saved inferred rules
+        run: |
+          mkdir -p tests/output
+          cp tests/regression/inferred_rules.json tests/output/inferred_rules.json
+
+      - name: Run the regression replays
+        run: python -m tests.regression.run_regression
+        env:
+          METACONFIGURATOR_URL: http://localhost:5173
+
+      - name: Upload replay results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-replay-results
+          path: tests/output/
+          retention-days: 14

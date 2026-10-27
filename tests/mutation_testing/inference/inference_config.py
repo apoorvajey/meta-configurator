@@ -29,6 +29,7 @@ class InferenceConfig:
     max_examples: int                      # hold/fail examples kept per finding and shown per report line
     guard_min_gain: float                  # guarded rules: support a guard must add over the unguarded rule, in some dataset
     edit_distance_work_limit: int          # edit_distance: units of work one pair may cost before it gives no observation
+    disabled_templates: tuple              # templates the engine does not mine (their exported rules are still checked)
     # threshold sweep
     sweep_start: float
     sweep_end: float
@@ -52,6 +53,10 @@ class InferenceConfig:
                 or self.sweep_step <= 0:
             raise ValueError(f"config 'sweep_step' must be a number > 0, got {self.sweep_step!r}")
         object.__setattr__(self, "sweep_step", float(self.sweep_step))
+        names = self.disabled_templates
+        if isinstance(names, str) or not isinstance(names, (list, tuple)) or not all(isinstance(n, str) for n in names):
+            raise ValueError(f"config 'disabled_templates' must be a list of template names, got {names!r}")
+        object.__setattr__(self, "disabled_templates", tuple(names))
         if self.sweep_start > self.sweep_end:
             raise ValueError("config 'sweep_start' must not exceed 'sweep_end'")
 

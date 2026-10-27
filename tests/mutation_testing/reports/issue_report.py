@@ -30,7 +30,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from tests.mutation_testing.common.paths import ISSUES_DIR, KNOWN_BUGS_DIR
-from tests.mutation_testing.runs.known_bugs import bug_label
+from tests.mutation_testing.runs.known_bugs import bug_label, symptom_matches
 from tests.mutation_testing.runs.run_status import summarise_steps
 from tests.mutation_testing.runs.run_layout import RUNS_DIR, iter_run_dirs, original_history, run_dir_of, run_id_of
 from tests.mutation_testing.reports.problem_labels import LABELS, labelled_at, load_labels
@@ -54,7 +54,7 @@ def _attr(text: str) -> str:
 
 # classification
 def onset_rules(ep, cfg: dict) -> dict[str, str]:
-    """Rules that broke at the first failing step of the episode (later ones are usually fallout)."""
+    """Rules that broke at the FIRST failing step of the episode (later ones are usually fallout)."""
     i = ep.fail_steps[0] if ep.fail_steps else ep.start
     out: dict[str, str] = {}
     for entry in ep.run.steps[i].get("failed_invariants") or []:
@@ -129,6 +129,14 @@ def fingerprint(ep, rules: dict, cfg: dict) -> tuple:
     return key + ("blank",) if is_blank_gui(ep, rules, cfg) else key
 
 
+def _failure_details(ep, rule: str) -> dict | None:
+    """The details of `rule`'s failure at the episode's first failing step; None if the history did not record them."""
+    evidence = ep.run.steps[ep.start].get("failure_evidence")
+    if evidence is None:
+        return None
+    return next((ev.get("details") or {} for ev in evidence if ev.get("id") == rule), None)
+
+
 def match_known(ep, rules: dict, cfg: dict) -> dict | None:
     """A known bug matches on its rule(s) AND, when it names them, the kind of action involved
     (when_action_kinds)."""
@@ -141,6 +149,8 @@ def match_known(ep, rules: dict, cfg: dict) -> dict | None:
             continue
         kinds = bug.get("when_action_kinds")
         if kinds and not {fail_kind, trig_kind, prev_kind} & set(kinds):
+            continue
+        if not all(symptom_matches(bug, r, _failure_details(ep, r)) for r in rules if r in (bug.get("symptom") or {})):
             continue
         return bug
     return None

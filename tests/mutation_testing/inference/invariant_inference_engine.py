@@ -19,6 +19,9 @@ Snapshots are paired only when no failed interaction lies between them: a failed
 consecutive snapshots of a run must have step numbers one apart (categories._steps_adjacent). This is the pairing the
 loop uses, which skips the temporal check after a failed interaction. The same rule applies to the special pairs.
 
+Templates listed in disabled_templates (inference_config.json) are not mined; rules already exported from them are still
+checked by the loop. After promotion, _prune_implied drops candidates another candidate already says more about (see there).
+
 Each dataset is run through the templates independently. A candidate is PROMOTABLE only if every dataset has enough
 observations and at least promotion_threshold support for the same direction (inference_config.json); a dataset with
 too few observations makes it INSUFFICIENT_EVIDENCE. Agreement across datasets filters out coincidences of one random
@@ -48,9 +51,9 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from tests.mutation_testing.inference.inference_config import InferenceConfig, load_config, with_overrides
 from tests.mutation_testing.inference.facets import (
-    CONTAINMENT_PAIRS,
-    CORRELATION_PAIRS,
+    VALUE_TO_KEY_PAIRS,
     FACETS,
+    KEY_FACETS,
     RESTORE_STORES,
     TEXT_VIEWS,
     _facet_has_signal,
@@ -73,9 +76,12 @@ from tests.mutation_testing.inference.manual_coverage import evaluate as evaluat
 from tests.mutation_testing.inference.descriptions import _params_label, describe_rule, rule_statement
 from tests.mutation_testing.inference.templates.change_count import change_count
 from tests.mutation_testing.inference.templates.edit_distance import FACET_FIELDS as EDIT_DISTANCE_FACETS, MODES as EDIT_DISTANCE_MODES, pair_distance
-from tests.mutation_testing.inference.templates.gui_control_by_type import observed_rows as observed_control_rows
-from tests.mutation_testing.inference.templates.type_stability import TARGET_FIELDS as TYPE_STABILITY_TARGETS
 from tests.mutation_testing.inference.memo import memoizing
+from tests.mutation_testing.inference.json_edit_distance import json_type
+from tests.mutation_testing.inference.templates.root_type import STORES as ROOT_TYPE_STORES
+from tests.mutation_testing.inference.templates.gui_rows_complete import MINED_VIEWS as GUI_ROWS_VIEWS
+from tests.mutation_testing.inference.templates.gui_store_value import MINED_VIEWS as GUI_STORE_VALUE_VIEWS
+from tests.mutation_testing.inference.templates.gui_icon_presence import MINED_VIEWS as GUI_ICON_VIEWS
 from tests.mutation_testing.inference.learned_bug import check_wanted, learned_bug_checks, log_learned_bugs
 from tests.mutation_testing.inference.review_store import REVIEW_DIR, latest_review_file, load_review
 
@@ -86,6 +92,22 @@ from tests.mutation_testing.inference.review_store import REVIEW_DIR, latest_rev
 # A first-use / later-use candidate is kept only if its support differs from the whole category's by at least this much
 # (or, for change_count and edit_distance, if its k differs); see InvariantInferenceEngine._prune_strata
 STRATUM_MIN_CONTRAST = 0.3
+
+# _prune_implied: the facets an edit writes to, by the tab it runs in ("data changes" after a Data Editor edit only says
+# the edit did something), the action categories that are not edits, and the undo/redo round-trip categories.
+_OWN_FACETS = {"data": ("data",), "schema": ("schema", "schema.properties", "schema.required", "schema.defs")}
+_NOT_EDITS = ("ui_only", "format_toggle")
+# key_count_stability facet -> the stability facet that contains it: "data is unchanged" implies "the number of data keys is unchanged".
+_KEY_COUNT_COVER = {"data": "data", "schema.properties": "schema"}
+_ROUND_TRIPS = ("undo_then_redo", "redo_then_undo")
+# Stability facets dropped as too weak: validity is computed from the schema, and a fixed schema path (title, type, $id, $defs)
+# stays the same because no action touches it. schema.properties / .required / .defs are kept: after add_property or
+# rename_child_text, "required did not change" is a statement about what the action does to a different part of the schema.
+_SCHEMA_PARTS = ("schema.valid",)
+# edit_distance modes: "exact" (exactly k edits) implies "at_most" (at most k); the whole-store facets whose change_count and
+# edit_distance rules count the same changes.
+_EXACT_MODE, _AT_MOST_MODE = "exact", "at_most"
+_WHOLE_STORES = ("data", "schema")
 
 
 @dataclass
@@ -159,6 +181,10 @@ class InvariantInferenceEngine:
         # min_observations is an optional per-call override
         self.cfg = with_overrides(config if config is not None else load_config(),
                                   min_observations=min_observations)
+        unknown = sorted(set(self.cfg.disabled_templates) - set(RULES))
+        if unknown:
+            raise ValueError(f"inference_config.json: disabled_templates names unknown template(s) {unknown} "
+                             f"(known: {sorted(RULES)})")
         self.dir = Path(snapshots_dir)
         self.snapshots_by_dataset: dict[str, list[dict]] = {}
         self.findings: list[Finding] = []
@@ -227,18 +253,24 @@ class InvariantInferenceEngine:
         with memoizing():  # edit distances and GUI control readings are shared by many candidates (inference/memo.py)
             return self._run(on_progress)
 
-    def _scan_control_pairs(self) -> list[tuple[str, str]]:
-        """Every (declared schema type, GUI control) pair that occurs in any dataset, so that the same gui_control_by_type
-        candidates are tested in every dataset."""
-        pairs: set[tuple[str, str]] = set()
+    def _enabled(self, template: str) -> bool:
+        """False for a template listed in disabled_templates (inference_config.json): it is not mined."""
+        return template not in self.cfg.disabled_templates
+
+    def _scan_root_types(self) -> list[tuple[str, str]]:
+        """For each store, its most common root JSON type over all datasets, so that the same root_type candidate is
+        tested in every dataset (the usual type is the candidate; a rarer one is its counter-example)."""
+        counts: dict[str, Counter] = defaultdict(Counter)
         for snapshots in self.snapshots_by_dataset.values():
             for snapshot in snapshots:
-                pairs.update((declared, control) for _row, declared, control in observed_control_rows(snapshot))
-        return sorted(pairs)
+                for store, field in ROOT_TYPE_STORES.items():
+                    if field in snapshot:
+                        counts[store][json_type(snapshot[field])] += 1
+        return sorted((store, c.most_common(1)[0][0]) for store, c in counts.items())
 
     def _run(self, on_progress=None) -> list[Finding]:
         all_findings: list[Finding] = []
-        control_pairs = self._scan_control_pairs()
+        root_types = self._scan_root_types()
         dataset_count = len(self.snapshots_by_dataset)
 
         for dataset_index, (dataset, snapshots) in enumerate(self.snapshots_by_dataset.items(), 1):
@@ -277,11 +309,9 @@ class InvariantInferenceEngine:
                 self._run_stability(cat, cat_pairs)
                 self._run_change_count(cat, cat_pairs)
                 self._run_edit_distance(cat, cat_pairs)
-                for target in TYPE_STABILITY_TARGETS:
-                    self._run_rule("type_stability", cat, cat_pairs, {"target": target}, self.min_observations)
-                for a, b in CORRELATION_PAIRS:
-                    for template in ("correlation", "path_key", "value_to_key"):
-                        self._run_rule(template, cat, cat_pairs, {"a": a, "b": b}, self.cfg.min_rule_observations)
+                self._run_key_templates(cat, cat_pairs)
+                for a, b in VALUE_TO_KEY_PAIRS:
+                    self._run_rule("value_to_key", cat, cat_pairs, {"a": a, "b": b}, self.cfg.min_rule_observations)
                 for view in TEXT_VIEWS:
                     self._run_rule("text_store_agreement", cat, cat_pairs, {"view": view}, self.min_observations)
                     self._run_rule("format_agreement", cat, cat_pairs,
@@ -289,7 +319,6 @@ class InvariantInferenceEngine:
                 for t in ("gui_validation_agreement", "gui_required_agreement", "gui_value_agreement", "gui_row_set",
                           "gui_renders"):
                     self._run_rule(t, cat, cat_pairs, {"transition": True}, self.min_observations)
-                self._run_rule("app_health", cat, cat_pairs, {}, self.min_observations)
             # Undo/redo round trips - a different pairing scheme: (state before the undo/redo
             # pair, state after its counterpart), skipping the intermediate step. Same templates,
             # new pairs, under their own synthetic categories.
@@ -315,9 +344,6 @@ class InvariantInferenceEngine:
 
             # State rules do not depend on the action, so they also run once over every pair.
             if len(clean_pairs) >= self.min_observations:
-                for a, b in CONTAINMENT_PAIRS:
-                    self._run_rule("key_containment", "*", clean_pairs, {"a": a, "b": b},
-                                   self.cfg.min_rule_observations)
                 for view in TEXT_VIEWS:
                     self._run_rule("text_store_agreement", "*", clean_pairs, {"view": view}, self.min_observations)
                     self._run_rule("format_agreement", "*", clean_pairs,
@@ -326,13 +352,17 @@ class InvariantInferenceEngine:
                           "gui_renders"):
                     self._run_rule(t, "*", clean_pairs, {"transition": False}, self.min_observations)
                 self._run_rule("app_health", "*", clean_pairs, {}, self.min_observations)
-                for target in TYPE_STABILITY_TARGETS:
-                    self._run_rule("type_stability", "*", clean_pairs, {"target": target}, self.min_observations)
-                for declared, control in control_pairs:
-                    self._run_rule("gui_control_by_type", "*", clean_pairs,
-                                   {"declared": declared, "control": control}, self.min_observations)
                 for variant in ("app_flags_imply_meta_invalid", "meta_invalid_implies_app_flag"):
                     self._run_rule("validity_agreement", "*", clean_pairs, {"variant": variant}, self.min_observations)
+                for store, value_type in root_types:
+                    self._run_rule("root_type", "*", clean_pairs,
+                                   {"store": store, "value_type": value_type}, self.min_observations)
+                for view in GUI_ROWS_VIEWS:
+                    self._run_rule("gui_rows_complete", "*", clean_pairs, {"view": view}, self.min_observations)
+                for view in GUI_STORE_VALUE_VIEWS:
+                    self._run_rule("gui_store_value", "*", clean_pairs, {"view": view}, self.min_observations)
+                for view in GUI_ICON_VIEWS:
+                    self._run_rule("gui_icon_presence", "*", clean_pairs, {"view": view}, self.min_observations)
 
             self._deduplicate()
             for f in self.findings:
@@ -397,6 +427,8 @@ class InvariantInferenceEngine:
         recorded as its own finding, with params["guard"] added to the identity; the unguarded rule keeps its identity
         (and so its rule id). Which guarded findings survive is decided in _prune_guarded.
         """
+        if not self._enabled(template):
+            return
         rule = RULES[template]
         guards = GUARDABLE.get(template, [])
         tallies: dict[str | None, _Tally] = {None: _Tally(), **{g: _Tally() for g in guards}}
@@ -444,6 +476,8 @@ class InvariantInferenceEngine:
         """k is the most common change count in the dataset (k == 0 is the stability rule, so it is skipped).
         Reported only if k covers at least cfg.change_count_min_share of the observations.
         """
+        if not self._enabled("change_count"):
+            return
         for facet, get_facet in FACETS.items():
             if not _facet_has_signal(get_facet, pairs):
                 continue
@@ -460,6 +494,8 @@ class InvariantInferenceEngine:
         """k is the most common non-zero edit distance of the category (0 is the stability rule). It is proposed only if it covers
         at least cfg.change_count_min_share of the steps that changed something. Both "exactly k" and "at most k" are mined:
         a step that does nothing breaks the first and not the second."""
+        if not self._enabled("edit_distance"):
+            return
         limit = self.cfg.edit_distance_work_limit
         for facet in EDIT_DISTANCE_FACETS:
             distances = [d for d in (pair_distance(p, c, facet, limit) for p, c in pairs) if d is not None]
@@ -474,9 +510,16 @@ class InvariantInferenceEngine:
                                self.min_observations, record_params={"facet": facet, "mode": mode, "work_limit": limit},
                                expected=k)
 
+    def _run_key_templates(self, cat: str, pairs: list) -> None:
+        """key_count_stability on the top-level keys of each facet in KEY_FACETS."""
+        for facet in KEY_FACETS:
+            if not _facet_has_signal(FACETS[facet], pairs):
+                continue
+            self._run_rule("key_count_stability", cat, pairs, {"facet": facet}, self.min_observations)
+
     def _deduplicate(self) -> None:
         """Drop findings implied by another confirmed finding of the same category and dataset: stability of a schema path
-        when the whole schema is stable, and never-true correlation findings whose target facet never changes.
+        when the whole schema is stable, and never-true value_to_key findings whose target facet never changes.
         """
         whole_stable = {
             (f.category, f.params["facet"]) for f in self.findings
@@ -490,7 +533,7 @@ class InvariantInferenceEngine:
             if f.template == "stability" and (f.category, "schema") in whole_stable:
                 if "path" in p or p.get("facet") in ("schema.properties", "schema.required", "schema.defs"):
                     continue
-            if (f.template in ("correlation", "path_key", "value_to_key") and f.verdict == "NEVER_TRUE"
+            if (f.template == "value_to_key" and f.verdict == "NEVER_TRUE"
                     and (f.category, p["b"].split(".")[0]) in whole_stable):
                 continue
             keep.append(f)
@@ -591,6 +634,7 @@ class InvariantInferenceEngine:
             self.promotions.append(cand)
 
         self._prune_guarded()
+        self._prune_implied()
         self.promotions.sort(key=lambda p: (p.verdict != "PROMOTABLE", p.template, p.category,
                                             _params_label(p.template, p.params)))
 
@@ -633,6 +677,54 @@ class InvariantInferenceEngine:
         self.promotions = kept
         if dropped:
             print(f"[Engine] Guards: dropped {dropped} guarded candidate(s) that the guard does not rescue")
+
+    def _prune_implied(self) -> None:
+        """Drop three kinds of candidates that another candidate, or the action itself, already says everything about:
+
+        1. "<one fixed schema field> is unchanged" (a schema path such as title or type, or a facet in _SCHEMA_PARTS): no action
+           touches such a field, so the rule holds without testing anything.
+        2. "X changes" (negative stability) on a facet the action itself edits, e.g. "data changes" after add_item@data or
+           "schema changes" after edit_text@schema. Such a rule fails only when the action did nothing. Actions that are not
+           edits (_NOT_EDITS) and the undo/redo round trips keep theirs: a change there is the unexpected case.
+        3. "the number of keys of X is unchanged" (key_count_stability) after an action when the stability rule of the facet
+           that contains X holds after the same action: unchanged data / schema implies an unchanged key count.
+        4. edit_distance "at most k" when "exactly k" holds for the same action and store, and change_count of a whole store
+           when "exactly k edits" holds for it: the weaker or equivalent rule says nothing more.
+        """
+        stable = {(p.category, p.params["facet"]) for p in self.promotions
+                  if p.template == "stability" and "facet" in p.params and p.direction == "positive"}
+        exact = {(p.category, p.params["facet"]): p.expected for p in self.promotions
+                 if p.template == "edit_distance" and p.params["mode"] == _EXACT_MODE and p.direction == "positive"}
+        kept, implied, restating, covered = [], 0, 0, 0
+        for p in self.promotions:
+            if p.direction == "positive" and (
+                    (p.template == "edit_distance" and p.params["mode"] == _AT_MOST_MODE
+                     and exact.get((p.category, p.params["facet"])) == p.expected)
+                    or (p.template == "change_count" and p.params["facet"] in _WHOLE_STORES
+                        and (p.category, p.params["facet"]) in exact)):
+                covered += 1
+                continue
+            if (p.template == "key_count_stability" and p.direction == "positive"
+                    and (p.category, _KEY_COUNT_COVER[p.params["facet"]]) in stable):
+                covered += 1
+                continue
+            if (p.template == "stability" and p.direction == "positive"
+                    and ("path" in p.params or p.params.get("facet") in _SCHEMA_PARTS)):
+                implied += 1
+                continue
+            if p.template == "stability" and p.direction == "negative":
+                name, _, tab = _base_category(p.category).partition("@")
+                own = _OWN_FACETS.get(tab, ())
+                if (name not in _NOT_EDITS and name not in _ROUND_TRIPS
+                        and (p.params.get("facet") in own or ("path" in p.params and tab == "schema"))):
+                    restating += 1
+                    continue
+            kept.append(p)
+        self.promotions = kept
+        if implied or restating or covered:
+            print(f"[Engine] Implied rules: dropped {implied} single-schema-field stability rule(s), "
+                  f"{restating} 'X changes' rule(s) on the facet the action edits and "
+                  f"{covered} key-count / edit-distance / change-count rule(s) that another rule implies")
 
     @staticmethod
     def _rule_key(p: PromotionCandidate) -> tuple:
@@ -1023,11 +1115,26 @@ def _write_rules_file(path: str, rules: list[dict], header: dict) -> int:
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"), **header, "rules": rules,
     }, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"[Engine] {len(rules)} executable rules → {path}")
+    if target.resolve() == Path(INFERRED_RULES_PATH).resolve():   # not the copy kept in a run folder
+        _mirror_rules_for_regression(target)
     return len(rules)
 
 
+def _mirror_rules_for_regression(target: Path) -> None:
+    """Keep tests/regression/inferred_rules.json equal to the rules file. CI has no tests/output, so the regression
+    replays use this copy (the workflow copies it back before replaying)."""
+    import shutil
+    copy = Path(__file__).resolve().parents[2] / "regression" / "inferred_rules.json"   # tests/regression
+    try:
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(target, copy)
+        print(f"[Engine] copy for the regression replays → {copy}")
+    except OSError as e:
+        print(f"[Engine] could not update {copy}: {e}")
+
+
 def export_from_candidates(rules_path: str, candidates_path: str | None, archive_dir: str) -> int:
-    """Rewrite inferred_rules.json from a saved candidates.json and the newest review in config/rule_reviews/, without mining.
+    """Rewrite inferred_rules.json from a saved candidates.json and the decisions in rule_review.json, without mining.
     Uses the newest run folder when candidates_path is not given. The decisions must belong to that run: the review page
     reads the same candidates.json, so use the run you reviewed."""
     if candidates_path:

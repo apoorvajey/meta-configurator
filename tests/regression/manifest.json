@@ -1,0 +1,94 @@
+{
+  "_comment": "One entry per minimal recorded sequence. 'history' is relative to this folder; 'bugs' are the discovered bugs the sequence guards. expect = 'known-bugs': the bugs are still open, so every listed bug must still show up. expect = 'clean': the bugs are fixed, so none of the listed bugs may show up. A fix therefore turns a 'known-bugs' entry red on purpose: change it to 'clean'. If a bug is fixed in the version under development but still present on the hosted site, give 'expect' per environment, e.g. {\"hosted\": \"known-bugs\", \"local\": \"clean\"}; CI tests the local build. Other discovered bugs in the same replay are only reported. Make a sequence with: python -m tests.cli reduce (or --bug <id>), replay it 5 times (--repeat 5), and add it here only if all 5 agree.",
+  "repeat": 1,
+  "entries": [
+    {
+      "name": "bug03-format-label-desync",
+      "history": "bug03/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-03"
+      ]
+    },
+    {
+      "name": "bug01-undo-format-selector",
+      "history": "bug01/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-01"
+      ]
+    },
+    {
+      "name": "bug-08",
+      "history": "bug08/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-08"
+      ]
+    },
+    {
+      "name": "bug-14",
+      "history": "bug14/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-14"
+      ]
+    },
+    {
+      "name": "bug-04",
+      "history": "bug04/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-04"
+      ]
+    },
+    {
+      "name": "bug-06",
+      "history": "bug06/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-06"
+      ]
+    },
+    {
+      "name": "bug-09",
+      "history": "bug09/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-09"
+      ]
+    },
+    {
+      "name": "bug-10",
+      "history": "bug10/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-10"
+      ]
+    },
+    {
+      "name": "toggle-changes-data",
+      "history": "togglechangesdata/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "toggle-changes-data"
+      ]
+    },
+    {
+      "name": "collapse-changes-data",
+      "history": "collapsechangesdata/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "collapse-changes-data"
+      ]
+    },
+    {
+      "name": "bug-12",
+      "history": "bug12/history.json",
+      "expect": "known-bugs",
+      "bugs": [
+        "BUG-12"
+      ]
+    }
+  ]
+}

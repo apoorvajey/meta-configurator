@@ -19,7 +19,11 @@ _CONFIG_PATH = Path(__file__).parent.parent / "config" / "run_config.json"
 
 # Accepted values for run_config.json "action_weights_profile". Each needs a config/action_weights*.json
 # file; keep run_config.json's "_action_weights_profile_options" note in sync.
-_KNOWN_PROFILES = {"default", "textview_focus", "schema_focus", "data_focus", "random"}
+_KNOWN_PROFILES = {"default", "textview_focus", "schema_focus", "data_focus", "uniform"}
+# "random" is not a profile: it picks one of these at run time (apply_configured_profile). Shrink this tuple to narrow the pool.
+# "default" (action_weights.json) is the common baseline the focus profiles are derived from; it stays a valid
+# setting but is not one of the evaluated profiles, so random never picks it.
+_RANDOM_POOL = ("textview_focus", "schema_focus", "data_focus", "uniform")
 _KNOWN_RUN_MODES = {"background", "watch_failures", "interactive"}
 
 
@@ -42,6 +46,10 @@ def apply_configured_profile(config: dict | None = None) -> str:
     """
     config = config if config is not None else load_run_config()
     profile = config.get("action_weights_profile") or "default"
+    if profile == "random":
+        profile = random.choice(_RANDOM_POOL)
+        print(f"[config] action_weights_profile: 'random' -> picked '{profile}'")
+        config["action_weights_profile"] = profile  # the run record (and so a replay) stores the profile actually used
 
     if profile not in _KNOWN_PROFILES:
         print(f"[config] Unrecognized action_weights_profile '{profile}' "

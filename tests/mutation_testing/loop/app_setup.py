@@ -9,9 +9,11 @@ from playwright.sync_api import Page
 from tests.invariants.app_errors import (
     attach_app_error_log,
     attach_console_log,
+    attach_rename_conflict_log,
     events_since_last_snapshot,
     is_app_schema_rejection,
     take_midstep,
+    take_rename_conflicts,
 )
 from tests.invariants.schema_validity import schema_meta_violations
 from tests.shared.python.utils import (
@@ -90,6 +92,7 @@ def setup_app_for_schema(page: Page, schema_option_name: str, data_file_name: st
 def prepare_app_page(page: Page, schema_option_name: str, data_file_name: str) -> None:
     """Test panel and reload, zoom, dismiss dialog, load schema and data. The caller sets the viewport first."""
     attach_console_log(page)  # before anything runs, so the first snapshot knows what the console said
+    attach_rename_conflict_log(page)  # TEMP-RENAME-05: the executor dismisses the dialog, so it is recorded in the page
     attach_app_error_log(page)  # INV-G1's own list of uncaught exceptions; without this call INV-G1 can never fail
     setup_test_panel_via_localstorage(page)
     page.wait_for_timeout(2000)
@@ -124,6 +127,75 @@ def _short(value, limit: int = 80) -> str:
     except Exception:
         s = repr(value)
     return s if len(s) <= limit else s[:limit - 1] + "…"
+
+
+def _full(value, cap: int = 20000) -> str:
+    """Complete one-line JSON form of a value, for the recorded step history and the HTML log ("Document changes").
+
+    Unlike _short (console lines only) this does not clip at 80 characters, so the log shows the exact text.
+    `cap` only guards the history files against a huge subtree; when it is hit, the cut is marked with the full length.
+    """
+    try:
+        s = json.dumps(value, default=str, ensure_ascii=False)
+    except Exception:
+        s = repr(value)
+    return s if len(s) <= cap else s[:cap] + f"… [{len(s)} characters in total, cut here]"
+
+
+_DOCUMENTS = (("data", SessionMode.DataEditor), ("schema", SessionMode.SchemaEditor))
+
+
+def read_documents(page: Page) -> dict:
+    """Both edited documents, whichever editor is active: {"data": the data (Data Editor's), "schema": the schema (Schema
+    Editor's)}. A document that cannot be read is left out, so "not read" is never mistaken for "empty"."""
+    out = {}
+    for name, mode in _DOCUMENTS:
+        try:
+            out[name] = TestPanel(page, mode).get_data()
+        except Exception:
+            pass
+    return out
+
+
+def document_diffs(before: dict | None, after: dict | None, primary: str = "data"):
+    """[(document, path, before_value, after_value)] for every difference in the data and the schema between two
+    read_documents() results; the document the action was applied to (`primary`) comes first.
+
+    [] if nothing changed; None if no document could be compared (nothing read before or after).
+    """
+    from tests.invariants.invariants_core import _diff_nested   # local: avoids an import cycle at module load
+    if not before or not after:
+        return None
+    out, compared = [], False
+    for name in [primary] + [n for n, _ in _DOCUMENTS if n != primary]:
+        if name in before and name in after:
+            compared = True
+            out.extend((name, p, a, b) for p, a, b in _diff_nested(before[name], after[name]))
+    return out if compared else None
+
+
+def effect_records(diffs, limit: int = 3) -> list[dict]:
+    """The recorded form of document_diffs(): {"document", "path", "before", "after"} with the exact values, the first
+    `limit` changes of EACH document (so many data changes cannot hide a schema change)."""
+    seen: dict[str, int] = {}
+    out = []
+    for name, p, a, b in diffs or []:
+        seen[name] = seen.get(name, 0) + 1
+        if seen[name] <= limit:
+            out.append({"document": name, "path": p, "before": _full(a), "after": _full(b)})
+    return out
+
+
+def effect_console_lines(diffs, limit: int = 3, label: str = "changed") -> list[str]:
+    """Console lines for document_diffs(): format_effect_lines per document that changed, tagged [data] / [schema]."""
+    if not diffs:
+        return [f"   {label}: nothing (data and schema identical before and after)"]
+    lines = []
+    for name, _ in _DOCUMENTS:
+        mine = [(p, a, b) for d, p, a, b in diffs if d == name]
+        if mine:
+            lines += format_effect_lines(mine, limit=limit, label=f"{label} [{name}]")
+    return lines
 
 
 def _read_or_none(read):
@@ -165,6 +237,8 @@ def build_snapshot(page: Page, action: str, step: int,
       schema_valid_meta               the edited schema (de_schema) against the meta-schema, incl. schemas the app's Ajv
                                       refuses to compile (schema_validity.py); the loop's oracle
       schema_violation_count          number of violations behind schema_valid_meta
+      schema_valid_meta_only          the edited schema against the meta-schema only, without the app's compile checks (the Schema
+                                      GUI icons reflect nothing else; INV-S4's oracle); None for a schema that is not an object
       app_logged_invalid              the app itself wrote "schema is invalid" or "can't resolve reference" to the console during this step; the app's oracle,
                                       kept apart from schema_valid_meta so a disagreement stays visible. For a two-stage action
                                       (add-item-required) only what the app wrote after the second stage, i.e. about the final schema
@@ -178,6 +252,8 @@ def build_snapshot(page: Page, action: str, step: int,
     Fields for checking that the views stay in sync (same None rule):
       de_current_path / se_current_path               the navigation path of each editor (a list; [] at the root)
       de_selected_element / se_selected_element       the selected element of each editor (a list; [] at the root)
+      rename_conflict_dialogs         texts of the "Rename conflict" dialogs the app opened during this step (list, [] = none; None = not
+                                      recorded); TEMP-RENAME-05 checks them
       console_warnings_since_last_step                console warnings since the previous snapshot
       failed_requests_since_last_step / first_failed_request   network requests that failed (count, first one)
       captured_at                                     UTC time the snapshot was taken (ISO 8601, milliseconds)
@@ -204,6 +280,8 @@ def build_snapshot(page: Page, action: str, step: int,
     else:
         midstep_errors, final_errors = None, console_errors
     violations = schema_meta_violations(page, de_schema)
+    meta_only = (schema_meta_violations(page, de_schema, include_app_compile_problems=False)
+                 if isinstance(de_schema, dict) else None)
     return {
         "de_data": de_data,
         "de_schema": de_schema,
@@ -216,11 +294,13 @@ def build_snapshot(page: Page, action: str, step: int,
         "active_mode": mode,
         "schema_valid_meta": None if violations is None else not violations,
         "schema_violation_count": None if violations is None else len(violations),
+        "schema_valid_meta_only": None if meta_only is None else not meta_only,
         "app_logged_invalid": (None if final_errors is None
                                else any(is_app_schema_rejection(m) for m in final_errors)),
         "app_logged_invalid_midstep": (None if midstep_errors is None
                                        else any(is_app_schema_rejection(m) for m in midstep_errors)),
         "schema_valid_meta_midstep": None if midstep is None else midstep["schema_valid_meta"],
+        "rename_conflict_dialogs": take_rename_conflicts(page),
         "console_errors_since_last_step": None if console_errors is None else len(console_errors),
         "first_error_message": console_errors[0] if console_errors else None,
         "de_current_path": _read_or_none(lambda: _tp_de.get_current_path(expect_non_root=False)),

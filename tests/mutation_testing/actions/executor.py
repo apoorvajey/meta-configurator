@@ -28,10 +28,14 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
         # Reset at the start of every _click_add_property so a stale name is never mistaken for a new one.
         self._last_added_property_parent_path = ""
         self._last_added_property_name = ""
+        # Picture of the page taken just before a 'Rename conflict' dialog was clicked away (PNG bytes), so the step's
+        # screenshot can show the dialog; reset at the start of every action (see gui_actions._dismiss_rename_conflict)
+        self.rename_conflict_shot: bytes | None = None
 
     def execute(self, el: ElementDescriptor, value: Any = None,
                 schema: dict | None = None) -> None:
         self._current_schema = schema
+        self.rename_conflict_shot = None
 
         if el.interaction == "fill":
             self._fill(el, value)
@@ -122,6 +126,28 @@ class InteractionExecutor(GuiActionsMixin, TextViewPrimitivesMixin, TextViewAddM
     # Structural JSON Schema wrappers, never collapsible tree nodes; _ensure_path_visible skips them
     _COMPOSITION_KEYWORDS = {"allOf", "anyOf", "oneOf", "not", "if", "then", "else"}
     _DEFS_PREFIX_RE = re.compile(r"^(\$defs|definitions)\.(.+)$")
+
+
+    def _distinct_property_name(self, parent_path: str) -> str:
+        """A generated name not already used by a sibling in the GUI View (avoids the 'Rename conflict' dialog)."""
+        prefix = f"_label_{parent_path}." if parent_path else "_label_"
+        try:
+            taken = self.page.evaluate(
+                """(prefix) => [...document.querySelectorAll('[data-testid^="' + prefix + '"]')]
+                    .map(e => e.getAttribute('data-testid').slice(prefix.length))
+                    .filter(s => s && !s.includes('.') && !s.includes('['))""",
+                prefix)
+        except Exception:
+            taken = []
+        taken_lower = {t.lower() for t in taken}
+        name = self._generate_property_name(parent_path)
+        for _ in range(20):
+            if name.lower() not in taken_lower:
+                return name
+            name = self._generate_property_name(parent_path)
+        while name.lower() in taken_lower:
+            name = f"{name}{random.randint(1, 999)}"
+        return name
 
     def _split_defs_prefix(self, path: list) -> list:
         """Split a pre-merged first segment ('$defs.stringProperty') into '$defs' and the name. The tree renders $defs

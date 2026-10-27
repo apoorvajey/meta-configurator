@@ -32,11 +32,15 @@ from tests.mutation_testing.loop.app_setup import (
     _json_safe,
     _safe_filename_part,
     _short,
-    format_effect_lines,
+    document_diffs,
+    effect_console_lines,
+    effect_records,
+    read_documents,
     prepare_app_page,
 )
 from tests.mutation_testing.runs.step_result import StepResult
-from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, invariant_id
+from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, failure_details, invariant_id
+from tests.mutation_testing.runs.reproducibility import _state_hash
 from tests.mutation_testing.loop import console as run_console
 from tests.mutation_testing.loop.console import RunConsole, log_only, marker, show, surfaced
 from tests.mutation_testing.loop.action_weights import (
@@ -76,6 +80,9 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         # Snapshot from before the edit that self._prev_snapshot records: the state an undo right after that edit must
         # restore (inferred undo_inverse rules)
         self._pre_edit_snapshot: dict | None = None
+        # State hashes of the snapshots after every action that is not an undo/redo. An undo or redo that returns to one
+        # of these states has settled, so the next step can be checked against it (see the temporal check below).
+        self._seen_state_hashes: set = set()
         self._prev_failure_names: set[str] = set()  # for detecting persisting failures
         self._repair_already_attempted: set[str] = set()  # failures repair gave up on
         self._no_repair_noted: set[str] = set()           # do_not_repair known bugs already announced on the console
@@ -176,6 +183,16 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         executor   = InteractionExecutor(self.page)
         self._executor = executor  # print_summary() reads its ensure-visible tally
 
+        # Starting state: the snapshot before step 1, tagged "baseline" like the one a repair leaves behind (no step of the
+        # loop, no use count). Step 1 is checked against it, and an undo back to the start counts as a known state.
+        try:
+            start = self._build_snapshot("baseline", 0, count_use=False)
+            self._append_baseline(start)
+            self._prev_snapshot = start
+            self._seen_state_hashes.add(_state_hash(start))
+        except Exception as e:
+            print(f"   Could not record the starting state ({e}) - step 1 gets no temporal check")
+
         try:
             for i in range(n):
                 if run_console.is_quiet() and i and i % self.QUIET_PROGRESS_EVERY == 0:
@@ -228,10 +245,9 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 # the meta-schema in the Schema Editor.
                 element_mode = SessionMode.SchemaEditor if el.mode == "schemaEditor" else SessionMode.DataEditor
                 governing_schema = _resolve_governing_schema(self.page, el.mode)
-                try:
-                    instance = TestPanel(self.page, element_mode).get_data()
-                except Exception:
-                    instance = {}
+                doc_key = "schema" if el.mode == "schemaEditor" else "data"
+                docs_before = read_documents(self.page)     # both documents, whichever editor is active
+                instance = docs_before.get(doc_key, {})
 
                 gen = ValueGenerator(schema=governing_schema, instance=instance)
                 value = gen.for_element(el)
@@ -263,13 +279,11 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 if (action_succeeded and not el.testid.startswith(("expand-", "collapse-"))
                         and el.testid not in _UNDO_REDO_TESTIDS and el.testid != _MODE_SWITCH_TESTID):
                     try:
-                        instance_after = TestPanel(self.page, element_mode).get_data()
-                        diffs = _diff_nested(instance, instance_after)
-                        observed_effect = [
-                            {"path": p, "before": _short(a), "after": _short(b)}
-                            for p, a, b in diffs[:3]
-                        ] or None
-                        print("\n".join(format_effect_lines(diffs)))
+                        docs_after = read_documents(self.page)
+                        instance_after = docs_after.get(doc_key)
+                        diffs = document_diffs(docs_before, docs_after, doc_key)
+                        observed_effect = effect_records(diffs, 3) or None
+                        print("\n".join(effect_console_lines(diffs)))
                     except Exception:
                         observed_effect = None
 
@@ -355,7 +369,7 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                         "resolved_property_name": resolved_property_name,
                         "step_seed": step_seed,
                         "observed_effect": observed_effect,
-                        "observed_value": observed_effect[0]["after"] if observed_effect else None,
+                        "observed_value": next((e["after"] for e in observed_effect or [] if e["document"] == doc_key), None),
                         INVERSE_KEY: inverse,
                     },
                     action_succeeded=action_succeeded,
@@ -386,10 +400,14 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                     result.snapshot = self._build_snapshot(el.testid, i + 1)
                     self._append_snapshot(result.snapshot)
 
-                    # No temporal check right after undo/redo: their effect depends on what they reverse, so
-                    # comparing the next action against that snapshot would blame it for the undo's changes.
+                    # No temporal check right after an undo/redo whose resulting state was never seen in this run: it
+                    # may not have settled, and the next action would be blamed for the undo's changes. An undo/redo that
+                    # returns to a state the run has already been in (this includes the auto-undo after clear-text) has
+                    # settled, so the next step is checked against it.
                     prev_action = (self._prev_snapshot or {}).get("action", "")
-                    if prev_action in _UNDO_REDO_TESTIDS:
+                    undo_settled = (prev_action in _UNDO_REDO_TESTIDS
+                                    and _state_hash(self._prev_snapshot) in self._seen_state_hashes)
+                    if prev_action in _UNDO_REDO_TESTIDS and not undo_settled:
                         print(f"   Temporal check suppressed - previous action was '{prev_action}'")
                     elif self._prev_snapshot is not None:
                         temporal_report = TemporalInvariantChecker(
@@ -407,6 +425,8 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
                 # None after a failed action, so the next step skips its temporal check (replay mirrors this)
                 self._pre_edit_snapshot = self._prev_snapshot
                 self._prev_snapshot = result.snapshot
+                if el.testid not in _UNDO_REDO_TESTIDS:
+                    self._seen_state_hashes.add(_state_hash(result.snapshot))
 
                 # clear-text empties the whole document and starves later steps of anything to target, so it
                 # gets an unconditional one-shot repair: check once, then always undo. The undo is recorded on the
@@ -479,7 +499,8 @@ class MutationLoop(ActionChoiceMixin, RepairMixin, RecordingMixin, ReportingMixi
         A report whose failures are all known bugs is treated like a passing one: the full report reaches the log files
         only; a verbose console (interactive, watch) gets one "[known bug]" line instead of a failure block."""
         checked = [r.name for r in report.results if not getattr(r, "skipped", False)]
-        known, other = self._known_bugs.observe(action_id, [r.name for r in report.failures], checked)
+        known, other = self._known_bugs.observe(action_id, [r.name for r in report.failures], checked,
+                                            failure_details(report.failures))
         if known:
             self._steps_with_known.add(step_no)
         if other:

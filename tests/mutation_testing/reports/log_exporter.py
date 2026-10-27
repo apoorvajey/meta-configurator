@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 
 from tests.mutation_testing.common.report_theme import RUN_LOG_DARK
-from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, bug_label_for, invariant_id
+from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, bug_label_for, failure_details, invariant_id
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -386,16 +386,24 @@ def _entered_value_html(step: "StepResult") -> str:
         return ""
     return '<div class="entered-value">' + "<br>".join(parts) + "</div>"
 
-def _effect_html(step: "StepResult") -> str:
-    """Collapsible list of what the step changed in the edited document (path: before -> after, first 3 changes)."""
-    effects = step.kwargs.get("observed_effect") or []
-    if not effects:
-        return ""
-    items = "".join(
-        f'<div class="ev-item"><code>{_esc(str(e.get("path", "")))}</code>: '
+def _effect_items_html(effects: list) -> str:
+    """One line per change: [data|schema] path: before -> after (exact values). Entries recorded before the document
+    tag existed have no tag."""
+    return "".join(
+        f'<div class="ev-item">'
+        + (f'<b>[{_esc(str(e["document"]))}]</b> ' if e.get("document") else "")
+        + f'<code>{_esc(str(e.get("path", "")))}</code>: '
         f'{_esc(str(e.get("before", "")))} → {_esc(str(e.get("after", "")))}</div>'
         for e in effects
     )
+
+
+def _effect_html(step: "StepResult") -> str:
+    """Collapsible list of what the step changed in the data and the schema (path: before -> after, exact values)."""
+    effects = step.kwargs.get("observed_effect") or []
+    if not effects:
+        return ""
+    items = _effect_items_html(effects)
     return (f'<details class="evidence-wrap"><summary>Document changes</summary>'
             f'<div class="evidence-list">{items}</div></details>')
 
@@ -423,6 +431,7 @@ def _repairs_html(step: "StepResult") -> str:
             state = "passed" if c.get("passed") else "still failing: " + ", ".join(
                 _esc(str(f).partition(" ")[0]) for f in c.get("failed_invariants", []))
             rows += f'<div class="ev-item"><code>{_esc(str(c.get("testid", "")))}</code> → {state}</div>'
+            rows += _effect_items_html(c.get("effect") or [])
         if not b.get("clicks"):
             rows += '<div class="ev-item">No click was needed.</div>'
         out += (f'<details class="evidence-wrap"><summary>{summary}</summary>'
@@ -477,7 +486,8 @@ def export_html_log(
             other = {invariant_id(r.name) for r in s.report.failures} - set(known) if failing_now else set()
         elif s.action_succeeded and s.report is not None:
             checked = [r.name for r in s.report.results if not getattr(r, "skipped", False)]
-            known, other = matcher.observe(s.action_id, [r.name for r in s.report.failures], checked)
+            known, other = matcher.observe(s.action_id, [r.name for r in s.report.failures], checked,
+                                         failure_details(s.report.failures))
         else:
             known, other = {}, set()
         known_by_step.append(known)
@@ -760,7 +770,8 @@ h1 {{ font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }}
 .evidence-list {{ margin-top: 4px; }}
 .ev-item {{ padding: 2px 8px; border-left: 3px solid #e0e0e0;
            margin-bottom: 2px; font-size: 0.8em; font-family: monospace;
-           color: #444; background: #fafafa; }}
+           color: #444; background: #fafafa;
+           white-space: pre-wrap; overflow-wrap: anywhere; }}
 .inv-evidence {{ margin-bottom: 8px; }}
 .inv-evidence-name {{ font-size: 0.82em; font-weight: 600;
                      color: #555; margin-bottom: 3px; }}

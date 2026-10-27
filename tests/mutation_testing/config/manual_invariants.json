@@ -42,7 +42,7 @@
       "categories": [
         "*"
       ],
-      "note": "Only the 'no stale rows' half; 'every data key has a row' is not covered by a template."
+      "note": "'No stale rows' = gui_row_set; 'every data key has a row' = gui_rows_complete (view=data)."
     },
     {
       "id": "INV-D5",
@@ -78,7 +78,7 @@
       "kind": "state",
       "source": "tests/invariants/state/data_editor/additional_properties_icon.py",
       "expressible": false,
-      "reason": "Compares the GUI with an error shown in the Text View, which is not in the snapshots."
+      "reason": "Fields are recorded (de_gui icon, de_data, de_schema) but gui_validation_agreement skips rows without a declared schema, which are exactly the additionalProperties rows. Needs an 'undeclared key' variant."
     },
     {
       "id": "INV-D7",
@@ -86,15 +86,31 @@
       "kind": "state",
       "source": "tests/invariants/state/data_editor/text_view_validation_matches_schema.py",
       "expressible": false,
-      "reason": "Compares the Text View error markers with the schema violations; the markers are not in the snapshots."
+      "reason": "de_text.annotation_errors is recorded (count only). Needs a template that compares the marker count with the number of data-vs-schema violations."
+    },
+    {
+      "id": "INV-D8",
+      "name": "Text View marks the blank key",
+      "kind": "state",
+      "source": "tests/invariants/state/data_editor/text_view_blank_key_marker.py",
+      "expressible": false,
+      "reason": "Needs the marker count compared with the violation count including the blank key; only the blank-key part differs from INV-D7."
     },
     {
       "id": "INV-S0",
       "name": "Schema state is an object",
       "kind": "state",
       "source": "tests/invariants/state/schema_editor/schema_is_object.py",
-      "expressible": false,
-      "reason": "No template checks the type of a store."
+      "expressible": true,
+      "template": "root_type",
+      "params": {
+        "store": "schema",
+        "value_type": "object"
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Stricter than the hand-written check: INV-S0 also allows a boolean schema."
     },
     {
       "id": "INV-S1",
@@ -115,40 +131,73 @@
       "name": "GUI rows exist for all top-level schema keys",
       "kind": "state",
       "source": "tests/invariants/state/schema_editor/gui_rows_match_schema_keys.py",
-      "expressible": false,
-      "reason": "No template reads the Schema Editor's GUI rows (se_gui)."
+      "expressible": true,
+      "template": "gui_rows_complete",
+      "params": {
+        "view": "schema"
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Hand-written check skips the $schema key; the template does not."
     },
     {
       "id": "INV-S3",
       "name": "Schema title field matches internal schema",
       "kind": "state",
       "source": "tests/invariants/state/schema_editor/title_matches_schema.py",
-      "expressible": false,
-      "reason": "No template reads the Schema Editor's GUI rows (se_gui)."
+      "expressible": true,
+      "template": "gui_store_value",
+      "params": {
+        "view": "schema"
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Says the same for every GUI input of the Schema Editor; the title row is one of them."
     },
     {
       "id": "INV-S4",
       "name": "Schema GUI validation icons match meta-schema violations",
       "kind": "state",
       "source": "tests/invariants/state/schema_editor/validation_icons.py",
-      "expressible": false,
-      "reason": "Needs the meta-schema as an oracle and the Schema Editor's GUI rows."
+      "expressible": true,
+      "template": "gui_icon_presence",
+      "params": {
+        "view": "schema"
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Snapshot is taken at once; the hand-written check waits up to 3 s for the icons."
     },
     {
       "id": "INV-G1",
       "name": "No uncaught app errors",
       "kind": "state",
       "source": "tests/invariants/state/any_editor/no_uncaught_app_errors.py",
-      "expressible": false,
-      "reason": "Browser errors are not part of the snapshots."
+      "expressible": true,
+      "template": "app_health",
+      "params": {},
+      "categories": [
+        "*"
+      ],
+      "note": "Counts every console error, not only uncaught exceptions."
     },
     {
       "id": "INV-G2",
       "name": "GUI is not stuck on a loading spinner",
       "kind": "state",
       "source": "tests/invariants/state/any_editor/gui_not_stuck_loading.py",
-      "expressible": false,
-      "reason": "Loading state is not part of the snapshots."
+      "expressible": true,
+      "template": "gui_renders",
+      "params": {
+        "transition": false
+      },
+      "categories": [
+        "*"
+      ],
+      "note": "Stronger: also requires a non-blank GUI; the snapshot reads the spinner at capture time, the hand-written check waits 2.5 s."
     },
     {
       "id": "TEMP-EXPAND-01",
@@ -251,32 +300,106 @@
       "name": "rename keeps the number of data keys",
       "kind": "temporal",
       "source": "tests/invariants/temporal/rename/data_key_count_unchanged.py",
-      "expressible": false,
-      "reason": "Needs a template that compares the number of keys."
+      "expressible": true,
+      "template": "key_count_stability",
+      "params": {
+        "facet": "data"
+      },
+      "categories": [
+        "rename_child_text@data",
+        "rename_child_text@schema"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "data"
+          }
+        }
+      ],
+      "note": "In the Schema Editor the data is unchanged (stability), which implies the same count."
     },
     {
       "id": "TEMP-RENAME-02",
       "name": "rename keeps the number of schema.properties",
       "kind": "temporal",
       "source": "tests/invariants/temporal/rename/schema_property_count_unchanged.py",
-      "expressible": false,
-      "reason": "Needs a template that compares the number of keys."
+      "expressible": true,
+      "template": "key_count_stability",
+      "params": {
+        "facet": "schema.properties"
+      },
+      "categories": [
+        "rename_child_text@data",
+        "rename_child_text@schema"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "schema"
+          }
+        }
+      ],
+      "note": "In the Data Editor the schema is unchanged (stability), which implies the same count."
     },
     {
       "id": "TEMP-RENAME-03",
       "name": "rename swaps exactly one schema.properties key",
       "kind": "temporal",
       "source": "tests/invariants/temporal/rename/one_schema_key_swapped.py",
-      "expressible": false,
-      "reason": "Needs a template for 'exactly one key swapped'."
+      "expressible": true,
+      "template": "edit_distance",
+      "params": {
+        "facet": "schema",
+        "k": 1
+      },
+      "categories": [
+        "rename_child_text@data",
+        "rename_child_text@schema"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "schema"
+          }
+        }
+      ],
+      "note": "One rename = edit distance 1 anywhere in the schema; implies at most one top-level swap."
     },
     {
       "id": "TEMP-RENAME-04",
       "name": "rename swaps exactly one data key",
       "kind": "temporal",
       "source": "tests/invariants/temporal/rename/one_data_key_swapped.py",
+      "expressible": true,
+      "template": "edit_distance",
+      "params": {
+        "facet": "data",
+        "k": 1
+      },
+      "categories": [
+        "rename_child_text@data",
+        "rename_child_text@schema"
+      ],
+      "implied_by": [
+        {
+          "template": "stability",
+          "params": {
+            "facet": "data"
+          }
+        }
+      ],
+      "note": "One rename = edit distance 1 anywhere in the data; implies at most one top-level swap."
+    },
+    {
+      "id": "TEMP-RENAME-05",
+      "name": "no 'Rename conflict' dialog unless the new name already existed",
+      "kind": "temporal",
+      "source": "tests/invariants/temporal/rename/no_spurious_conflict_dialog.py",
       "expressible": false,
-      "reason": "Needs a template for 'exactly one key swapped'."
+      "reason": "rename_conflict_dialogs is recorded; no template relates the dialog's name to the keys of the previous state."
     },
     {
       "id": "TEMP-ADD-01",
@@ -321,7 +444,7 @@
       "kind": "temporal",
       "source": "tests/invariants/temporal/add/required_key_appears_in_data.py",
       "expressible": true,
-      "template": "path_key",
+      "template": "value_to_key",
       "params": {
         "a": "schema.required",
         "b": "data"
@@ -335,8 +458,15 @@
       "name": "The schema state stays an object after any action",
       "kind": "temporal",
       "source": "tests/invariants/temporal/schema_stays_object.py",
-      "expressible": false,
-      "reason": "No template checks the type of a store."
+      "expressible": true,
+      "template": "root_type",
+      "params": {
+        "store": "schema",
+        "value_type": "object"
+      },
+      "categories": [
+        "*"
+      ]
     }
   ]
 }

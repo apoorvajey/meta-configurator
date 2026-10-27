@@ -20,4 +20,6 @@ INVARIANTS_DIR = REPORTS_DIR / "invariants"         # invariants.html (all invar
 INFERENCE_DIR = REPORTS_DIR / "inference"           # review.html, invariant_report.md
 INFERENCE_RUNS_DIR = INFERENCE_DIR / "runs"         # one folder per inference run
 SWEEP_DIR = INFERENCE_DIR / "threshold_sweep"       # threshold_sweep_<time>.csv / .md / .png
+REGRESSION_RUNS_DIR = OUTPUT_DIR / "regression_runs"   # one regression_<time>.json per run_regression invocation (input of the regression report)
+REGRESSION_REPORT_DIR = REPORTS_DIR / "regression"         # regression_report_<time>.html
 STATS_DIR = REPORTS_DIR / "stats"                  # the stats command: <report>_<time>.html (+ csv / md / png of sweep and yield)

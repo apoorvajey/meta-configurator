@@ -11,14 +11,18 @@ known bugs only (fails only on known bugs) | other failures too. Never-checked i
 """
 from __future__ import annotations
 
+import statistics
 from collections import Counter, defaultdict
+from datetime import datetime
 from pathlib import Path
 
 from tests.mutation_testing.reports.invariant_list import collect_invariants
 from tests.mutation_testing.runs.history_io import load_history
 from tests.mutation_testing.runs.known_bugs import KnownBugMatcher, invariant_id, load_known_bugs, observe_history_step
 from tests.mutation_testing.runs.repair_view import expand_repairs
+from tests.mutation_testing.runs.run_layout import RUN_ID_FORMAT, run_id_of
 from tests.mutation_testing.inference.inferred_rules import load_inferred_rules
+from tests.mutation_testing.stats.bug_findings import profile_of
 from tests.mutation_testing.stats.common import Report, Table, add_review_arg, make_parser, publish, run_dirs
 from tests.mutation_testing.stats.pending import pending_rules
 
@@ -74,15 +78,17 @@ def main() -> None:
     stats: dict[str, Counter] = defaultdict(Counter)
     runs = skipped_runs = loop_steps = 0
     seen: set[str] = set()
+    run_info: list[tuple] = []   # (run id, start time, profile, loop steps) of every run read
     for run_dir in run_dirs(args):
         try:
-            steps, _ = load_history(run_dir / "history.json")
+            steps, meta = load_history(run_dir / "history.json")
         except (OSError, ValueError):
             skipped_runs += 1
             continue
         n, ids = count_run(steps, bugs, stats)
         runs += 1
         loop_steps += n
+        run_info.append((run_dir.name, datetime.strptime(run_id_of(run_dir.name), RUN_ID_FORMAT), profile_of(meta), n))
         seen |= ids
 
     # Rules accepted in a review after the newest run started cannot have run yet: their own section, not in the counts
@@ -101,36 +107,43 @@ def main() -> None:
                      round(100 * failed / c["checked"], 1) if c["checked"] else None, status_of[inv["id"]]])
     rows.sort(key=lambda r: (STATUSES.index(r[12]), r[6], r[4], r[0]))
 
-    by_type: dict[tuple[str, str], Counter] = defaultdict(Counter)
-    for r in rows:
-        by_type[(r[1], r[2])][r[12]] += 1
-        by_type[(r[1], r[2])]["total"] += 1
-    type_rows = [[origin, typ, c["total"], *(c[s] for s in STATUSES)] for (origin, typ), c in sorted(by_type.items())]
     counts = Counter(status_of.values())
     gone = sorted(seen - {i["id"] for i in invariants})
 
-    notes = [f"{runs} run(s) read ({loop_steps} loop steps), {skipped_runs} run folder(s) without history.json.",
-             "never checked = not evaluated in any step: its precondition never held (see steps_skipped) or it never applies in "
+    notes = ["never checked = not evaluated in any step: its precondition never held (see steps_skipped) or it never applies in "
              "these runs. fail_rate_pct = steps_failed / steps_checked * 100: how often the invariant fails in the steps where it was "
              "evaluated (\"-\" if never checked). A rule that never fails is not necessarily useless (a correct rule on a mostly correct app rarely fires)."]
     if gone:
         notes.append(f"{len(gone)} invariant id(s) appear in the runs but are not defined any more (retired or re-mined), not in "
                      f"the table: {', '.join(gone[:8])}{' ...' if len(gone) > 8 else ''}")
+    starts = [r[1] for r in run_info]
+    first, last = (f"{min(starts):%Y-%m-%d}", f"{max(starts):%Y-%m-%d}") if starts else ("-", "-")
+    period = first if first == last else f"{first} to {last}"
+    details = f"{runs} runs · {loop_steps:,} loop steps · {period} · {args.runs_dir}"
+    lengths = [r[3] for r in run_info]
+    summary_rows = [["runs read", runs], ["run folders without history.json", skipped_runs], ["loop steps in total", f"{loop_steps:,}"],
+                    ["first run started", f"{min(starts):%Y-%m-%d %H:%M}" if starts else "-"],
+                    ["last run started", f"{max(starts):%Y-%m-%d %H:%M}" if starts else "-"],
+                    ["loop steps per run (min / median / max)",
+                     f"{min(lengths)} / {statistics.median(lengths):g} / {max(lengths)}" if lengths else "-"],
+                    ["runs folder", str(args.runs_dir)]]
+    run_rows = [[name, f"{start:%Y-%m-%d %H:%M}", profile, n] for name, start, profile, n in run_info]
     publish(args, Report(
-        name="invariant_usage", title="Invariant usage", subtitle=f"{runs} run(s) in {args.runs_dir}",
+        name="invariant_usage", title="Invariant usage", subtitle=details,
         intro="Which invariants are checked and which ever fire, over all recorded runs. Never-checked invariants come first (orange).",
         cards=[(len(rows), "invariants"), (counts[STATUSES[0]], "never checked"), (counts[STATUSES[1]], "checked, never failed"),
                (counts[STATUSES[2]], "fail on known bugs only"), (counts[STATUSES[3]], "also fail otherwise")]
         + ([(len(pending_rows), "not run yet")] if pending_rows else []),
         tables=([Table("Not run yet", ["invariant", "template", "statement", "added", "review_file"], pending_rows, text_columns=5,
-                       collapsed=True,
+                       collapsed=True, links={0: ("invariant",)},
                        intro="Inferred rules accepted in a review after the newest run started: they have not had a chance to run, "
                              "so they are not in the tables below.")] if pending_rows else [])
-        + [Table("Invariants", HEADER, rows, text_columns=3, flag=lambda r: r[12] == STATUSES[0]),
-                Table("By origin and type", ["origin", "type", "invariants", *(s.replace(" ", "_") for s in STATUSES)],
-                      type_rows, text_columns=2,
-                      intro="Hand-written: type = the editor it runs in (data, schema, any) or temporal. Inferred: the template.")],
-        csv_table=1 if pending_rows else 0,
+        + [Table("Run summary", ["item", "value"], summary_rows, text_columns=2, collapsed=True, show_count=False, filterable=False,
+                 intro="The runs the numbers below are counted from."),
+           Table("Runs", ["run", "started", "profile", "loop_steps"], run_rows, text_columns=3, collapsed=True,
+                 intro="Every run read, oldest first. Click a run to open its log.", links={0: ("run",)}),
+           Table("Invariants", HEADER, rows, text_columns=3, flag=lambda r: r[12] == STATUSES[0], links={0: ("invariant",)})],
+        csv_table=3 if pending_rows else 2, runs_dir=args.runs_dir,
         notes=notes + ([f"{len(pending_rows)} rule(s) added in a review after the newest run are listed under \"Not run yet\"."]
                        if pending_rows else [])))
 

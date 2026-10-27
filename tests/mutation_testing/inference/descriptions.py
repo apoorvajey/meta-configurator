@@ -12,6 +12,10 @@ def _stability_target(params: dict) -> str:
     return params["facet"]
 
 
+# view -> (what the store is called, which editor's GUI View)
+_VIEW_LABELS = {"data": ("data", "Data Editor"), "schema": ("edited schema", "Schema Editor")}
+
+
 def rule_statement(template: str, category: str, params: dict, positive: bool) -> str:
     """One-line statement of a rule."""
     prefix = "" if category == "*" else f"after {category}: "
@@ -21,18 +25,9 @@ def rule_statement(template: str, category: str, params: dict, positive: bool) -
     elif template == "change_count":
         s = (f"{p['facet']} has exactly {p.get('expected', 'k')} DeepDiff change(s)" if positive
              else f"{p['facet']} does not have exactly {p.get('expected', 'k')} DeepDiff change(s)")
-    elif template == "correlation":
-        s = (f"if the top-level keys of {p['a']} change, the top-level keys of {p['b']} change too" if positive
-             else f"if the top-level keys of {p['a']} change, the top-level keys of {p['b']} stay the same")
-    elif template == "path_key":
-        s = (f"a key added to / removed from {p['a']} is added to / removed from {p['b']} too" if positive
-             else f"a key added to / removed from {p['a']} is not added to / removed from {p['b']}")
     elif template == "value_to_key":
         s = (f"a key newly added to {p['a']} is a key of {p['b']} afterwards" if positive
              else f"a key newly added to {p['a']} is not a key of {p['b']} afterwards")
-    elif template == "key_containment":
-        s = (f"every key of {p['a']} is also a key of {p['b']}" if positive
-             else f"some key of {p['a']} is not a key of {p['b']}")
     elif template == "gui_validation_agreement":
         tag = " (newly introduced)" if p.get("transition") else ""
         s = (f"the GUI validation-error icon agrees with actual schema validity{tag}" if positive
@@ -76,9 +71,6 @@ def rule_statement(template: str, category: str, params: dict, positive: bool) -
         else:
             s = ("when the meta-schema rejects the schema, the app logs that it is invalid" if positive
                  else "the meta-schema rejects the schema without the app logging it")
-    elif template == "type_stability":
-        s = (f"no value of the {p['target']} changes its JSON type" if positive
-             else f"some value of the {p['target']} changes its JSON type")
     elif template == "edit_distance":
         k = p.get("k", "k")
         if p["mode"] == "exact":
@@ -87,9 +79,24 @@ def rule_statement(template: str, category: str, params: dict, positive: bool) -
         else:
             s = (f"the {p['facet']} is at most {k} edit(s) away from its state before the step" if positive
                  else f"the {p['facet']} is more than {k} edit(s) away from its state before the step")
-    elif template == "gui_control_by_type":
-        s = (f"a property declared as {p['declared']} is shown with a '{p['control']}' control" if positive
-             else f"a property declared as {p['declared']} is not shown with a '{p['control']}' control")
+    elif template == "root_type":
+        s = (f"the root value of the {p['store']} has the JSON type {p['value_type']}" if positive
+             else f"the root value of the {p['store']} does not have the JSON type {p['value_type']}")
+    elif template == "key_count_stability":
+        s = (f"the number of top-level keys of {p['facet']} is unchanged" if positive
+             else f"the number of top-level keys of {p['facet']} changes")
+    elif template == "gui_rows_complete":
+        label = _VIEW_LABELS[p["view"]]
+        s = (f"every top-level key of the {label[0]} has a row in the {label[1]} GUI View" if positive
+             else f"some top-level key of the {label[0]} has no row in the {label[1]} GUI View")
+    elif template == "gui_store_value":
+        label = _VIEW_LABELS[p["view"]]
+        s = (f"the value shown in a {label[1]} GUI input equals the {label[0]}'s value" if positive
+             else f"the value shown in a {label[1]} GUI input differs from the {label[0]}'s value")
+    elif template == "gui_icon_presence":
+        s = ("the Schema Editor GUI shows a validation-error icon exactly when the edited schema violates the meta-schema"
+             if positive else
+             "the Schema Editor GUI shows a validation-error icon when the schema is valid, or none when it is invalid")
     else:
         s = f"{template} {p}"
     if p.get("guard"):
@@ -134,26 +141,11 @@ def describe_rule(rule: dict) -> dict[str, str]:
         k = p.get("expected", "k")
         asserts = (f"DeepDiff(before {p['facet']}, after {p['facet']}, ignore_order=True) reports exactly {k} change entries"
                    if pos else f"DeepDiff reports a number of change entries other than {k} for {p['facet']}")
-    elif t == "correlation":
-        facets = [p["a"], p["b"]]
-        applies = f"the set of top-level keys of {p['a']} differs between before and after"
-        asserts = (f"the set of top-level keys of {p['b']} also differs between before and after" if pos
-                   else f"the set of top-level keys of {p['b']} is identical before and after")
-    elif t == "path_key":
-        facets = [p["a"], p["b"]]
-        applies = f"at least one top-level key was added to or removed from {p['a']}"
-        asserts = (f"at least one of those keys was added to {p['b']} (if added) or removed from {p['b']} (if removed)"
-                   if pos else f"none of those keys was added to / removed from {p['b']} in the same way")
     elif t == "value_to_key":
         facets = [p["a"], p["b"]]
         applies = f"a top-level key was newly added to {p['a']} - checked once per added key"
         asserts = (f"that key is a top-level key of {p['b']} after the step" if pos
                    else f"that key is not a top-level key of {p['b']} after the step")
-    elif t == "key_containment":
-        facets = [p["a"], p["b"]]
-        applies = f"{p['a']} is non-empty after the step"
-        asserts = (f"every top-level key of {p['a']} is a top-level key of {p['b']} after the step" if pos
-                   else f"at least one top-level key of {p['a']} is not a top-level key of {p['b']} after the step")
     elif t == "gui_validation_agreement":
         applies = ("a property row has both a GUI validation-error-icon reading and a declared "
                    "schema" + (" that were IN AGREEMENT before this step" if p.get("transition") else "")
@@ -241,15 +233,6 @@ def describe_rule(rule: dict) -> dict[str, str]:
                        "app verdict = snapshot['app_logged_invalid'] (the app wrote 'schema is invalid' to the console). Recorded apart "
                        "so that a disagreement stays visible. The app logs only when it reloads the schema, so the second direction "
                        "need not hold.")
-    elif t == "type_stability":
-        field = {"data": "de_data", "schema": "de_schema"}[p["target"]]
-        applies = f"snapshot['{field}'] is recorded before and after the step"
-        asserts = (f"every value of snapshot['{field}'] that exists before and after the step has the same JSON type" if pos
-                   else f"at least one value of snapshot['{field}'] has a different JSON type after the step")
-        definitions = ("JSON types: object, array, string, number (int and float alike), boolean, null. Object keys are matched by "
-                       "name; array items by index, and only when the array keeps its length (after an insert or removal the "
-                       "indexes no longer line up). A value that appears or disappears is not a type change. A counter-example "
-                       "lists the first changes as 'path: type before -> type after'.")
     elif t == "edit_distance":
         field = {"data": "de_data", "schema": "de_schema"}[p["facet"]]
         k = p.get("k", "k")
@@ -262,14 +245,39 @@ def describe_rule(rule: dict) -> dict[str, str]:
                        "after (JEDI, Hütter et al., SIGMOD 2022): objects unordered, arrays ordered, one key or one value is one "
                        "node. Computed top-down (inference/json_edit_distance.py), which is an upper bound on the true JEDI "
                        "distance. k is the most common non-zero distance of the action category in the traces.")
-    elif t == "gui_control_by_type":
-        applies = f"a GUI row exists whose declared schema type is '{p['declared']}' and that has a recorded control, checked after the step"
-        asserts = (f"every such row is shown with a '{p['control']}' control" if pos
-                   else f"every such row is shown with a control other than '{p['control']}'")
-        definitions = ("declared type = the type the schema gives the row's path through $ref, allOf, anyOf, oneOf, then/else "
-                       "('enum' when it lists an enum; rows without one single type are skipped); control = snapshot['de_gui'][row]"
-                       "['control'], the input, textarea or select directly inside the row ('input:text', 'input:checkbox', ...). "
-                       "One observation per row; a counter-example names the row and the control found.")
+    elif t == "root_type":
+        field = {"data": "de_data", "schema": "de_schema"}[p["store"]]
+        applies = f"snapshot['{field}'] is recorded after the step"
+        asserts = (f"snapshot['{field}'] is a JSON {p['value_type']}" if pos
+                   else f"snapshot['{field}'] is not a JSON {p['value_type']}")
+        definitions = ("JSON types: object, array, string, number (int and float alike), boolean, null. Checks the root of the store "
+                       "only, after the step. A counter-example names the type found.")
+    elif t == "key_count_stability":
+        facets = [p["facet"]]
+        applies = "always"
+        asserts = (f"the set of top-level keys of {p['facet']} has the same size before and after the step" if pos
+                   else f"the set of top-level keys of {p['facet']} has a different size after the step")
+    elif t == "gui_rows_complete":
+        gui, store = {"data": ("de_gui", "de_data"), "schema": ("se_gui", "se_data")}[p["view"]]
+        applies = f"snapshot['{gui}'] and snapshot['{store}'] (an object with at least one matchable key) are recorded after the step"
+        asserts = (f"every matchable top-level key of snapshot['{store}'] is a row key of snapshot['{gui}']" if pos
+                   else f"some matchable top-level key of snapshot['{store}'] is not a row key of snapshot['{gui}']")
+        definitions = (f"rows = the keys of snapshot['{gui}'] (capture_gui_facts); matchable key = a non-empty top-level key without '.', '[' "
+                       "or ']'. One observation per step; a counter-example lists the keys without a row.")
+    elif t == "gui_store_value":
+        gui, store = {"data": ("de_gui", "de_data"), "schema": ("se_gui", "se_data")}[p["view"]]
+        applies = f"a row of snapshot['{gui}'] has an input value and its path holds a primitive in snapshot['{store}'], checked after the step"
+        asserts = ("the GUI input value equals the stored value" if pos else "the GUI input value differs from the stored value")
+        definitions = (f"rows at any depth ('a.b', 'list[0]'); numbers compared as floats; rows without a path in snapshot['{store}'] "
+                       "(settings rows) and object / array values are skipped. One observation per row.")
+    elif t == "gui_icon_presence":
+        applies = "snapshot['se_gui'] and snapshot['schema_valid_meta_only'] are recorded after the step"
+        asserts = ("at least one Schema Editor GUI row shows a validation-error icon exactly when the edited schema violates the meta-schema" if pos
+                   else "the Schema Editor GUI shows an icon although the schema is valid, or none although it is invalid")
+        definitions = ("icon = icon_shown of any row in snapshot['se_gui']; meta-schema verdict = snapshot['schema_valid_meta_only'] "
+                       "(the edited schema against the meta-schema only, without the app's compile checks, because the icons reflect "
+                       "nothing else; schema_validity.py). Coarse on purpose: any icon or none. The snapshot is taken at once, so an "
+                       "icon that the GUI draws a moment late counts as a mismatch.")
     else:
         applies, asserts = "?", "?"
 
@@ -287,12 +295,8 @@ def _params_label(template: str, params: dict) -> str:
 
 
 def _template_label(template: str, params: dict) -> str:
-    if template == "type_stability":
-        return f"type stability ({params['target']})"
     if template == "edit_distance":
         return f"edit distance of {params['facet']} ({params['mode']})"
-    if template == "gui_control_by_type":
-        return f"GUI control for {params['declared']}: {params['control']}"
     if template == "gui_renders":
         return "GUI renders" + (" (transition)" if params.get("transition") else "")
     if template == "app_health":
@@ -317,4 +321,14 @@ def _template_label(template: str, params: dict) -> str:
         return "GUI required-star vs schema" + (" (transition)" if params.get("transition") else "")
     if template == "gui_value_agreement":
         return "GUI value vs data" + (" (transition)" if params.get("transition") else "")
+    if template == "root_type":
+        return f"root type of {params['store']}: {params['value_type']}"
+    if template == "key_count_stability":
+        return f"key count of {params['facet']}"
+    if template == "gui_rows_complete":
+        return f"GUI rows complete ({params['view']})"
+    if template == "gui_store_value":
+        return f"GUI value vs store ({params['view']})"
+    if template == "gui_icon_presence":
+        return f"GUI icon vs meta-schema ({params['view']})"
     return f"{params['a']} | {params['b']}"

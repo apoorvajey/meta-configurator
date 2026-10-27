@@ -1,0 +1,8 @@
+# Python packages of the mutation-testing tools (versions the regression replays were tested with).
+# Install: pip install -r tests/requirements.txt && playwright install chromium
+playwright==1.56.0
+deepdiff==9.1.0
+rstr==3.2.2
+jsonschema==4.26.0
+referencing==0.37.0
+PyYAML==6.0.3

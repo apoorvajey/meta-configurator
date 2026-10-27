@@ -131,3 +131,58 @@ def mark_midstep(page, schema_valid_meta: bool | None) -> None:
 def take_midstep(page) -> dict | None:
     """The mark set during this step (and forget it), or None if the step had none."""
     return _MIDSTEP.pop(id(page), None)
+
+# "Rename conflict" dialog (PrimeVue confirm dialog the app opens when a property name is committed and the parent
+# already has that key). The executor dismisses it right away, so it is recorded in the page itself: a MutationObserver
+# (installed on every document, also after a reload) appends the dialog text to window.__mcRenameConflicts. Reading it
+# with take_rename_conflicts() empties it, so each snapshot gets only the dialogs of its own step.
+_RENAME_CONFLICT_JS = """
+(() => {
+  if (window.__mcRenameConflictObserver) return;
+  window.__mcRenameConflictObserver = true;
+  window.__mcRenameConflicts = window.__mcRenameConflicts || [];
+  const seen = new WeakSet();
+  const scan = (root) => {
+    if (!root || root.nodeType !== 1) return;
+    const nodes = root.matches && root.matches('.p-confirmdialog') ? [root] : [...root.querySelectorAll('.p-confirmdialog')];
+    for (const n of nodes) {
+      if (seen.has(n)) continue;
+      const text = (n.innerText || '').trim();
+      if (!/Rename conflict/.test(text)) continue;   // the text is filled in a moment after the node appears
+      seen.add(n);
+      window.__mcRenameConflicts.push(text.replace(/\\s+/g, ' ').slice(0, 300));
+    }
+  };
+  const start = () => new MutationObserver(ms => {
+    for (const m of ms) { m.addedNodes.forEach(scan); if (m.type === 'characterData' || m.type === 'childList') scan(m.target.nodeType === 1 ? m.target : m.target.parentElement); }
+  }).observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+  if (document.documentElement) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+"""
+
+_RENAME_CONFLICT_ATTACHED: set[int] = set()
+
+
+def attach_rename_conflict_log(page) -> None:
+    """Start recording 'Rename conflict' dialogs on this page (current document and every later one)."""
+    key = id(page)
+    if key in _RENAME_CONFLICT_ATTACHED:
+        return
+    _RENAME_CONFLICT_ATTACHED.add(key)
+    page.add_init_script(_RENAME_CONFLICT_JS)
+    try:
+        page.evaluate(_RENAME_CONFLICT_JS)
+    except Exception:
+        pass   # page not ready yet; the init script covers the next document
+
+
+def take_rename_conflicts(page) -> list[str] | None:
+    """The texts of the 'Rename conflict' dialogs opened since the previous call (empties the record).
+    None if they could not be read (the step's dialogs are unknown, not "none")."""
+    if id(page) not in _RENAME_CONFLICT_ATTACHED:
+        attach_rename_conflict_log(page)
+        return None
+    try:
+        return page.evaluate("() => { const r = window.__mcRenameConflicts || []; window.__mcRenameConflicts = []; return r; }")
+    except Exception:
+        return None

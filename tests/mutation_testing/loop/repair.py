@@ -22,7 +22,7 @@ from tests.mutation_testing.loop.repair_engine import (
 # Invariants whose failures never start a repair, although they are reported like any other failure. INV-D7 compares the
 # Text View markers with the schema; the app's markers are not reliable (missing after a mode switch, never shown for
 # the blank key), so undoing edits to "fix" it only wastes steps.
-NO_REPAIR_INVARIANTS = frozenset({"INV-D7"})
+NO_REPAIR_INVARIANTS = frozenset({"INV-D7", "INV-D8"})
 
 
 class RepairMixin:
@@ -148,7 +148,7 @@ class RepairMixin:
 
         The repair is recorded on the step that triggered it (the last entry of self.history) and updates
         self._prev_snapshot, self._prev_failure_names and self._repair_already_attempted. Replay reruns it from that
-        record. The zero-click case runs one extra check that is not recorded.
+        record. Known gap: the zero-click case runs one extra check that is not recorded.
         Returns the report to continue with: the one passed in if nothing was repaired, else the final post-repair
         report.
         """

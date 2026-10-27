@@ -9,6 +9,10 @@ same defect seen in the Data Editor and in the Schema Editor), "where" (data | s
     python -m tests.cli bugs                  open the page; click Update there, press Enter here to apply
     python -m tests.cli bugs import           apply the newest new update file by hand: from tests/output/inbox, else Downloads
                                               (--json FILE, --folder DIR); applied files are moved to tests/output/bug_updates
+    python -m tests.cli bugs import --all     apply EVERY update file, oldest first: the new ones in tests/output/inbox and Downloads,
+                                              and the bugs of the files already in tests/output/bug_updates that are missing from the
+                                              list (--folder DIR: only that folder). A bug already in the list (same summary or ID) is
+                                              skipped, so running it again changes nothing.
 
 The bugs live in config/triage_config.json:
     known_bugs   active bugs; their failures are labelled and not counted as failures (runs/known_bugs.py).
@@ -86,6 +90,10 @@ def write_lists(lists: dict[str, list[dict]], path: Path = DEFAULT_CONFIG_PATH) 
     """Back the config up, then replace the three lists in the file text. Returns the backup."""
     CONFIG_BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
     backup = CONFIG_BACKUPS_DIR / f"{path.stem}.{datetime.now():%Y%m%d_%H%M%S}.bak{path.suffix}"
+    n = 2
+    while backup.exists():   # several updates in the same second (bugs import --all) must not overwrite the earlier backup
+        backup = CONFIG_BACKUPS_DIR / f"{path.stem}.{datetime.now():%Y%m%d_%H%M%S}-{n}.bak{path.suffix}"
+        n += 1
     shutil.copy2(path, backup)
     with open(path, encoding="utf-8", newline="") as f:   # newline="" keeps the file's line endings (Path.read_text has no newline= before Python 3.13)
         raw = f.read()
@@ -252,6 +260,9 @@ def _edit(lists: dict[str, list[dict]], rec: dict, known_invariants: set[str], k
     return f"{bug_id} edited"
 
 
+REGRESSION_MANIFEST = Path(__file__).resolve().parents[2] / "regression" / "manifest.json"   # tests/regression/manifest.json
+
+
 def _rename(lists: dict[str, list[dict]], renames: dict[str, str]) -> list[str]:
     """Give bugs new ids, all at once (so ids can be swapped or shifted). The final ids must be unique and non-empty."""
     if not renames:
@@ -272,6 +283,30 @@ def _rename(lists: dict[str, list[dict]], renames: dict[str, str]) -> list[str]:
     return [f"{old} renamed to {new}" for old, new in renames.items()]
 
 
+def _rename_in_manifest(renames: dict[str, str], path: Path = REGRESSION_MANIFEST) -> str:
+    """The regression manifest lists bug ids per recorded sequence; keep them in step with a rename. Returns a note ('' if nothing changed)."""
+    try:
+        with open(path, encoding="utf-8", newline="") as f:
+            raw = f.read()
+        data = json.loads(raw)
+    except (OSError, ValueError):
+        return ""
+    changed = False
+    for entry in data.get("entries", []):
+        bugs = entry.get("bugs")
+        if isinstance(bugs, list):
+            new = [renames.get(b, b) for b in bugs]
+            if new != bugs:
+                entry["bugs"], changed = new, True
+    if not changed:
+        return ""
+    CONFIG_BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(path, CONFIG_BACKUPS_DIR / f"manifest.{datetime.now():%Y%m%d_%H%M%S}.bak.json")
+    text = json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
+    path.write_text(text.replace("\n", "\r\n") if "\r\n" in raw else text, encoding="utf-8", newline="")
+    return f"Regression manifest updated: {path}"
+
+
 def _set_do_not_repair(lists: dict[str, list[dict]], bug_id: str, value: bool) -> str:
     bug = next((b for b in lists[KNOWN] if b["id"] == bug_id), None)
     if bug is None:
@@ -283,9 +318,18 @@ def _set_do_not_repair(lists: dict[str, list[dict]], bug_id: str, value: bool) -
     return f"{bug_id}: do not repair {'on' if value else 'off'}"
 
 
-def apply_update(file: Path, config: Path = DEFAULT_CONFIG_PATH) -> int:
+def _already_listed(lists: dict[str, list[dict]], addition: dict) -> bool:
+    """True if a bug with the same ID (when the addition names one) or the same summary is in any of the three lists."""
+    bug_id, summary = str(addition.get("bug_id", "")).strip(), str(addition.get("summary", "")).strip()
+    return any((bug_id and b.get("id") == bug_id) or (summary and str(b.get("summary", "")).strip() == summary)
+               for items in lists.values() for b in items)
+
+
+def apply_update(file: Path, config: Path = DEFAULT_CONFIG_PATH, skip_existing: bool = False, additions_only: bool = False) -> int:
     """Apply a downloaded known_bugs_update_*.json: all removals, then all additions, in one write.
-    Either everything is applied or (on any error) nothing."""
+    Either everything is applied or (on any error) nothing.
+    skip_existing: an addition whose summary or ID is already in one of the three lists is skipped instead of logged again.
+    additions_only: apply only the additions of the file (for files that were applied before; their removals and edits are not repeated)."""
     try:
         update = json.loads(Path(file).read_text(encoding="utf-8"))
         removals, additions = list(update.get("remove", [])), list(update.get("add", []))
@@ -296,10 +340,24 @@ def apply_update(file: Path, config: Path = DEFAULT_CONFIG_PATH) -> int:
     except (OSError, ValueError, AttributeError) as exc:
         print(f"Cannot read {file}: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    if additions_only:
+        removals, settings, edits, deletions, labels = [], [], [], [], []
     if not removals and not additions and not settings and not edits and not deletions and not labels:
         print("The update contains no changes.")
         return EXIT_OK
     lists = read_lists(config)
+    skipped: list[str] = []
+    if skip_existing:
+        kept = []
+        for a in additions:
+            if _already_listed(lists, a):
+                skipped.append(f"skipped, already in the list: {a.get('name') or str(a.get('summary', ''))[:70]}")
+            else:
+                kept.append(a)
+        additions = kept
+        if skipped and not (additions or removals or settings or edits or deletions or labels):
+            print("\n".join(skipped))
+            return EXIT_OK
     now = datetime.now().strftime(TIME_FORMAT)
     known_invariants = {c["id"] for c in invariant_choices()} if (additions or edits) else set()
     known_kinds = set(action_kinds())
@@ -346,9 +404,10 @@ def apply_update(file: Path, config: Path = DEFAULT_CONFIG_PATH) -> int:
     backup_line = ""
     if removals or additions or settings or edits or deletions:   # a labels-only update leaves the config alone
         backup_line = f"\nBackup of the config: {write_lists(lists, config)}"
+    note = _rename_in_manifest(renames) if renames else ""
     if labels:
         done.extend(problem_labels.apply_labels(labels))
-    print("\n".join(done) + backup_line)
+    print("\n".join(skipped + done) + backup_line + (f"\n{note}" if note else ""))
     return EXIT_OK
 
 
@@ -487,7 +546,7 @@ function repairBox(b){var w=el('div','rm'),lb=el('label'),cb=el('input');cb.type
 cb.onchange=function(){if(cb.checked===!!b.do_not_repair)delete reps[b.id];else reps[b.id]=cb.checked;draw()};
 lb.appendChild(cb);lb.appendChild(document.createTextNode(' Do not repair this bug (the loop skips undo-repair and the stuck-run check for it)'));w.appendChild(lb);return w}
 function bugCard(b,sec){var gone=rems[b.id],d=el('details','bug'+(sec==='attention'?' alert':'')+(gone||dels[b.id]?' gone':''));d.dataset.id=sec+':'+b.id;if(SEEN?OPEN[d.dataset.id]:sec==='attention')d.open=true;
-var lab={attention:['returned','returned'],fixed:['fixed','fixed, not seen again'],known:['known','known'],archive:['archive','not a bug']}[sec],s=el('summary'),fx=sec==='attention'||sec==='fixed';
+var lab={attention:['returned','returned'],fixed:['fixed','fixed, not seen again'],known:['known','open'],archive:['archive','not a bug']}[sec],s=el('summary'),fx=sec==='attention'||sec==='fixed';
 s.appendChild(el('span','id',b.id));var t=el('span','tg');t.appendChild(tag(lab[0],lab[1]));if(b.learned)t.appendChild(tag(b.confirmed||(edits[b.id]&&edits[b.id].confirmed)?'':'pend',b.confirmed||(edits[b.id]&&edits[b.id].confirmed)?'learned':'learned - confirm'));if(b.group)t.appendChild(tag('grp',b.group));if(foundBy(b))t.appendChild(tag('',FOUND[foundBy(b)]));t.appendChild(b.where?tag('',WHERE[b.where]||b.where):tag('pend','editor not set'));if(edits[b.id])t.appendChild(tag('pend','edit pending'));if(gone)t.appendChild(tag('pend','will be removed: '+gone.as));s.appendChild(t);
 var ttl=el('span');if(b.name){ttl.appendChild(el('b',null,b.name));ttl.appendChild(document.createTextNode(' - '))}ttl.appendChild(document.createTextNode((b.summary||'').slice(0,150)));s.appendChild(ttl);
 var n=b.runs.filter(function(r){return r.after_fix}).length;s.appendChild(el('span','runs',sec==='archive'?'':fx?n+' run(s) since the fix':b.runs.length+' run(s)'));d.appendChild(s);
@@ -512,12 +571,15 @@ go.onclick=function(){rems[b.id]={as:r2.checked?'not-a-bug':'fixed',note:note.va
 d.appendChild(body);return d}
 var OPEN={},SEEN=false;
 function draw(){if(SEEN){OPEN={};[].slice.call(document.querySelectorAll('details.bug')).forEach(function(x){if(x.open)OPEN[x.dataset.id]=1})}var c=$('cards');c.textContent='';
-[['attention','fixed bugs that returned',1],['known','known bugs'],['root','root causes among known bugs'],['fixed','fixed, not seen again'],['archive','not a bug (archive)']].forEach(function(x){var k=el('div','card'+(x[2]&&D.bugs[x[0]]&&D.bugs[x[0]].length?' alert':''));
-var cnt=x[0]==='root'?(function(){var g={},n=0;D.bugs.known.forEach(function(b){if(b.group)g[b.group]=1;else n++});return Object.keys(g).length+n})():D.bugs[x[0]].length;
-k.appendChild(el('b',null,cnt));k.appendChild(el('span',null,x[1]));c.appendChild(k)});
+var K=D.bugs.known,cnt=function(w){return K.filter(function(b){return (b.where||'')===w}).length};
+[['known','Bugs discovered',K.length],['data','Data Editor',cnt('data')],['schema','Schema Editor',cnt('schema')],['both','Both editors',cnt('both')],
+['unset','Editor not set',K.length-cnt('data')-cnt('schema')-cnt('both')],
+['attention','Fixed bugs that returned',D.bugs.attention.length,1],['fixed','Fixed, not seen again',D.bugs.fixed.length]].forEach(function(x){
+if(x[0]==='unset'?!x[2]:(x[0]==='attention'||x[0]==='fixed')&&!x[2])return;
+var k=el('div','card'+(x[3]?' alert':''));k.appendChild(el('b',null,x[2]));k.appendChild(el('span',null,x[1]));c.appendChild(k)});
 fillGroups();
 var m=$('sections');m.textContent='';
-[['attention','Needs attention: a fixed bug is back'],['known','Known bugs'],['fixed','Fixed bugs, not seen again since the fix'],['archive','Archive: not a bug']].forEach(function(x){
+[['attention','Needs attention: a fixed bug is back'],['known','Bugs discovered'],['fixed','Fixed bugs, not seen again since the fix'],['archive','Archive: not a bug']].forEach(function(x){
 var all=D.bugs[x[0]],l=all.filter(shown).sort(ord);if(!all.length&&x[0]!=='known')return;if(!l.length&&x[0]!=='known')return;
 m.appendChild(el('h2',null,x[1]+' ('+l.length+(l.length!==all.length?' of '+all.length:'')+')'));
 var keyOf=view.order==='group'?function(b){return b.group||''}:view.order==='editor'?function(b){return b.where||''}:null,curKey=null,box=null;
@@ -549,7 +611,7 @@ function setGroup(g){fillGroups();var sl=$('grpsel');sl.value=g||'';if(g&&sl.val
 function getGroup(){return $('grpsel').value==='__new'?$('grp').value.trim():$('grpsel').value}
 $('grpsel').onchange=function(){var nw=$('grpsel').value==='__new';$('grp').hidden=!nw;if(nw)$('grp').focus()};
 function resetForm(){editing=null;$('bid').value='';$('bid').disabled=false;$('nm').value='';$('norep').checked=false;$('sum').value='';setGroup('');$('where').value='';$('cmt').value='';$('foundby').value='';$('gitlink').value='';sel={};document.querySelectorAll('#kinds input').forEach(function(x){x.checked=false});
-$('addbtn').textContent='Add to pending changes';$('canc').hidden=true;$('ftitle').textContent='Log a new known bug';drawInv()}
+$('addbtn').textContent='Add to pending changes';$('canc').hidden=true;$('ftitle').textContent='Log a newly discovered bug';drawInv()}
 function startEdit(b){resetForm();editing=b.id;$('bid').value=b.id;$('bid').disabled=false;$('nm').value=b.name||'';$('sum').value=b.summary||'';(b.invariants||[]).forEach(function(i){sel[i]=1});
 document.querySelectorAll('#kinds input').forEach(function(x){x.checked=(b.when_action_kinds||[]).indexOf(x.value)>=0});
 $('norep').checked=!!b.do_not_repair;setGroup(b.group||'');$('where').value=b.where||'';$('cmt').value=b.comment||'';$('foundby').value=foundBy(b);$('gitlink').value=b.git_issue||'';
@@ -580,7 +642,7 @@ var d=[].slice.call(document.querySelectorAll('details.bug')).filter(function(x)
 if(d){d.open=true;d.scrollIntoView({block:'center'});d.classList.add('picked')}})();
 """
 
-BODY = """<header><div class=in><h1>Known bugs</h1><span class=sub>__SUB__</span><span class=sp></span><span id=msg></span>
+BODY = """<header><div class=in><h1>Bugs discovered</h1><span class=sub>__SUB__</span><span class=sp></span><span id=msg></span>
 <button class=primary id=upd disabled>Update</button></div></header>
 <main><p class=sub>Update downloads <code>known_bugs_update_&lt;time&gt;.json</code> (your Downloads folder). Then press Enter in the terminal: it is applied and moved to <code id=folder></code>.</p>
 <div class=cards id=cards></div>
@@ -588,8 +650,8 @@ BODY = """<header><div class=in><h1>Known bugs</h1><span class=sub>__SUB__</span
 <label>Where <select id=vwhere><option value="">Any</option><option value=data>Data Editor</option><option value=schema>Schema Editor</option><option value=both>Both / any only</option><option value=none>Not set</option></select></label>
 <input type=text id=vq placeholder="search id, summary, group, notes"></div>
 <details class=panel id=pend hidden open><summary id=psum>Pending changes</summary><div class=in id=pending></div></details>
-<details class=panel id=formpanel><summary id=ftitle>Log a new known bug</summary><div class=in>
-<span class=lbl>Bug ID (new bug: optional, empty = generated from the summary. Existing bug: change it to rename the bug; the config is updated, old run logs show the new ID)</span><input type=text id=bid placeholder="e.g. BUG-08">
+<details class=panel id=formpanel><summary id=ftitle>Log a newly discovered bug</summary><div class=in>
+<span class=lbl>Bug ID (new bug: optional, empty = generated from the summary. Existing bug: change it to rename the bug; the config and the regression manifest are updated, old run logs show the new ID)</span><input type=text id=bid placeholder="e.g. BUG-08">
 <span class=lbl>Name (optional title shown in the list)</span><input type=text id=nm placeholder="e.g. Blank key added on first required key">
 <span class=lbl>Summary</span><textarea id=sum rows=3></textarea>
 <span class=lbl>Group: bugs with the same name are one root cause (optional, e.g. the same defect in two editors)</span><select id=grpsel style="font:inherit;font-size:14px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)"></select> <input type=text id=grp hidden placeholder="name of the new group, e.g. format selector out of sync after undo">
@@ -622,7 +684,7 @@ def render() -> str:
     data = json.dumps(page_data(), ensure_ascii=False).replace("</", "<\\/")
     sub = f"From triage_config.json and the recorded runs - generated {datetime.now():%Y-%m-%d %H:%M}"
     return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
-            "<meta name=viewport content='width=device-width,initial-scale=1'><title>Known bugs</title>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'><title>Bugs discovered</title>"
             f"<style>{CSS}</style></head><body>{BODY.replace('__SUB__', html.escape(sub))}"
             f'<script id=data type="application/json">{data}</script><script>{JS}</script></body></html>')
 
@@ -736,6 +798,37 @@ def apply_on_enter(folders: list[Path] | None = None, on_applied=None) -> None:
         since = time.time() - 2
 
 
+def import_all(folder: Path | None = None) -> int:
+    """Apply every update file, oldest first, each one on its own (a file that fails is reported and skipped, the others go on).
+    New files (inbox, Downloads, or `folder`) are applied in full and then moved to the update folder.
+    Files that are already in the update folder were applied before: only their additions are taken, and only those missing
+    from the list. Returns EXIT_OK if every file was applied or had nothing to add."""
+    archive = update_folder().resolve()
+    sources = [folder] if folder else _folders() + [archive]
+    done_names = {f.name for f in archive.glob(UPDATE_GLOB)}
+    files: dict[str, tuple[Path, bool]] = {}   # file name -> (file, already applied before)
+    for d in sources:
+        d = Path(d)
+        for f in d.glob(UPDATE_GLOB):
+            applied_before = d.resolve() == archive or f.name in done_names
+            if f.is_file() and f.name not in files:
+                files[f.name] = (f, applied_before)
+    if not files:
+        print(f"No {UPDATE_GLOB} found in {', '.join(str(d) for d in sources)}.", file=sys.stderr)
+        return EXIT_USAGE
+    ordered = sorted(files.values(), key=lambda fa: fa[0].stat().st_mtime)
+    failed: list[str] = []
+    for f, applied_before in ordered:
+        print(f"\n== {f.name}" + ("  (already applied before: only missing bugs are added)" if applied_before else ""))
+        code = apply_update(f, skip_existing=True, additions_only=applied_before)
+        if code != EXIT_OK:
+            failed.append(f.name)
+        elif not applied_before:
+            _archive_update(f)
+    print(f"\n{len(ordered) - len(failed)} of {len(ordered)} update file(s) processed" + (f"; NOT applied: {', '.join(failed)}" if failed else "."))
+    return EXIT_USAGE if failed else EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     command, rest = (argv[0], argv[1:]) if argv and argv[0] in ("page", "import") else ("page", argv)
@@ -752,7 +845,13 @@ def main(argv: list[str] | None = None) -> int:
     if command == "import":
         p.add_argument("--json", help="the update file (default: the newest new known_bugs_update_*.json in the inbox, else in Downloads)")
         p.add_argument("--folder", help="where to look (default: the inbox first, then your Downloads folder)")
+        p.add_argument("--all", action="store_true", help="apply every update file, oldest first (new ones in the inbox and Downloads, "
+                       "plus the missing bugs of the files already in the update folder); bugs already in the list are skipped")
         a = p.parse_args(rest)
+        if a.all:
+            if a.json:
+                p.error("--all and --json cannot be combined")
+            return import_all(Path(a.folder) if a.folder else None)
         file = Path(a.json) if a.json else None
         if file is None:
             for folder in ([Path(a.folder)] if a.folder else _folders()):   # the update folder wins over Downloads

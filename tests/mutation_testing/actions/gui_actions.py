@@ -17,7 +17,38 @@ _FORMAT_OPTIONS = ["json", "yaml"]  # the app registers only these as live forma
 class GuiActionsMixin:
     """GUI View actions of InteractionExecutor."""
 
+    def _dismiss_rename_conflict(self, choice: str = "keep", wait_ms: int = 0) -> bool:
+        """If the app's 'Rename conflict' dialog is open, click one of its two buttons so it cannot block the next click.
+        choice: "keep" = 'Proceed but keep existing data' (the default, non-destructive) or "overwrite" =
+        'Proceed and overwrite data'. wait_ms: how long to wait for the dialog to show up. It opens a few hundred
+        milliseconds after the name is committed (known bug BUG-14), so the calls right after a commit pass a wait;
+        the other calls only look at what is on the screen now. The dialog's text is recorded by the page itself
+        (rename_conflict_dialogs in the snapshot, see TEMP-RENAME-05), so dismissing it here loses nothing.
+        Returns True if a dialog was dismissed."""
+        label = "Proceed and overwrite data" if choice == "overwrite" else "Proceed but keep existing data"
+        try:
+            btn = self.page.get_by_text(label, exact=True)
+            if wait_ms > 0:
+                try:
+                    btn.first.wait_for(state="visible", timeout=wait_ms)
+                except Exception:
+                    return False   # no dialog within the wait: the normal case
+            if btn.count() and btn.first.is_visible():
+                print(f"   [rename-conflict] dialog appeared - choosing '{label}'")
+                try:   # the step's screenshot is taken after this click, so keep a picture that still shows the dialog
+                    self.page.wait_for_timeout(150)   # let the dialog's opening animation finish
+                    self.rename_conflict_shot = self.page.screenshot()
+                except Exception:
+                    self.rename_conflict_shot = None
+                btn.first.click(timeout=2000)
+                self.page.wait_for_timeout(300)
+                return True
+        except Exception as e:
+            print(f"   [rename-conflict] could not dismiss: {e}")
+        return False
+
     def _fill(self, el: ElementDescriptor, value: Any) -> None:
+        self._dismiss_rename_conflict()
         if el.input_type == "boolean":
             btn_label = str(value).lower() if value is not None else "true"
             container = self.page.get_by_test_id(el.testid)
@@ -46,7 +77,7 @@ class GuiActionsMixin:
         label_id = f"_label_{path}"
         parts = path.split(".")
         parent_path = ".".join(parts[:-1]) if len(parts) > 1 else ""
-        new_name = forced_name if forced_name else self._generate_property_name(parent_path)
+        new_name = forced_name if forced_name else self._distinct_property_name(parent_path)
 
         pencil = self.page.get_by_test_id(el.testid)
         pencil.scroll_into_view_if_needed()
@@ -68,6 +99,7 @@ class GuiActionsMixin:
         self.page.keyboard.type(new_name)
         self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(300)
+        self._dismiss_rename_conflict(wait_ms=1000)
 
         self._last_rename = new_name
         print(f"   renamed '{path}' → '{new_name}'")
@@ -108,7 +140,8 @@ class GuiActionsMixin:
                 .map(el => el.getAttribute('data-testid'))
         """))
 
-        self.page.get_by_test_id("add-item-required").first.click()
+        self._dismiss_rename_conflict()
+        self.page.get_by_test_id("add-item-required").first.click(timeout=5000)
         self.page.wait_for_timeout(3000)
 
         after: list[dict] = self.page.evaluate("""
@@ -142,6 +175,7 @@ class GuiActionsMixin:
                   "click may have silently failed")
 
     def _click(self, el: ElementDescriptor, value: Any = None) -> None:
+        self._dismiss_rename_conflict()
         if el.js_click:
             self.page.evaluate(el.js_click)
             return
@@ -151,7 +185,13 @@ class GuiActionsMixin:
             return
         if el.testid.startswith("remove-property-"):
             path = el.testid[len("remove-property-"):]
-            self.page.get_by_test_id(f"property-data-{path}").locator('button[aria-label="Remove"]').first.click()
+            btn = self.page.get_by_test_id(f"property-data-{path}").locator('button[aria-label="Remove"]').first
+            try:
+                btn.click(timeout=5000)
+            except Exception:
+                if not self._dismiss_rename_conflict():
+                    raise
+                btn.click(timeout=5000)
             self.page.wait_for_timeout(300)
             return
         if el.testid.startswith("rename-property-"):
@@ -252,7 +292,7 @@ class GuiActionsMixin:
 
         self.page.wait_for_timeout(400)
 
-        new_name = forced_name if forced_name else self._generate_property_name(parent_path)
+        new_name = forced_name if forced_name else self._distinct_property_name(parent_path)
         print(f"   [name-gen] path='{parent_path}' → '{new_name}'")
 
         try:
@@ -282,6 +322,7 @@ class GuiActionsMixin:
         self.page.keyboard.type(new_name)
         self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(300)
+        self._dismiss_rename_conflict(wait_ms=1000)
         # Where the key really landed, read back from the tree's row labels. The control id names the schema that
         # receives the property (e.g. definitions.Complex); in the Schema Editor the key itself lands one level
         # deeper (definitions.Complex.properties.meadow). The shortest match is the new row, not a deeper namesake.
@@ -301,6 +342,7 @@ class GuiActionsMixin:
         self._last_added_property_path = landed
 
     def _select(self, el: ElementDescriptor, value: Any = None) -> None:
+        self._dismiss_rename_conflict()
         if el.testid == "format-selector":
             self._select_format(value)
         elif el.testid.startswith("input-select-"):

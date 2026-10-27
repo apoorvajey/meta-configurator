@@ -59,9 +59,10 @@ def main() -> None:
         cards=[(len(activities), "runs read"), (len(rows), "accepted rules"), (evaluated, "evaluated at least once"),
                (len(rows) - evaluated, "never evaluated")] + ([(len(pending_rows), "not run yet")] if pending_rows else []),
         tables=([Table("Not run yet", ["id", "template", "category", "added", "review_file"], pending_rows, text_columns=5,
-                       intro="Accepted in a review after the newest run started, so they have not had a chance to run. "
+                       links={0: ("invariant",)}, intro="Accepted in a review after the newest run started, so they have not had a chance to run. "
                              "They are not in the counts below.")] if pending_rows else [])
-        + [Table("Rules", HEADER, rows, text_columns=3, intro="Never evaluated first.", flag=lambda r: r[4] == 0),
+        + [Table("Rules", HEADER, rows, text_columns=3, intro="Never evaluated first.", flag=lambda r: r[4] == 0,
+                 links={0: ("invariant",)}),
            Table("By template", ["template", "accepted", "evaluated", "never_evaluated"],
                  [[t, a, e, a - e] for t, (a, e) in sorted(per_template.items())])],
         csv_table=1 if pending_rows else 0,

@@ -1,5 +1,5 @@
 {
-  "_comment": "Random profile: every weight at every level (Mode, View, action type) is equal, with no undo/redo boosting and clear_text weighted like every other Text View action. Schema Diagram and Settings stay disabled because Schema Diagram is not discovered. Select with set_action_weights_profile('random').",
+  "_comment": "Uniform profile: every weight at every level (Mode, View, action type) is equal, with no undo/redo boosting and clear_text weighted like every other Text View action. Schema Diagram and Settings stay disabled because no actions are discovered there. Select with set_action_weights_profile('uniform').",
 
   "Schema Editor": {
     "weight": 1,
